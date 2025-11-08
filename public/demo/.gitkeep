@@ -1,0 +1,6 @@
+# 将图片和视频文件放在此目录下
+# 支持的图片格式: .jpg, .jpeg, .png, .gif, .webp, .bmp
+# 支持的视频格式: .mp4, .webm, .mov, .avi, .mkv
+# 
+# 运行 npm run build:manifest 生成资产清单
+

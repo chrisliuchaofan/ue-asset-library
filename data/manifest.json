@@ -1,0 +1,44 @@
+{
+  "assets": [
+    {
+      "id": "demo-1",
+      "name": "示例图片 1",
+      "type": "image",
+      "tags": [
+        "自然",
+        "风景"
+      ],
+      "thumbnail": "/demo/placeholder.jpg",
+      "src": "/demo/placeholder.jpg",
+      "filesize": 1024000,
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "id": "demo-2",
+      "name": "示例视频 1",
+      "type": "video",
+      "tags": [
+        "动画",
+        "特效"
+      ],
+      "thumbnail": "/demo/placeholder.jpg",
+      "src": "/demo/placeholder.mp4",
+      "filesize": 5120000,
+      "width": 1920,
+      "height": 1080,
+      "duration": 30
+    },
+    {
+      "id": "6981704b-e395-4492-9961-0422b70926e2",
+      "name": "测试",
+      "type": "image",
+      "tags": [
+        "自然",
+        "风景"
+      ],
+      "thumbnail": "/demo/placeholder.jpg",
+      "src": "/demo/placeholder.jpg",
+      "duration": 2
+    }
+  ]
