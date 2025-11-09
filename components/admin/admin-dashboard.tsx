@@ -1140,7 +1140,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
       // 如果路径是 OSS 路径，尝试构建完整 URL
       if (normalizedPath.startsWith('/assets/')) {
         if (typeof window !== 'undefined') {
-          const ossConfig = (window as any).__OSS_CONFIG__;
+          const ossConfig = window.__OSS_CONFIG__;
           if (ossConfig && ossConfig.bucket && ossConfig.region) {
             const ossPath = normalizedPath.substring(1);
             const region = ossConfig.region.replace(/^oss-/, '');

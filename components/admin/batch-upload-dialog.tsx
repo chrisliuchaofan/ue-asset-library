@@ -126,7 +126,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
   // 获取CDN base（与admin-dashboard保持一致）
   const normalizedCdnBase = useMemo(() => {
     if (typeof window === 'undefined') return '/';
-    const cdnBase = (window as any).__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
+    const cdnBase = window.__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
     return cdnBase.replace(/\/+$/, '');
   }, []);
 
@@ -472,7 +472,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                           resolve(false);
                         };
                         // 构建完整URL用于验证
-                        const cdnBase = (window as any).__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
+                        const cdnBase = window.__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
                         const normalizedBase = cdnBase.replace(/\/+$/, '');
                         const fullUrl = uploadedUrl.startsWith('http')
                           ? uploadedUrl
@@ -853,7 +853,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
       // 如果路径是 OSS 路径，尝试构建完整 URL
       if (normalizedPath.startsWith('/assets/')) {
         if (typeof window !== 'undefined') {
-          const ossConfig = (window as any).__OSS_CONFIG__;
+          const ossConfig = window.__OSS_CONFIG__;
           if (ossConfig && ossConfig.bucket && ossConfig.region) {
             const ossPath = normalizedPath.substring(1);
             const region = ossConfig.region.replace(/^oss-/, '');

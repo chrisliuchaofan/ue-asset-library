@@ -3,6 +3,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { createHash } from 'crypto';
 import { getStorageMode } from '@/lib/storage';
+import { FILE_UPLOAD_LIMITS, ALLOWED_FILE_EXTENSIONS, ALLOWED_MIME_TYPES } from '@/lib/constants';
 import OSS from 'ali-oss';
 import sharp from 'sharp';
 
@@ -42,15 +43,41 @@ export async function POST(request: Request) {
     const fileType = file.type;
     const fileSize = buffer.length;
 
+    // 验证文件大小
+    if (fileSize > FILE_UPLOAD_LIMITS.MAX_FILE_SIZE) {
+      return NextResponse.json({ 
+        message: `文件大小超过限制（最大 ${FILE_UPLOAD_LIMITS.MAX_FILE_SIZE / 1024 / 1024}MB）` 
+      }, { status: 400 });
+    }
+
+    // 验证文件名为空或过长
+    if (!fileName || fileName.length > FILE_UPLOAD_LIMITS.MAX_FILE_NAME_LENGTH) {
+      return NextResponse.json({ message: '文件名无效' }, { status: 400 });
+    }
+
+    // 验证文件扩展名（防止文件类型伪装）
+    const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+    if (!ALLOWED_FILE_EXTENSIONS.ALL.includes(ext)) {
+      return NextResponse.json({ message: '不支持的文件类型' }, { status: 400 });
+    }
+
     // 计算文件 hash（用于唯一性检查）
     const fileHash = createHash('sha256').update(buffer).digest('hex');
 
-    // 判断文件类型
-    const isImage = fileType.startsWith('image/');
-    const isVideo = fileType.startsWith('video/');
+    // 判断文件类型（同时验证 MIME 类型和扩展名）
+    const isImage = fileType.startsWith('image/') && ALLOWED_FILE_EXTENSIONS.IMAGE.includes(ext);
+    const isVideo = fileType.startsWith('video/') && ALLOWED_FILE_EXTENSIONS.VIDEO.includes(ext);
 
     if (!isImage && !isVideo) {
-      return NextResponse.json({ message: '只支持图片和视频文件' }, { status: 400 });
+      return NextResponse.json({ message: '只支持图片和视频文件，且文件类型必须匹配扩展名' }, { status: 400 });
+    }
+
+    // 额外验证：确保 MIME 类型在允许列表中
+    if (isImage && !ALLOWED_MIME_TYPES.IMAGE.includes(fileType)) {
+      return NextResponse.json({ message: '不支持的图片格式' }, { status: 400 });
+    }
+    if (isVideo && !ALLOWED_MIME_TYPES.VIDEO.includes(fileType)) {
+      return NextResponse.json({ message: '不支持的视频格式' }, { status: 400 });
     }
 
     // 检查文件是否已存在（通过 hash）
@@ -82,7 +109,8 @@ export async function POST(request: Request) {
           width = metadata.width;
           height = metadata.height;
         } catch (error) {
-          console.warn('无法读取图片尺寸:', error);
+          // 图片尺寸读取失败不影响上传，静默处理
+          // logger.warn('无法读取图片尺寸:', error);
         }
       }
     } else {
@@ -116,7 +144,8 @@ export async function POST(request: Request) {
           width = metadata.width;
           height = metadata.height;
         } catch (error) {
-          console.warn('无法读取图片尺寸:', error);
+          // 图片尺寸读取失败不影响上传，静默处理
+          // logger.warn('无法读取图片尺寸:', error);
         }
       }
     }
@@ -134,6 +163,7 @@ export async function POST(request: Request) {
       hash: fileHash, // 返回文件 hash
     });
   } catch (error) {
+    // 错误日志在生产环境也保留
     console.error('上传文件失败:', error);
     let message = '上传文件失败';
     if (error instanceof Error) {

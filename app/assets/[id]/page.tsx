@@ -50,19 +50,42 @@ export async function generateMetadata({
   }
 
   const isVideo = isVideoUrl(asset.src);
+  const tagsArray = Array.isArray(asset.tags) ? asset.tags : [];
+  const tagsText = tagsArray.length > 0 ? tagsArray.join(', ') : '无标签';
+  
   return {
-    title: `${asset.name} - UE 资产库`,
-    description: `查看 ${asset.name} 的详细信息`,
+    title: asset.name,
+    description: `${asset.name} - ${asset.type}类型资产。标签: ${tagsText}${asset.width && asset.height ? `。尺寸: ${asset.width}×${asset.height}` : ''}`,
+    keywords: [asset.name, asset.type, ...tagsArray],
     openGraph: {
       title: asset.name,
-      description: `标签: ${Array.isArray(asset.tags) ? asset.tags.join(', ') : (asset as any).tags || ''}`,
+      description: `${asset.type}类型资产。标签: ${tagsText}`,
       type: 'website',
       ...(isVideo
         ? {
-            videos: [{ url: getAssetUrl(asset.src) }],
+            videos: [{ 
+              url: getAssetUrl(asset.src),
+              width: asset.width,
+              height: asset.height,
+            }],
           }
         : {
-            images: [{ url: getAssetUrl(asset.src) }],
+            images: [{ 
+              url: getAssetUrl(asset.thumbnail || asset.src),
+              width: asset.width,
+              height: asset.height,
+              alt: asset.name,
+            }],
+          }),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: asset.name,
+      description: `${asset.type}类型资产 - ${tagsText}`,
+      ...(isVideo
+        ? {}
+        : {
+            images: [getAssetUrl(asset.thumbnail || asset.src)],
           }),
     },
   };

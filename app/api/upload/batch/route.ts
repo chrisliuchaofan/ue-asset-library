@@ -3,6 +3,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { createHash } from 'crypto';
 import { getStorageMode } from '@/lib/storage';
+import { FILE_UPLOAD_LIMITS, ALLOWED_FILE_EXTENSIONS, ALLOWED_MIME_TYPES } from '@/lib/constants';
 import OSS from 'ali-oss';
 import sharp from 'sharp';
 
@@ -51,20 +52,44 @@ async function uploadFile(
   const fileType = file.type;
   const fileSize = buffer.length;
   
+  // 文件大小限制
+  if (fileSize > FILE_UPLOAD_LIMITS.MAX_FILE_SIZE) {
+    throw new Error(`文件大小超过限制（最大 ${FILE_UPLOAD_LIMITS.MAX_FILE_SIZE / 1024 / 1024}MB）`);
+  }
+
+  // 验证文件名
+  if (!fileName || fileName.length > FILE_UPLOAD_LIMITS.MAX_FILE_NAME_LENGTH) {
+    throw new Error('文件名无效');
+  }
+
+  // 验证文件扩展名
+  const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+  if (!ALLOWED_FILE_EXTENSIONS.ALL.includes(ext)) {
+    throw new Error('不支持的文件类型');
+  }
+  
   // 计算文件 hash
   const fileHash = createHash('sha256').update(buffer).digest('hex');
 
-  const isImage = fileType.startsWith('image/');
-  const isVideo = fileType.startsWith('video/');
+  // 判断文件类型（同时验证 MIME 类型和扩展名）
+  const isImage = fileType.startsWith('image/') && ALLOWED_FILE_EXTENSIONS.IMAGE.includes(ext);
+  const isVideo = fileType.startsWith('video/') && ALLOWED_FILE_EXTENSIONS.VIDEO.includes(ext);
 
   if (!isImage && !isVideo) {
-    throw new Error('只支持图片和视频文件');
+    throw new Error('只支持图片和视频文件，且文件类型必须匹配扩展名');
   }
 
-  // 生成唯一文件名
+  // 额外验证：确保 MIME 类型在允许列表中
+  if (isImage && !ALLOWED_MIME_TYPES.IMAGE.includes(fileType)) {
+    throw new Error('不支持的图片格式');
+  }
+  if (isVideo && !ALLOWED_MIME_TYPES.VIDEO.includes(fileType)) {
+    throw new Error('不支持的视频格式');
+  }
+
+  // 生成唯一文件名（使用之前验证的 ext）
   const timestamp = Date.now();
   const randomStr = Math.random().toString(36).substring(2, 8);
-  const ext = fileName.substring(fileName.lastIndexOf('.'));
   const newFileName = `${timestamp}-${randomStr}${ext}`;
 
   let fileUrl: string;
