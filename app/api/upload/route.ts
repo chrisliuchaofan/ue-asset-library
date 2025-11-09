@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
     // 验证文件扩展名（防止文件类型伪装）
     const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
-    if (!ALLOWED_FILE_EXTENSIONS.ALL.includes(ext)) {
+    if (!ALLOWED_FILE_EXTENSIONS.ALL.includes(ext as any)) {
       return NextResponse.json({ message: '不支持的文件类型' }, { status: 400 });
     }
 
@@ -65,29 +65,29 @@ export async function POST(request: Request) {
     const fileHash = createHash('sha256').update(buffer).digest('hex');
 
     // 判断文件类型（同时验证 MIME 类型和扩展名）
-    const isImage = fileType.startsWith('image/') && ALLOWED_FILE_EXTENSIONS.IMAGE.includes(ext);
-    const isVideo = fileType.startsWith('video/') && ALLOWED_FILE_EXTENSIONS.VIDEO.includes(ext);
+    const isImage = fileType.startsWith('image/') && ALLOWED_FILE_EXTENSIONS.IMAGE.includes(ext as any);
+    const isVideo = fileType.startsWith('video/') && ALLOWED_FILE_EXTENSIONS.VIDEO.includes(ext as any);
 
     if (!isImage && !isVideo) {
       return NextResponse.json({ message: '只支持图片和视频文件，且文件类型必须匹配扩展名' }, { status: 400 });
     }
 
     // 额外验证：确保 MIME 类型在允许列表中
-    if (isImage && !ALLOWED_MIME_TYPES.IMAGE.includes(fileType)) {
+    if (isImage && !ALLOWED_MIME_TYPES.IMAGE.includes(fileType as any)) {
       return NextResponse.json({ message: '不支持的图片格式' }, { status: 400 });
     }
-    if (isVideo && !ALLOWED_MIME_TYPES.VIDEO.includes(fileType)) {
+    if (isVideo && !ALLOWED_MIME_TYPES.VIDEO.includes(fileType as any)) {
       return NextResponse.json({ message: '不支持的视频格式' }, { status: 400 });
     }
 
     // 检查文件是否已存在（通过 hash）
     // 这里需要检查已上传的文件，暂时先上传，后续可以通过 manifest 检查
 
-    // 生成唯一文件名
+    // 生成唯一文件名（保留原始扩展名大小写）
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
-    const ext = fileName.substring(fileName.lastIndexOf('.'));
-    const newFileName = `${timestamp}-${randomStr}${ext}`;
+    const fileExt = fileName.substring(fileName.lastIndexOf('.'));
+    const newFileName = `${timestamp}-${randomStr}${fileExt}`;
 
     let fileUrl: string;
     let width: number | undefined;
