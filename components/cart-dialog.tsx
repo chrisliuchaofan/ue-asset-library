@@ -17,37 +17,86 @@ interface CartDialogProps {
 export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onClear }: CartDialogProps) {
   const [exporting, setExporting] = useState(false);
 
+  const handleClear = () => {
+    if (selectedAssets.length === 0) {
+      onClear();
+      return;
+    }
+    if (confirm(`确定要清空清单吗？这将移除所有 ${selectedAssets.length} 个已选择的资产。`)) {
+      onClear();
+    }
+  };
+
   const handleExport = async () => {
+    if (selectedAssets.length === 0) {
+      return;
+    }
+    if (!confirm(`确定要导出 ${selectedAssets.length} 个资产的信息到 CSV 文件吗？`)) {
+      return;
+    }
     setExporting(true);
     try {
-      // 生成CSV格式的资产信息
-      const headers = ['ID', '名称', '类型', '标签', '来源', '版本', '预览图', '资源路径'];
-      const rows = selectedAssets.map((asset) => [
-        asset.id,
-        asset.name,
-        asset.type,
-        asset.tags.join(','),
-        asset.source || '',
-        asset.engineVersion || '',
-        asset.thumbnail || '',
-        asset.src || '',
-      ]);
+      // 只保留指定的字段：名称、类型、风格、引擎版本、来源、广州NAS、深圳NAS、创建时间、更新时间、预览图url
+      const headers = [
+        '名称',
+        '类型',
+        '风格',
+        '引擎版本',
+        '来源',
+        '广州NAS',
+        '深圳NAS',
+        '创建时间',
+        '更新时间',
+        '预览图url',
+      ];
+      
+      const rows = selectedAssets.map((asset) => {
+        const styleArray = Array.isArray(asset.style) ? asset.style : (asset.style ? [asset.style] : []);
+        // 使用资产创建时填写的真实 NAS 路径，如果未填写则为空
+        const guangzhouNasPath = asset.guangzhouNas || '';
+        const shenzhenNasPath = asset.shenzhenNas || '';
+        
+        return [
+          asset.name || '',
+          asset.type || '',
+          styleArray.join('; ') || '',
+          asset.engineVersion || '',
+          asset.source || '',
+          guangzhouNasPath,
+          shenzhenNasPath,
+          asset.createdAt ? new Date(asset.createdAt).toLocaleString('zh-CN') : '',
+          asset.updatedAt ? new Date(asset.updatedAt).toLocaleString('zh-CN') : '',
+          asset.thumbnail || '',
+        ];
+      });
 
       const csvContent = [
         headers.join(','),
-        ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+        ...rows.map((row) => 
+          row.map((cell) => {
+            const cellStr = String(cell);
+            // CSV 转义：如果包含逗号、引号或换行符，需要用引号包裹，并转义内部引号
+            if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+              return `"${cellStr.replace(/"/g, '""')}"`;
+            }
+            return cellStr;
+          }).join(',')
+        ),
       ].join('\n');
 
-      // 添加BOM以支持中文
+      // 添加BOM以支持中文（Excel兼容）
       const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `资产导出_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('导出失败:', error);
+      alert('导出失败，请重试');
     } finally {
       setExporting(false);
     }
@@ -57,7 +106,7 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>购物车</DialogTitle>
+          <DialogTitle>我的清单</DialogTitle>
           <DialogDescription>
             已选择 {selectedAssets.length} 个资产，可以批量导出资产信息
           </DialogDescription>
@@ -67,12 +116,12 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
           {selectedAssets.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <ShoppingCart className="mx-auto h-12 w-12 mb-4 opacity-50" />
-              <p>购物车为空</p>
+              <p>清单为空</p>
             </div>
           ) : (
             <>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={onClear}>
+                <Button variant="outline" size="sm" onClick={handleClear}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   清空
                 </Button>

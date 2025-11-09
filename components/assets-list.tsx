@@ -7,6 +7,7 @@ import { AssetCardSkeleton } from '@/components/asset-card-skeleton';
 import { EmptyState } from '@/components/empty-state';
 import { type Asset } from '@/data/manifest.schema';
 import { PAGINATION } from '@/lib/constants';
+import { type OfficeLocation } from '@/lib/nas-utils';
 import { useMemo } from 'react';
 import Link from 'next/link';
 
@@ -70,9 +71,10 @@ interface AssetsListProps {
   assets: Asset[];
   selectedAssetIds?: Set<string>;
   onToggleSelection?: (assetId: string) => void;
+  officeLocation?: OfficeLocation;
 }
 
-function AssetsListContent({ assets, selectedAssetIds, onToggleSelection }: AssetsListProps) {
+function AssetsListContent({ assets, selectedAssetIds, onToggleSelection, officeLocation = 'guangzhou' }: AssetsListProps) {
   const searchParams = useSearchParams();
   const keyword = searchParams.get('q') || undefined;
   const selectedTags = searchParams.get('tags')?.split(',').filter(Boolean);
@@ -106,9 +108,6 @@ function AssetsListContent({ assets, selectedAssetIds, onToggleSelection }: Asse
 
   return (
     <>
-      <div className="mb-4 text-sm text-muted-foreground">
-        找到 {filteredAssets.length} 个资产
-      </div>
       {/* ✅ 响应式多列网格布局，铺满屏幕（类似光厂） */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
         {paginatedAssets.map((asset, index) => (
@@ -119,6 +118,7 @@ function AssetsListContent({ assets, selectedAssetIds, onToggleSelection }: Asse
               isSelected={selectedAssetIds?.has(asset.id)}
               onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
               priority={index < PAGINATION.PRIORITY_IMAGES_COUNT}
+              officeLocation={officeLocation}
             />
         ))}
       </div>
@@ -210,10 +210,15 @@ function AssetsListContent({ assets, selectedAssetIds, onToggleSelection }: Asse
   );
 }
 
-export function AssetsList({ assets }: AssetsListProps) {
+export function AssetsList({ assets, selectedAssetIds, onToggleSelection, officeLocation }: AssetsListProps) {
   return (
     <Suspense fallback={<AssetsListSkeleton />}>
-      <AssetsListContent assets={assets} />
+      <AssetsListContent 
+        assets={assets} 
+        selectedAssetIds={selectedAssetIds}
+        onToggleSelection={onToggleSelection}
+        officeLocation={officeLocation}
+      />
     </Suspense>
   );
 }

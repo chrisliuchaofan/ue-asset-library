@@ -56,6 +56,20 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* 搜索关键词高亮样式 */
+  mark {
+    @apply bg-yellow-300 dark:bg-yellow-600 text-foreground px-0.5 rounded;
+  }
+  
+  /* 隐藏滚动条但保持滚动功能 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
 }
 
 

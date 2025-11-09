@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { type Asset } from '@/data/manifest.schema';
 import { formatFileSize, formatDuration, highlightText } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, ZoomIn, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, ZoomIn } from 'lucide-react';
+import { type OfficeLocation } from '@/lib/nas-utils';
 
 interface AssetCardGalleryProps {
   asset: Asset;
@@ -17,6 +18,7 @@ interface AssetCardGalleryProps {
   isSelected?: boolean;
   onToggleSelection?: () => void;
   priority?: boolean; // 是否为优先加载的图片（首屏图片）
+  officeLocation?: OfficeLocation; // 办公地点，用于选择对应的 NAS 路径
 }
 
 // 客户端获取 CDN base
@@ -70,10 +72,12 @@ function getClientAssetUrl(path: string): string {
   return `${base.replace(/\/+$/, '')}${normalizedPath}`;
 }
 
-export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false }: AssetCardGalleryProps) {
+export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou' }: AssetCardGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEnlarged, setIsEnlarged] = useState(false);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const nameRef = useRef<HTMLHeadingElement>(null);
+  const scrollAnimationRef = useRef<number | null>(null);
   
   // 获取所有预览图/视频 URL
   // 优先使用 gallery，如果没有则使用 thumbnail 和 src
@@ -123,6 +127,98 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     });
   }, [currentIndex, galleryUrls, isVideoUrl]);
 
+  // 自动滚动播放超长名称
+  useEffect(() => {
+    const nameElement = nameRef.current;
+    if (!nameElement) return;
+
+    // 检查是否需要滚动（内容宽度 > 容器宽度）
+    const needsScroll = nameElement.scrollWidth > nameElement.clientWidth;
+    
+    if (!needsScroll) {
+      // 如果不需要滚动，重置到起始位置
+      nameElement.scrollLeft = 0;
+      return;
+    }
+
+    // 清除之前的动画
+    if (scrollAnimationRef.current) {
+      cancelAnimationFrame(scrollAnimationRef.current);
+      scrollAnimationRef.current = null;
+    }
+
+    let scrollPosition = nameElement.scrollLeft || 0;
+    let direction = 1; // 1: 向右, -1: 向左
+    const scrollSpeed = 0.5; // 滚动速度（像素/帧）
+    const pauseDuration = 2000; // 在两端暂停的时间（毫秒）
+    let pauseTime = Date.now() + pauseDuration;
+    let isPaused = false;
+
+    const animate = () => {
+      if (isPaused) {
+        scrollAnimationRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
+      const now = Date.now();
+      
+      // 如果还在暂停期间，不滚动
+      if (now < pauseTime) {
+        scrollAnimationRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
+      scrollPosition += scrollSpeed * direction;
+      const maxScroll = nameElement.scrollWidth - nameElement.clientWidth;
+
+      // 到达右端，改变方向并暂停
+      if (scrollPosition >= maxScroll) {
+        scrollPosition = maxScroll;
+        direction = -1;
+        pauseTime = now + pauseDuration;
+      }
+      // 到达左端，改变方向并暂停
+      else if (scrollPosition <= 0) {
+        scrollPosition = 0;
+        direction = 1;
+        pauseTime = now + pauseDuration;
+      }
+
+      nameElement.scrollLeft = scrollPosition;
+      scrollAnimationRef.current = requestAnimationFrame(animate);
+    };
+
+    // 延迟启动动画，让用户先看到开头
+    const startDelay = setTimeout(() => {
+      if (!isPaused) {
+        scrollAnimationRef.current = requestAnimationFrame(animate);
+      }
+    }, 1000);
+
+    // 监听鼠标事件来控制暂停/恢复
+    const handleMouseEnter = () => {
+      isPaused = true;
+    };
+
+    const handleMouseLeave = () => {
+      isPaused = false;
+      pauseTime = Date.now() + pauseDuration; // 重新开始暂停计时
+    };
+
+    nameElement.addEventListener('mouseenter', handleMouseEnter);
+    nameElement.addEventListener('mouseleave', handleMouseLeave);
+
+    // 清理函数
+    return () => {
+      clearTimeout(startDelay);
+      if (scrollAnimationRef.current) {
+        cancelAnimationFrame(scrollAnimationRef.current);
+      }
+      nameElement.removeEventListener('mouseenter', handleMouseEnter);
+      nameElement.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [asset.name, highlightedName]);
+
   const handlePrev = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -149,17 +245,6 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
   return (
     <>
       <Card className="group overflow-hidden transition-shadow hover:shadow-lg h-full flex flex-col relative border">
-        {/* 多选复选框 */}
-        {onToggleSelection && (
-          <div className="absolute top-2 left-2 z-20">
-            <Checkbox
-              checked={isSelected || false}
-              onChange={onToggleSelection}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-background/80 backdrop-blur-sm"
-            />
-          </div>
-        )}
         {/* 固定大小的预览区域 */}
         <div className="relative aspect-video w-full overflow-hidden bg-muted flex items-center justify-center">
           {/* 渲染所有视频（用于自动播放） */}
@@ -278,21 +363,6 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             </>
           )}
           
-          {/* 放大按钮 */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute bottom-2 right-2 h-8 w-8 bg-background/90 hover:bg-background z-20"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEnlarge(e);
-            }}
-            aria-label="放大预览"
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          
           {/* 指示器（多图/视频时显示） */}
           {galleryUrls.length > 1 && (
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
@@ -309,6 +379,22 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             </div>
           )}
           
+          {/* 放大按钮 - 右下角 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute bottom-2 right-2 h-8 w-8 bg-background/90 hover:bg-background z-20 shadow-sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleEnlarge(e);
+            }}
+            aria-label="放大预览"
+            title="放大预览"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          
           {/* 点击预览区域跳转到详情页 */}
           <Link 
             href={`/assets/${asset.id}`}
@@ -316,7 +402,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             onClick={(e) => {
               // 如果点击的是按钮区域，不跳转
               const target = e.target as HTMLElement;
-              if (target.closest('button') || target.closest('[role="button"]')) {
+              if (target.closest('button') || target.closest('[role="button"]') || target.closest('a')) {
                 e.preventDefault();
                 e.stopPropagation();
               }
@@ -324,19 +410,21 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
           />
         </div>
         
-        <CardContent className="p-2 sm:p-3 flex-1 flex flex-col">
-          <Link href={`/assets/${asset.id}`}>
+        <CardContent className="p-2.5 sm:p-3 flex-1 flex flex-col relative">
+          <Link href={`/assets/${asset.id}`} className="block">
             <h3
-              className="mb-1 line-clamp-2 text-sm sm:text-base font-semibold hover:text-primary transition-colors cursor-pointer"
+              ref={nameRef}
+              className="mb-1.5 text-[13px] sm:text-[14px] font-medium leading-tight hover:text-primary transition-colors cursor-pointer whitespace-nowrap overflow-x-auto scrollbar-hide"
+              style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
               dangerouslySetInnerHTML={{ __html: highlightedName }}
             />
           </Link>
           {/* 类型：资产名下方小灰字 */}
-          <div className="mb-1.5 text-xs text-muted-foreground">
+          <div className="mb-2 text-[11px] sm:text-xs text-muted-foreground font-normal">
             {asset.type}
           </div>
           {/* 标签：圆角标签，超出用+N */}
-          <div className="mb-1.5 flex flex-wrap gap-1">
+          <div className="mb-2 flex flex-wrap gap-1">
             {(() => {
               // 确保 tags 是数组，如果是字符串则拆分（兼容旧数据）
               const tagsArray = Array.isArray(asset.tags)
@@ -348,12 +436,12 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               return (
                 <>
                   {displayTags.map((tag: string) => (
-                    <Badge key={tag} variant="secondary" className="text-xs rounded-full">
+                    <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0.5 rounded-full font-normal">
                       {tag}
                     </Badge>
                   ))}
                   {tagsArray.length > 3 && (
-                    <Badge variant="secondary" className="text-xs rounded-full">
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 rounded-full font-normal">
                       +{tagsArray.length - 3}
                     </Badge>
                   )}
@@ -361,21 +449,100 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               );
             })()}
           </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground mt-auto pt-1">
-            <span>
-              {(() => {
-                const currentUrl = galleryUrls[currentIndex] || asset.src;
-                const isVideo = isVideoUrl(currentUrl);
-                if (isVideo) {
-                  return asset.duration ? formatDuration(asset.duration) : '-';
+          {/* 添加清单和 NAS 路径按钮 */}
+          <div className="mt-2 pt-2 border-t flex gap-1.5 relative z-20">
+            {/* 添加清单按钮 - 在前 */}
+            <Button
+              variant={isSelected ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs gap-1 px-2.5 flex-shrink-0 whitespace-nowrap relative z-20 pointer-events-auto"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('清单按钮被点击', { assetId: asset.id, isSelected, onToggleSelection: !!onToggleSelection });
+                if (onToggleSelection) {
+                  onToggleSelection();
                 } else {
-                  return asset.width && asset.height
-                    ? `${asset.width} × ${asset.height}`
-                    : '-';
+                  console.warn('onToggleSelection 未定义，无法添加到清单');
                 }
-              })()}
-            </span>
-            {asset.filesize && <span>{formatFileSize(asset.filesize)}</span>}
+              }}
+              title={isSelected ? "已添加，点击移出清单" : "添加到清单"}
+              type="button"
+            >
+              {isSelected ? (
+                <>
+                  <Checkbox checked readOnly className="h-3 w-3 flex-shrink-0" />
+                  <span>已添加</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3 w-3 flex-shrink-0" />
+                  <span>清单</span>
+                </>
+              )}
+            </Button>
+            {/* NAS 路径按钮 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1 h-7 text-xs gap-1 min-w-0 relative z-20 pointer-events-auto"
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // 使用资产创建时填写的真实 NAS 路径
+                // 根据办公地选择对应的 NAS 路径字段
+                const locationName = officeLocation === 'guangzhou' ? '广州' : '深圳';
+                const nasPath = officeLocation === 'guangzhou' 
+                  ? asset.guangzhouNas 
+                  : asset.shenzhenNas;
+                
+                // 调试信息（开发环境）
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('NAS路径提取调试:', {
+                    officeLocation,
+                    locationName,
+                    guangzhouNas: asset.guangzhouNas,
+                    shenzhenNas: asset.shenzhenNas,
+                    selectedNasPath: nasPath,
+                    assetId: asset.id,
+                    assetName: asset.name,
+                  });
+                }
+                
+                // 严格判断：空字符串、null、undefined 都视为未填写
+                const nasPathTrimmed = nasPath ? nasPath.trim() : '';
+                if (!nasPathTrimmed) {
+                  alert(`该资产未填写${locationName}NAS路径`);
+                  return;
+                }
+                
+                try {
+                  await navigator.clipboard.writeText(nasPathTrimmed);
+                  alert(`已复制 NAS 路径到剪贴板：\n${nasPathTrimmed}`);
+                } catch (err) {
+                  // 降级方案：使用传统方法
+                  try {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = nasPathTrimmed;
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    alert(`已复制 NAS 路径到剪贴板：\n${nasPathTrimmed}`);
+                  } catch (fallbackErr) {
+                    console.error('复制失败:', fallbackErr);
+                    alert('复制失败，请手动复制');
+                  }
+                }
+              }}
+              title="复制 NAS 路径"
+              type="button"
+            >
+              <FolderOpen className="h-3 w-3 flex-shrink-0" />
+              <span>NAS</span>
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -383,7 +550,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
       {/* 放大预览模态框 */}
       {isEnlarged && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
           onClick={() => setIsEnlarged(false)}
         >
           <Button
