@@ -3,11 +3,11 @@ import { AssetUpdateSchema } from '@/data/manifest.schema';
 import { deleteAsset, getAsset, updateAsset } from '@/lib/storage';
 
 interface RouteContext {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function GET(_: Request, { params }: RouteContext) {
-  const { id } = params;
+  const { id } = await params;
   const asset = await getAsset(id);
   if (!asset) {
     return NextResponse.json({ message: '资产不存在' }, { status: 404 });
@@ -16,7 +16,7 @@ export async function GET(_: Request, { params }: RouteContext) {
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
-  const { id } = params;
+  const { id } = await params;
   try {
     const json = await request.json();
     const parsed = AssetUpdateSchema.safeParse({ ...json, id });
@@ -30,7 +30,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     const asset = await updateAsset(id, parsed.data);
     return NextResponse.json(asset);
   } catch (error) {
-    console.error(`更新资产 ${id} 失败`, error);
+    console.error(`更新资产失败`, error);
     const message =
       error instanceof Error ? error.message : '更新资产失败';
     return NextResponse.json({ message }, { status: 500 });
@@ -38,12 +38,12 @@ export async function PUT(request: Request, { params }: RouteContext) {
 }
 
 export async function DELETE(_: Request, { params }: RouteContext) {
-  const { id } = params;
+  const { id } = await params;
   try {
     await deleteAsset(id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error(`删除资产 ${id} 失败`, error);
+    console.error(`删除资产失败`, error);
     const message =
       error instanceof Error ? error.message : '删除资产失败或资产不存在';
     return NextResponse.json({ message }, { status: 500 });

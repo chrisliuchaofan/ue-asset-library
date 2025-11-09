@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
+import { createHash } from 'crypto';
 import { getStorageMode } from '@/lib/storage';
 import OSS from 'ali-oss';
 import sharp from 'sharp';

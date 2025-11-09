@@ -90,20 +90,36 @@ Vercel 会自动检测 Next.js 项目，配置如下：
 
 在 "Environment Variables" 部分，添加以下变量：
 
+**方式 1：手动添加（推荐）**
+
+在 Vercel 项目设置中，逐个添加以下变量：
+
 ```
 STORAGE_MODE=oss
 NEXT_PUBLIC_STORAGE_MODE=oss
+NEXT_PUBLIC_CDN_BASE=/
 OSS_BUCKET=guangzhougamead
 OSS_REGION=oss-cn-guangzhou
 OSS_ACCESS_KEY_ID=你的AccessKeyId
 OSS_ACCESS_KEY_SECRET=你的AccessKeySecret
-NEXT_PUBLIC_CDN_BASE=/
+NEXT_PUBLIC_OSS_BUCKET=guangzhougamead
+NEXT_PUBLIC_OSS_REGION=oss-cn-guangzhou
 ```
 
+**方式 2：批量导入（如果 Vercel 支持）**
+
+1. 打开项目根目录的 `vercel-env-template.txt` 文件
+2. 将 `你的AccessKeyId` 和 `你的AccessKeySecret` 替换为实际值
+3. 在 Vercel 的 "Environment Variables" 页面，如果有 "Import" 或 "Bulk Add" 功能，可以粘贴内容
+
 **重要提示**：
+- ⚠️ **必须添加** `NEXT_PUBLIC_OSS_BUCKET` 和 `NEXT_PUBLIC_OSS_REGION`，否则前端无法构建完整的 OSS URL
 - 点击 "Add" 添加每个变量
-- `NEXT_PUBLIC_CDN_BASE` 如果没配置 CDN，可以填 `/` 或留空（会自动使用 OSS 外网域名）
+- 选择环境：**Production**, **Preview**（根据需要选择）
+- `NEXT_PUBLIC_CDN_BASE` 如果没配置 CDN，填 `/`（会自动使用 OSS 外网域名）
 - 如果配置了 CDN，填你的 CDN 域名，例如：`https://cdn.example.com`
+
+**详细配置说明**：参考 `VERCEL_ENV_VARIABLES.md` 文件
 
 ### 2.5 部署
 
