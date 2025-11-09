@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   },
 };
 
+// ✅ 强制动态渲染，确保每次请求都读取最新数据
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function AssetsPage() {
   const [allAssets, tags, types, styles, sources, engineVersions] = await Promise.all([
     getAllAssets(),
