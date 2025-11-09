@@ -51,15 +51,30 @@ function getClientAssetUrl(path: string): string {
   return `${base.replace(/\/+$/, '')}${normalizedPath}`;
 }
 
+// 判断 URL 是否为视频
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lowerUrl = url.toLowerCase();
+  return (
+    lowerUrl.includes('.mp4') ||
+    lowerUrl.includes('.webm') ||
+    lowerUrl.includes('.mov') ||
+    lowerUrl.includes('.avi') ||
+    lowerUrl.includes('.mkv')
+  );
+}
+
 export function AssetCard({ asset, keyword }: AssetCardProps) {
   const thumbnailUrl = getClientAssetUrl(asset.thumbnail);
+  const srcUrl = getClientAssetUrl(asset.src);
   const highlightedName = highlightText(asset.name, keyword || '');
+  const isVideo = isVideoUrl(srcUrl);
 
   return (
     <Link href={`/assets/${asset.id}`}>
       <Card className="group overflow-hidden transition-shadow hover:shadow-lg">
         <div className="relative aspect-video w-full overflow-hidden bg-muted">
-          {asset.type === 'video' ? (
+          {isVideo ? (
             <>
               {thumbnailUrl ? (
                 <Image
@@ -113,25 +128,38 @@ export function AssetCard({ asset, keyword }: AssetCardProps) {
             dangerouslySetInnerHTML={{ __html: highlightedName }}
           />
           <div className="mb-2 flex flex-wrap gap-1">
-            {asset.tags.slice(0, 3).map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                {tag}
-              </Badge>
-            ))}
-            {asset.tags.length > 3 && (
-              <Badge variant="outline" className="text-xs">
-                +{asset.tags.length - 3}
-              </Badge>
-            )}
+            {(() => {
+              // 确保 tags 是数组，如果是字符串则拆分（兼容旧数据）
+              const tagsArray = Array.isArray(asset.tags)
+                ? asset.tags
+                : typeof (asset as any).tags === 'string'
+                ? (asset as any).tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+                : [];
+              const displayTags = tagsArray.slice(0, 3);
+              return (
+                <>
+                  {displayTags.map((tag: string) => (
+                    <Badge key={tag} variant="secondary" className="text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                  {tagsArray.length > 3 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{tagsArray.length - 3}
+                    </Badge>
+                  )}
+                </>
+              );
+            })()}
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              {asset.type === 'image'
-                ? asset.width && asset.height
-                  ? `${asset.width} × ${asset.height}`
-                  : '-'
-                : asset.duration
+              {isVideo
+                ? asset.duration
                   ? formatDuration(asset.duration)
+                  : '-'
+                : asset.width && asset.height
+                  ? `${asset.width} × ${asset.height}`
                   : '-'}
             </span>
             {asset.filesize && <span>{formatFileSize(asset.filesize)}</span>}

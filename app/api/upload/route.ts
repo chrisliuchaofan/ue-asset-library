@@ -135,7 +135,21 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('上传文件失败:', error);
-    const message = error instanceof Error ? error.message : '上传文件失败';
+    let message = '上传文件失败';
+    if (error instanceof Error) {
+      // 将常见错误信息转换为中文
+      if (error.message.includes('OSS') || error.message.includes('配置')) {
+        message = 'OSS配置错误，请检查环境变量';
+      } else if (error.message.includes('permission') || error.message.includes('权限')) {
+        message = '没有权限上传文件，请检查OSS权限配置';
+      } else if (error.message.includes('network') || error.message.includes('网络')) {
+        message = '网络错误，请检查网络连接';
+      } else if (error.message.includes('timeout') || error.message.includes('超时')) {
+        message = '上传超时，请重试';
+      } else {
+        message = error.message || '上传文件失败';
+      }
+    }
     return NextResponse.json({ message }, { status: 500 });
   }
 }

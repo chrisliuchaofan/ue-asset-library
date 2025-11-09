@@ -27,4 +27,41 @@ export async function getAllTypes(): Promise<string[]> {
   return Array.from(typeSet).sort();
 }
 
+export async function getAllStyles(): Promise<string[]> {
+  const assets = await listAssets();
+  const styleSet = new Set<string>();
+  assets.forEach((asset) => {
+    if (asset.style) {
+      if (Array.isArray(asset.style)) {
+        asset.style.forEach((s) => styleSet.add(s));
+      } else {
+        styleSet.add(asset.style);
+      }
+    }
+  });
+  return Array.from(styleSet).sort();
+}
+
+export async function getAllSources(): Promise<string[]> {
+  const assets = await listAssets();
+  const sourceSet = new Set<string>();
+  assets.forEach((asset) => {
+    if (asset.source) {
+      sourceSet.add(asset.source);
+    }
+  });
+  return Array.from(sourceSet).sort();
+}
+
+export async function getAllEngineVersions(): Promise<string[]> {
+  const assets = await listAssets();
+  const versionSet = new Set<string>();
+  assets.forEach((asset) => {
+    if (asset.engineVersion) {
+      versionSet.add(asset.engineVersion);
+    }
+  });
+  return Array.from(versionSet).sort();
+}
+
 

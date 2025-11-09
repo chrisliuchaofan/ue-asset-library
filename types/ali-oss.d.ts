@@ -28,3 +28,4 @@ declare module 'ali-oss' {
   export = OSS;
 }
 
+

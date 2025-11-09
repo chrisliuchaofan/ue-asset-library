@@ -8,11 +8,31 @@ import { getAssetById, getAllAssets } from '@/lib/data';
 import { formatFileSize, formatDuration, getAssetUrl } from '@/lib/utils';
 import type { Metadata } from 'next';
 
+// 判断 URL 是否为视频
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lowerUrl = url.toLowerCase();
+  return (
+    lowerUrl.includes('.mp4') ||
+    lowerUrl.includes('.webm') ||
+    lowerUrl.includes('.mov') ||
+    lowerUrl.includes('.avi') ||
+    lowerUrl.includes('.mkv')
+  );
+}
+
 export async function generateStaticParams() {
-  const assets = await getAllAssets();
-  return assets.map((asset) => ({
-    id: asset.id,
-  }));
+  try {
+    const assets = await getAllAssets();
+    return assets.map((asset) => ({
+      id: asset.id,
+    }));
+  } catch (error) {
+    // 如果构建时读取资产失败（例如类型验证错误），返回空数组
+    // 页面将在运行时动态生成
+    console.warn('构建时无法生成静态参数，将使用动态生成:', error);
+    return [];
+  }
 }
 
 export async function generateMetadata({
@@ -29,19 +49,21 @@ export async function generateMetadata({
     };
   }
 
+  const isVideo = isVideoUrl(asset.src);
   return {
     title: `${asset.name} - UE 资产库`,
     description: `查看 ${asset.name} 的详细信息`,
     openGraph: {
       title: asset.name,
-      description: `标签: ${asset.tags.join(', ')}`,
+      description: `标签: ${Array.isArray(asset.tags) ? asset.tags.join(', ') : (asset as any).tags || ''}`,
       type: 'website',
-      ...(asset.type === 'image' && {
-        images: [{ url: getAssetUrl(asset.src) }],
-      }),
-      ...(asset.type === 'video' && {
-        videos: [{ url: getAssetUrl(asset.src) }],
-      }),
+      ...(isVideo
+        ? {
+            videos: [{ url: getAssetUrl(asset.src) }],
+          }
+        : {
+            images: [{ url: getAssetUrl(asset.src) }],
+          }),
     },
   };
 }
@@ -79,30 +101,58 @@ export default async function AssetDetailPage({
         <div className="mb-6">
           <h1 className="mb-4 text-3xl font-bold">{currentAsset.name}</h1>
           <div className="mb-4 flex flex-wrap gap-2">
-            {currentAsset.tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
-            ))}
+            {(() => {
+              // 确保 tags 是数组，如果是字符串则拆分（兼容旧数据）
+              const tagsArray = Array.isArray(currentAsset.tags)
+                ? currentAsset.tags
+                : typeof (currentAsset as any).tags === 'string'
+                ? (currentAsset as any).tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+                : [];
+              return tagsArray.map((tag: string) => (
+                <Badge key={tag} variant="secondary">
+                  {tag}
+                </Badge>
+              ));
+            })()}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <div className="text-sm text-muted-foreground">类型</div>
+              <div className="text-sm text-muted-foreground">资产类型</div>
               <div className="font-medium">
-                {currentAsset.type === 'image' ? '图片' : '视频'}
+                {currentAsset.type}
               </div>
             </div>
-            {currentAsset.type === 'image' && currentAsset.width && currentAsset.height && (
-              <>
-                <div>
-                  <div className="text-sm text-muted-foreground">尺寸</div>
-                  <div className="font-medium">
-                    {currentAsset.width} × {currentAsset.height} 像素
-                  </div>
+            {currentAsset.style && (
+              <div>
+                <div className="text-sm text-muted-foreground">风格</div>
+                <div className="font-medium">
+                  {Array.isArray(currentAsset.style)
+                    ? currentAsset.style.join(', ')
+                    : currentAsset.style}
                 </div>
-              </>
+              </div>
             )}
-            {currentAsset.type === 'video' && currentAsset.duration && (
+            {currentAsset.source && (
+              <div>
+                <div className="text-sm text-muted-foreground">来源</div>
+                <div className="font-medium">{currentAsset.source}</div>
+              </div>
+            )}
+            {currentAsset.engineVersion && (
+              <div>
+                <div className="text-sm text-muted-foreground">版本</div>
+                <div className="font-medium">{currentAsset.engineVersion}</div>
+              </div>
+            )}
+            {!isVideoUrl(currentAsset.src) && currentAsset.width && currentAsset.height && (
+              <div>
+                <div className="text-sm text-muted-foreground">尺寸</div>
+                <div className="font-medium">
+                  {currentAsset.width} × {currentAsset.height} 像素
+                </div>
+              </div>
+            )}
+            {isVideoUrl(currentAsset.src) && currentAsset.duration && (
               <div>
                 <div className="text-sm text-muted-foreground">时长</div>
                 <div className="font-medium">{formatDuration(currentAsset.duration)}</div>
