@@ -41,7 +41,17 @@ export default function HomePage() {
       
       {/* 内容层 */}
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-16">
-        <div className="mx-auto max-w-2xl text-center">
+        <motion.div 
+          className="mx-auto max-w-2xl text-center w-full flex flex-col items-center"
+          animate={{
+            y: showButtons ? -10 : 0,
+          }}
+          transition={{
+            duration: 0.5,
+            ease: [0.25, 0.1, 0.25, 1],
+            type: 'tween'
+          }}
+        >
           <h1 className="mb-8 text-4xl font-bold tracking-tight sm:text-6xl">
             <BlurText
               text="恒星资产库"
@@ -51,15 +61,22 @@ export default function HomePage() {
               delay={50}
               stepDuration={0.4}
               initialDelay={500}
-              loop={2}
+              loop={1}
               onAnimationComplete={() => setShowButtons(true)}
             />
           </h1>
-          {showButtons && (
+          {showButtons ? (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 1
+              }}
+              transition={{ 
+                duration: 0.5, 
+                ease: [0.25, 0.1, 0.25, 1],
+                type: 'tween'
+              }}
               className="flex gap-4 justify-center items-center"
             >
               <Link href="/assets">
@@ -75,8 +92,10 @@ export default function HomePage() {
                 </Button>
               </Link>
             </motion.div>
+          ) : (
+            <div className="h-[60px]" aria-hidden="true" />
           )}
-        </div>
+        </motion.div>
       </main>
     </div>
   );
