@@ -338,6 +338,10 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
     if (error.code === 'NoSuchKey' || error.status === 404) {
       return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
+    // DNS 解析失败或网络连接问题
+    if (error.code === 'ENOTFOUND' || error.message?.includes('ENOTFOUND') || error.message?.includes('getaddrinfo')) {
+      throw new Error(`无法连接到 OSS 服务器。请检查网络连接和 OSS 配置（Bucket: ${process.env.OSS_BUCKET || '未设置'}, Region: ${process.env.OSS_REGION || '未设置'}）。错误详情: ${error.message}`);
+    }
     throw new Error(`读取 OSS manifest 失败: ${error.message}`);
   }
 }
@@ -411,6 +415,10 @@ async function readOSSManifestFull(): Promise<Manifest> {
     if (error.code === 'NoSuchKey' || error.status === 404) {
       return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
+    // DNS 解析失败或网络连接问题
+    if (error.code === 'ENOTFOUND' || error.message?.includes('ENOTFOUND') || error.message?.includes('getaddrinfo')) {
+      throw new Error(`无法连接到 OSS 服务器。请检查网络连接和 OSS 配置（Bucket: ${process.env.OSS_BUCKET || '未设置'}, Region: ${process.env.OSS_REGION || '未设置'}）。错误详情: ${error.message}`);
+    }
     throw new Error(`读取 OSS manifest 失败: ${error.message}`);
   }
 }
@@ -481,11 +489,13 @@ export async function createAsset(input: AssetCreateInput): Promise<Asset> {
   const assets = assetsResult.assets;
   const allowedTypes = assetsResult.allowedTypes;
 
-  // 检查名称是否重复
+  // 检查名称和类型是否同时重复
   const nameTrimmed = input.name.trim();
-  const duplicateAsset = assets.find((asset) => asset.name.trim() === nameTrimmed);
+  const duplicateAsset = assets.find((asset) => 
+    asset.name.trim() === nameTrimmed && asset.type === input.type
+  );
   if (duplicateAsset) {
-    throw new Error(`资产名称 "${nameTrimmed}" 已存在。请先检查是否已上传过该资产，确认没有后请更改命名。`);
+    throw new Error(`资产名称 "${nameTrimmed}" 和类型 "${input.type}" 的组合已存在。请先检查是否已上传过该资产，确认没有后请更改命名或类型。`);
   }
 
   // 验证类型是否在允许列表中

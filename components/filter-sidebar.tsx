@@ -26,7 +26,7 @@ function FilterSection({
   onToggle,
   getCount,
   isPending,
-  maxVisible = 5,
+  maxVisible = 6,
 }: {
   title: string;
   items: string[];
@@ -200,7 +200,7 @@ export function FilterSidebar({
         onToggle={(value, checked) => updateFilters('types', value, checked)}
         getCount={getTypeCount}
         isPending={isPending}
-        maxVisible={5}
+        maxVisible={6}
       />
 
       <FilterSection
@@ -210,7 +210,7 @@ export function FilterSidebar({
         onToggle={(value, checked) => updateFilters('styles', value, checked)}
         getCount={getStyleCount}
         isPending={isPending}
-        maxVisible={5}
+        maxVisible={6}
       />
 
       <FilterSection
@@ -220,7 +220,7 @@ export function FilterSidebar({
         onToggle={(value, checked) => updateFilters('tags', value, checked)}
         getCount={getTagCount}
         isPending={isPending}
-        maxVisible={5}
+        maxVisible={6}
       />
 
       <FilterSection
@@ -230,7 +230,7 @@ export function FilterSidebar({
         onToggle={(value, checked) => updateFilters('sources', value, checked)}
         getCount={getSourceCount}
         isPending={isPending}
-        maxVisible={5}
+        maxVisible={6}
       />
 
       <FilterSection
@@ -240,21 +240,20 @@ export function FilterSidebar({
         onToggle={(value, checked) => updateFilters('versions', value, checked)}
         getCount={getVersionCount}
         isPending={isPending}
-        maxVisible={5}
+        maxVisible={6}
       />
 
-      {hasActiveFilters && (
-        <div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={clearAllFilters}
-            className="w-full text-xs"
-          >
-            清除所有筛选
-          </Button>
-        </div>
-      )}
+      <div className="mt-6 pt-6 border-t">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={clearAllFilters}
+          className="w-full text-xs"
+          disabled={!hasActiveFilters || isPending}
+        >
+          清空筛选
+        </Button>
+      </div>
     </aside>
   );
 }

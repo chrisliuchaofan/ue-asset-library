@@ -3,7 +3,7 @@
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { useCallback, useState, useTransition, useEffect } from 'react';
+import { useCallback, useState, useTransition, useEffect, useRef } from 'react';
 
 export function SearchBox() {
   const router = useRouter();
@@ -11,11 +11,13 @@ export function SearchBox() {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [searchValue, setSearchValue] = useState(searchParams.get('q') || '');
+  const prevValueRef = useRef(searchValue);
 
   // 同步 URL 参数到本地状态（仅在 URL 变化时更新，避免循环）
   useEffect(() => {
     const urlQuery = searchParams.get('q') || '';
     setSearchValue(urlQuery);
+    prevValueRef.current = urlQuery;
   }, [searchParams]);
 
   const handleSearch = useCallback(
@@ -41,6 +43,18 @@ export function SearchBox() {
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    const prevValue = prevValueRef.current;
+    setSearchValue(newValue);
+    
+    // 如果搜索框被清空（从有内容变为空，通常是点击 X 按钮），自动恢复全部展示
+    if (newValue === '' && prevValue !== '') {
+      handleSearch('');
+    }
+    
+    prevValueRef.current = newValue;
+  };
 
   return (
     <div className="relative w-full max-w-md">
@@ -49,7 +63,7 @@ export function SearchBox() {
         type="search"
         placeholder="搜索资产...（按回车确认）"
         value={searchValue}
-        onChange={(e) => setSearchValue(e.target.value)}
+        onChange={handleChange}
         onKeyDown={handleKeyDown}
         className="pl-10"
         disabled={isPending}
