@@ -64,7 +64,7 @@ async function uploadFile(
 
   // 验证文件扩展名
   const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
-  if (!ALLOWED_FILE_EXTENSIONS.ALL.includes(ext)) {
+  if (!ALLOWED_FILE_EXTENSIONS.ALL.includes(ext as any)) {
     throw new Error('不支持的文件类型');
   }
   
@@ -72,18 +72,18 @@ async function uploadFile(
   const fileHash = createHash('sha256').update(buffer).digest('hex');
 
   // 判断文件类型（同时验证 MIME 类型和扩展名）
-  const isImage = fileType.startsWith('image/') && ALLOWED_FILE_EXTENSIONS.IMAGE.includes(ext);
-  const isVideo = fileType.startsWith('video/') && ALLOWED_FILE_EXTENSIONS.VIDEO.includes(ext);
+  const isImage = fileType.startsWith('image/') && ALLOWED_FILE_EXTENSIONS.IMAGE.includes(ext as any);
+  const isVideo = fileType.startsWith('video/') && ALLOWED_FILE_EXTENSIONS.VIDEO.includes(ext as any);
 
   if (!isImage && !isVideo) {
     throw new Error('只支持图片和视频文件，且文件类型必须匹配扩展名');
   }
 
   // 额外验证：确保 MIME 类型在允许列表中
-  if (isImage && !ALLOWED_MIME_TYPES.IMAGE.includes(fileType)) {
+  if (isImage && !ALLOWED_MIME_TYPES.IMAGE.includes(fileType as any)) {
     throw new Error('不支持的图片格式');
   }
-  if (isVideo && !ALLOWED_MIME_TYPES.VIDEO.includes(fileType)) {
+  if (isVideo && !ALLOWED_MIME_TYPES.VIDEO.includes(fileType as any)) {
     throw new Error('不支持的视频格式');
   }
 

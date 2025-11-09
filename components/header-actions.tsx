@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AdminPasswordDialog } from '@/components/admin-password-dialog';
 import { CartDialog } from '@/components/cart-dialog';
-import { OfficeSelector, type OfficeLocation } from '@/components/office-selector';
+import { OfficeSelector } from '@/components/office-selector';
+import type { OfficeLocation } from '@/lib/nas-utils';
 import type { Asset } from '@/data/manifest.schema';
 
 interface HeaderActionsProps {
