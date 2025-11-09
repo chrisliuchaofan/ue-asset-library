@@ -2,12 +2,35 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '恒星UE资产库',
-  description: 'Unreal Engine 资产展示库',
+  title: {
+    default: '恒星UE资产库',
+    template: '%s | 恒星UE资产库',
+  },
+  description: 'Unreal Engine 资产展示库 - 浏览和管理 UE 资产资源',
+  keywords: ['Unreal Engine', 'UE', '资产库', '游戏开发', '3D资源'],
+  authors: [{ name: '恒星UE资产库' }],
   openGraph: {
     title: '恒星UE资产库',
-    description: 'Unreal Engine 资产展示库',
+    description: 'Unreal Engine 资产展示库 - 浏览和管理 UE 资产资源',
     type: 'website',
+    locale: 'zh_CN',
+    siteName: '恒星UE资产库',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: '恒星UE资产库',
+    description: 'Unreal Engine 资产展示库 - 浏览和管理 UE 资产资源',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
 };
 
@@ -34,7 +57,11 @@ export default function RootLayout({
   const finalOssRegion = ossRegion || (typeof window === 'undefined' ? serverOssRegion : '');
   
   // 构建注入到客户端的配置
-  const clientConfig: any = {
+  const clientConfig: {
+    cdnBase: string;
+    storageMode: string;
+    oss?: { bucket: string; region: string };
+  } = {
     cdnBase,
     storageMode,
   };

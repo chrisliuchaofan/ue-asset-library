@@ -16,12 +16,13 @@ interface AssetCardGalleryProps {
   keyword?: string;
   isSelected?: boolean;
   onToggleSelection?: () => void;
+  priority?: boolean; // 是否为优先加载的图片（首屏图片）
 }
 
 // 客户端获取 CDN base
 function getClientCdnBase(): string {
   if (typeof window === 'undefined') return '/';
-  return (window as any).__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
+  return window.__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
 }
 
 // 客户端处理资产 URL
@@ -49,7 +50,7 @@ function getClientAssetUrl(path: string): string {
     if (base === '/' || !base || base.trim() === '') {
       // 尝试从 window 获取 OSS 配置（如果可用）
       if (typeof window !== 'undefined') {
-        const ossConfig = (window as any).__OSS_CONFIG__;
+        const ossConfig = window.__OSS_CONFIG__;
         if (ossConfig && ossConfig.bucket && ossConfig.region) {
           const ossPath = normalizedPath.substring(1); // 移除开头的 /
           const region = ossConfig.region.replace(/^oss-/, ''); // 移除开头的 oss-（如果有）
@@ -69,7 +70,7 @@ function getClientAssetUrl(path: string): string {
   return `${base.replace(/\/+$/, '')}${normalizedPath}`;
 }
 
-export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection }: AssetCardGalleryProps) {
+export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false }: AssetCardGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEnlarged, setIsEnlarged] = useState(false);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
@@ -192,12 +193,14 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               fill
               className="object-contain transition-opacity z-10"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              loading={priority ? 'eager' : 'lazy'}
+              priority={priority}
               unoptimized={currentUrl.startsWith('http') || currentUrl.startsWith('/assets/')}
               onError={(e) => {
                 console.error('图片加载失败:', currentUrl);
                 // 如果是 OSS 路径但加载失败，尝试重新构建 URL
                 if ((currentUrl.startsWith('/assets/') || galleryUrls[validIndex]?.startsWith('/assets/')) && galleryUrls[validIndex]) {
-                  const ossConfig = typeof window !== 'undefined' ? (window as any).__OSS_CONFIG__ : null;
+                  const ossConfig = typeof window !== 'undefined' ? window.__OSS_CONFIG__ : null;
                   if (ossConfig && ossConfig.bucket && ossConfig.region) {
                     const ossPath = galleryUrls[validIndex].startsWith('/') 
                       ? galleryUrls[validIndex].substring(1) 
@@ -243,6 +246,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                     e.stopPropagation();
                     handlePrev(e);
                   }}
+                  aria-label="上一张图片"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -266,6 +270,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                     e.stopPropagation();
                     handleNext(e);
                   }}
+                  aria-label="下一张图片"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -283,6 +288,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               e.stopPropagation();
               handleEnlarge(e);
             }}
+            aria-label="放大预览"
           >
             <ZoomIn className="h-4 w-4" />
           </Button>

@@ -8,11 +8,17 @@ import { getAllAssets, getAllTags, getAllTypes, getAllStyles, getAllSources, get
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: '资产列表 - 恒星UE资产库',
-  description: '浏览和搜索 Unreal Engine 资产',
+  title: '资产列表',
+  description: '浏览和搜索 Unreal Engine 资产资源，包括角色、场景、动画、特效等多种类型',
   openGraph: {
     title: '资产列表 - 恒星UE资产库',
-    description: '浏览和搜索 Unreal Engine 资产',
+    description: '浏览和搜索 Unreal Engine 资产资源，包括角色、场景、动画、特效等多种类型',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: '资产列表 - 恒星UE资产库',
+    description: '浏览和搜索 Unreal Engine 资产资源',
   },
 };
 

@@ -6,6 +6,7 @@ import { AssetCardGallery } from '@/components/asset-card-gallery';
 import { AssetCardSkeleton } from '@/components/asset-card-skeleton';
 import { EmptyState } from '@/components/empty-state';
 import { type Asset } from '@/data/manifest.schema';
+import { PAGINATION } from '@/lib/constants';
 import { useMemo } from 'react';
 import Link from 'next/link';
 
@@ -110,13 +111,14 @@ function AssetsListContent({ assets, selectedAssetIds, onToggleSelection }: Asse
       </div>
       {/* ✅ 响应式多列网格布局，铺满屏幕（类似光厂） */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
-        {paginatedAssets.map((asset) => (
+        {paginatedAssets.map((asset, index) => (
             <AssetCardGallery 
               key={asset.id} 
               asset={asset} 
               keyword={keyword}
               isSelected={selectedAssetIds?.has(asset.id)}
               onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
+              priority={index < PAGINATION.PRIORITY_IMAGES_COUNT}
             />
         ))}
       </div>
