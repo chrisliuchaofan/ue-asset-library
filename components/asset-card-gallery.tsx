@@ -147,7 +147,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
 
   return (
     <>
-      <Card className="group overflow-hidden transition-shadow hover:shadow-lg h-full flex flex-col relative">
+      <Card className="group overflow-hidden transition-shadow hover:shadow-lg h-full flex flex-col relative border">
         {/* 多选复选框 */}
         {onToggleSelection && (
           <div className="absolute top-2 left-2 z-20">
@@ -318,19 +318,19 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
           />
         </div>
         
-        <CardContent className="p-4 flex-1 flex flex-col">
+        <CardContent className="p-2 sm:p-3 flex-1 flex flex-col">
           <Link href={`/assets/${asset.id}`}>
             <h3
-              className="mb-1 line-clamp-2 font-semibold hover:text-primary transition-colors cursor-pointer"
+              className="mb-1 line-clamp-2 text-sm sm:text-base font-semibold hover:text-primary transition-colors cursor-pointer"
               dangerouslySetInnerHTML={{ __html: highlightedName }}
             />
           </Link>
           {/* 类型：资产名下方小灰字 */}
-          <div className="mb-2 text-xs text-muted-foreground">
+          <div className="mb-1.5 text-xs text-muted-foreground">
             {asset.type}
           </div>
           {/* 标签：圆角标签，超出用+N */}
-          <div className="mb-2 flex flex-wrap gap-1">
+          <div className="mb-1.5 flex flex-wrap gap-1">
             {(() => {
               // 确保 tags 是数组，如果是字符串则拆分（兼容旧数据）
               const tagsArray = Array.isArray(asset.tags)
@@ -355,7 +355,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               );
             })()}
           </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground mt-auto">
+          <div className="flex items-center justify-between text-xs text-muted-foreground mt-auto pt-1">
             <span>
               {(() => {
                 const currentUrl = galleryUrls[currentIndex] || asset.src;

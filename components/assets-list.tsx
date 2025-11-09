@@ -80,7 +80,7 @@ function AssetsListContent({ assets, selectedAssetIds, onToggleSelection }: Asse
   const selectedSources = searchParams.get('sources')?.split(',').filter(Boolean);
   const selectedVersions = searchParams.get('versions')?.split(',').filter(Boolean);
   const page = parseInt(searchParams.get('page') || '1', 10);
-  const itemsPerPage = 12;
+  const itemsPerPage = 50; // ✅ 每页显示50个资产，铺满首屏
 
   const filteredAssets = useMemo(
     () => filterAssets(assets, keyword, selectedTags, selectedTypes, selectedStyles, selectedSources, selectedVersions),
@@ -108,7 +108,8 @@ function AssetsListContent({ assets, selectedAssetIds, onToggleSelection }: Asse
       <div className="mb-4 text-sm text-muted-foreground">
         找到 {filteredAssets.length} 个资产
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {/* ✅ 响应式多列网格布局，铺满屏幕（类似光厂） */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
         {paginatedAssets.map((asset) => (
             <AssetCardGallery 
               key={asset.id} 
@@ -119,21 +120,88 @@ function AssetsListContent({ assets, selectedAssetIds, onToggleSelection }: Asse
             />
         ))}
       </div>
+      {/* ✅ 分页：只在超过50个资产时显示 */}
       {totalPages > 1 && (
-        <div className="mt-6 flex justify-center gap-2">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-            <Link
-              key={pageNum}
-              href={createPageUrl(pageNum)}
-              className={`px-3 py-2 rounded ${
-                pageNum === page
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80'
-              }`}
-            >
-              {pageNum}
-            </Link>
-          ))}
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <div className="text-sm text-muted-foreground">
+            共 {filteredAssets.length} 个资产，第 {page} / {totalPages} 页
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {/* 上一页按钮 */}
+            {page > 1 && (
+              <Link
+                href={createPageUrl(page - 1)}
+                className="px-4 py-2 rounded border bg-background hover:bg-muted transition-colors"
+              >
+                上一页
+              </Link>
+            )}
+            
+            {/* 页码按钮（显示当前页前后各2页，最多显示7个页码） */}
+            {(() => {
+              const maxVisiblePages = 7;
+              let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+              let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+              
+              // 如果接近末尾，调整起始页
+              if (endPage - startPage < maxVisiblePages - 1) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+              }
+              
+              const pages: (number | string)[] = [];
+              
+              // 第一页
+              if (startPage > 1) {
+                pages.push(1);
+                if (startPage > 2) pages.push('...');
+              }
+              
+              // 中间页码
+              for (let i = startPage; i <= endPage; i++) {
+                pages.push(i);
+              }
+              
+              // 最后一页
+              if (endPage < totalPages) {
+                if (endPage < totalPages - 1) pages.push('...');
+                pages.push(totalPages);
+              }
+              
+              return pages.map((pageNum, idx) => {
+                if (pageNum === '...') {
+                  return (
+                    <span key={`ellipsis-${idx}`} className="px-2 py-2 text-muted-foreground">
+                      ...
+                    </span>
+                  );
+                }
+                const pageNumValue = pageNum as number;
+                return (
+                  <Link
+                    key={pageNumValue}
+                    href={createPageUrl(pageNumValue)}
+                    className={`px-3 py-2 rounded min-w-[2.5rem] text-center transition-colors ${
+                      pageNumValue === page
+                        ? 'bg-primary text-primary-foreground font-medium'
+                        : 'bg-muted hover:bg-muted/80'
+                    }`}
+                  >
+                    {pageNumValue}
+                  </Link>
+                );
+              });
+            })()}
+            
+            {/* 下一页按钮 */}
+            {page < totalPages && (
+              <Link
+                href={createPageUrl(page + 1)}
+                className="px-4 py-2 rounded border bg-background hover:bg-muted transition-colors"
+              >
+                下一页
+              </Link>
+            )}
+          </div>
         </div>
       )}
     </>
@@ -150,8 +218,8 @@ export function AssetsList({ assets }: AssetsListProps) {
 
 export function AssetsListSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {Array.from({ length: 12 }).map((_, i) => (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+      {Array.from({ length: 50 }).map((_, i) => (
         <AssetCardSkeleton key={i} />
       ))}
     </div>

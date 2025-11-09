@@ -45,9 +45,9 @@ export default async function AssetsPage() {
         </div>
       </header>
 
-      <div className="container flex flex-1 gap-6 px-4 py-6">
-        <aside className="hidden lg:block">
-          <Suspense fallback={<div className="w-64" />}>
+      <div className="flex flex-1">
+        <aside className="hidden lg:block w-64 flex-shrink-0 border-r bg-muted/30 p-4">
+          <Suspense fallback={<div className="w-full" />}>
             <FilterSidebar
               types={types}
               styles={styles}
@@ -59,7 +59,7 @@ export default async function AssetsPage() {
           </Suspense>
         </aside>
 
-        <main className="flex-1">
+        <main className="flex-1 p-4 lg:p-6">
           <Suspense fallback={<AssetsListSkeleton />}>
             <AssetsListWithSelection assets={allAssets} />
           </Suspense>
