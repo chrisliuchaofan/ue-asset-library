@@ -16,6 +16,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // ✅ 获取 CDN base（优先使用客户端可访问的变量）
   const cdnBase = process.env.NEXT_PUBLIC_CDN_BASE || '/';
   const storageMode = process.env.STORAGE_MODE || process.env.NEXT_PUBLIC_STORAGE_MODE || 'local';
   // 优先使用 NEXT_PUBLIC_ 前缀的变量（客户端可访问），如果没有则使用服务端变量
