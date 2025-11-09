@@ -2,10 +2,10 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'UE 资产库',
+  title: '恒星UE资产库',
   description: 'Unreal Engine 资产展示库',
   openGraph: {
-    title: 'UE 资产库',
+    title: '恒星UE资产库',
     description: 'Unreal Engine 资产展示库',
     type: 'website',
   },
@@ -48,7 +48,7 @@ export default function RootLayout({
   }
   
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

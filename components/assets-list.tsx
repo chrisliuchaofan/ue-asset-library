@@ -13,7 +13,10 @@ function filterAssets(
   assets: Asset[],
   keyword?: string,
   tags?: string[],
-  types?: string[]
+  types?: string[],
+  styles?: string[],
+  sources?: string[],
+  versions?: string[]
 ): Asset[] {
   let filtered = assets;
 
@@ -36,24 +39,52 @@ function filterAssets(
     filtered = filtered.filter((asset) => types.includes(asset.type));
   }
 
+  if (styles && styles.length > 0) {
+    filtered = filtered.filter((asset) => {
+      if (!asset.style) return false;
+      const styleValue = asset.style;
+      if (Array.isArray(styleValue)) {
+        return styles.some((style) => styleValue.includes(style));
+      }
+      return styles.includes(styleValue);
+    });
+  }
+
+  if (sources && sources.length > 0) {
+    filtered = filtered.filter((asset) =>
+      asset.source && sources.includes(asset.source)
+    );
+  }
+
+  if (versions && versions.length > 0) {
+    filtered = filtered.filter((asset) =>
+      asset.engineVersion && versions.includes(asset.engineVersion)
+    );
+  }
+
   return filtered;
 }
 
 interface AssetsListProps {
   assets: Asset[];
+  selectedAssetIds?: Set<string>;
+  onToggleSelection?: (assetId: string) => void;
 }
 
-function AssetsListContent({ assets }: AssetsListProps) {
+function AssetsListContent({ assets, selectedAssetIds, onToggleSelection }: AssetsListProps) {
   const searchParams = useSearchParams();
   const keyword = searchParams.get('q') || undefined;
   const selectedTags = searchParams.get('tags')?.split(',').filter(Boolean);
   const selectedTypes = searchParams.get('types')?.split(',').filter(Boolean);
+  const selectedStyles = searchParams.get('styles')?.split(',').filter(Boolean);
+  const selectedSources = searchParams.get('sources')?.split(',').filter(Boolean);
+  const selectedVersions = searchParams.get('versions')?.split(',').filter(Boolean);
   const page = parseInt(searchParams.get('page') || '1', 10);
   const itemsPerPage = 12;
 
   const filteredAssets = useMemo(
-    () => filterAssets(assets, keyword, selectedTags, selectedTypes),
-    [assets, keyword, selectedTags, selectedTypes]
+    () => filterAssets(assets, keyword, selectedTags, selectedTypes, selectedStyles, selectedSources, selectedVersions),
+    [assets, keyword, selectedTags, selectedTypes, selectedStyles, selectedSources, selectedVersions]
   );
 
   const totalPages = Math.ceil(filteredAssets.length / itemsPerPage);
@@ -79,7 +110,13 @@ function AssetsListContent({ assets }: AssetsListProps) {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {paginatedAssets.map((asset) => (
-            <AssetCardGallery key={asset.id} asset={asset} keyword={keyword} />
+            <AssetCardGallery 
+              key={asset.id} 
+              asset={asset} 
+              keyword={keyword}
+              isSelected={selectedAssetIds?.has(asset.id)}
+              onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
+            />
         ))}
       </div>
       {totalPages > 1 && (

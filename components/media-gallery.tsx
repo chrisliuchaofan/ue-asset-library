@@ -48,6 +48,19 @@ function getClientAssetUrl(path: string): string {
   return `${base.replace(/\/+$/, '')}${normalizedPath}`;
 }
 
+// 判断 URL 是否为视频
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lowerUrl = url.toLowerCase();
+  return (
+    lowerUrl.includes('.mp4') ||
+    lowerUrl.includes('.webm') ||
+    lowerUrl.includes('.mov') ||
+    lowerUrl.includes('.avi') ||
+    lowerUrl.includes('.mkv')
+  );
+}
+
 export function MediaGallery({ asset }: MediaGalleryProps) {
   const [isImageOpen, setIsImageOpen] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -59,12 +72,14 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
     : [asset.src];
   
   const currentUrl = getClientAssetUrl(galleryUrls[currentIndex]);
+  const isVideo = isVideoUrl(currentUrl);
 
   // 自动播放视频（静音）
   useEffect(() => {
     galleryUrls.forEach((url, index) => {
       const video = videoRefs.current[index];
-      if (video && asset.type === 'video' && index === currentIndex) {
+      const urlIsVideo = isVideoUrl(getClientAssetUrl(url));
+      if (video && urlIsVideo && index === currentIndex) {
         video.muted = true;
         video.play().catch((err) => {
           console.warn('视频自动播放失败:', err);
@@ -74,7 +89,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
         video.currentTime = 0;
       }
     });
-  }, [currentIndex, galleryUrls, asset.type]);
+  }, [currentIndex, galleryUrls]);
 
   const handlePrev = () => {
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1));
@@ -87,7 +102,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
   return (
     <>
       <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted flex items-center justify-center">
-        {asset.type === 'video' ? (
+        {isVideo ? (
           <>
             {/* 视频自动播放层 */}
             {galleryUrls.map((url, index) => (
@@ -200,7 +215,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
         )}
       </div>
 
-      {isImageOpen && asset.type === 'image' && (
+      {isImageOpen && !isVideo && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
           onClick={() => setIsImageOpen(false)}
