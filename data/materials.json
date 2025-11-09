@@ -1,0 +1,39 @@
+{
+  "materials": [
+    {
+      "id": "0489726f-7913-4b0c-97d3-1887345c0b42",
+      "name": "风格化写实_圈地围栏_1013",
+      "type": "UE视频",
+      "tag": "达标",
+      "quality": [
+        "常规"
+      ],
+      "thumbnail": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711267881-d8mwjm.mp4",
+      "src": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711267881-d8mwjm.mp4",
+      "gallery": [
+        "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711267881-d8mwjm.mp4"
+      ],
+      "filesize": 72634719,
+      "createdAt": 1762711282623,
+      "updatedAt": 1762711282623
+    },
+    {
+      "id": "7424b3fe-69c4-4b2f-ac9a-cec05407e9b6",
+      "name": "搭羊圈烤全羊",
+      "type": "UE视频",
+      "tag": "爆款",
+      "quality": [
+        "高品质",
+        "迭代"
+      ],
+      "thumbnail": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711282740-1c4pdv.mp4",
+      "src": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711282740-1c4pdv.mp4",
+      "gallery": [
+        "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711282740-1c4pdv.mp4"
+      ],
+      "filesize": 14917887,
+      "createdAt": 1762711285472,
+      "updatedAt": 1762711285472
+    }
+  ]
+}

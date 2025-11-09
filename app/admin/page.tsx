@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import { AdminDashboard } from '@/components/admin/admin-dashboard';
+import { AdminMaterialsDashboard } from '@/components/admin/admin-materials-dashboard';
 import { getAllAssets } from '@/lib/data';
+import { getAllMaterials } from '@/lib/materials-data';
 import { getStorageMode } from '@/lib/storage';
 import { getCdnBase } from '@/lib/utils';
+import { AdminTabs } from '@/components/admin/admin-tabs';
 
 export const metadata: Metadata = {
   title: '后台管理 - UE 资产库',
@@ -13,6 +16,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
   const assets = await getAllAssets();
+  const materials = await getAllMaterials();
   const storageMode = getStorageMode();
   const cdnBase = getCdnBase();
 
@@ -25,7 +29,10 @@ export default async function AdminPage() {
         </p>
       </div>
 
-      <AdminDashboard initialAssets={assets} storageMode={storageMode} cdnBase={cdnBase} />
+      <AdminTabs>
+        <AdminDashboard initialAssets={assets} storageMode={storageMode} cdnBase={cdnBase} />
+        <AdminMaterialsDashboard initialMaterials={materials} storageMode={storageMode} cdnBase={cdnBase} />
+      </AdminTabs>
     </div>
   );
 }

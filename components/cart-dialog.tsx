@@ -104,7 +104,7 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto w-[calc(100vw-2rem)] sm:w-full mx-4 sm:mx-0">
         <DialogHeader>
           <DialogTitle>我的清单</DialogTitle>
           <DialogDescription>
@@ -120,12 +120,21 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
             </div>
           ) : (
             <>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={handleClear}>
+              <div className="flex flex-col sm:flex-row justify-end gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleClear}
+                  className="w-full sm:w-auto"
+                >
                   <Trash2 className="h-4 w-4 mr-2" />
                   清空
                 </Button>
-                <Button onClick={handleExport} disabled={exporting}>
+                <Button 
+                  onClick={handleExport} 
+                  disabled={exporting}
+                  className="w-full sm:w-auto"
+                >
                   <Download className="h-4 w-4 mr-2" />
                   {exporting ? '导出中...' : '导出CSV'}
                 </Button>
@@ -135,21 +144,21 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
                 {selectedAssets.map((asset) => (
                   <div
                     key={asset.id}
-                    className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50"
+                    className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 border rounded-lg hover:bg-muted/50"
                   >
                     {asset.thumbnail && (
                       <img
                         src={asset.thumbnail.startsWith('http') ? asset.thumbnail : `/${asset.thumbnail}`}
                         alt={asset.name}
-                        className="w-16 h-16 object-cover rounded border"
+                        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded border flex-shrink-0"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}
                       />
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{asset.name}</div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="font-medium truncate text-sm sm:text-base">{asset.name}</div>
+                      <div className="text-xs sm:text-sm text-muted-foreground truncate">
                         {asset.type} · {asset.tags.slice(0, 3).join(', ')}
                         {asset.tags.length > 3 && ` +${asset.tags.length - 3}`}
                       </div>
@@ -158,7 +167,7 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
                       variant="ghost"
                       size="sm"
                       onClick={() => onRemove(asset.id)}
-                      className="h-8 w-8 p-0"
+                      className="h-8 w-8 p-0 flex-shrink-0"
                     >
                       <X className="h-4 w-4" />
                     </Button>

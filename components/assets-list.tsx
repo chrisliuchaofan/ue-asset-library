@@ -109,7 +109,7 @@ function AssetsListContent({ assets, selectedAssetIds, onToggleSelection, office
   return (
     <>
       {/* ✅ 响应式多列网格布局，铺满屏幕（类似光厂） */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
         {paginatedAssets.map((asset, index) => (
             <AssetCardGallery 
               key={asset.id} 

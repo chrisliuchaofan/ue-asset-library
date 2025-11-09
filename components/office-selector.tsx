@@ -11,11 +11,11 @@ interface OfficeSelectorProps {
 
 export function OfficeSelector({ value, onChange }: OfficeSelectorProps) {
   return (
-    <div className="flex gap-1 border rounded-md p-0.5">
+    <div className="flex gap-0.5 sm:gap-1 border rounded-md p-0.5">
       <Button
         variant={value === 'guangzhou' ? 'default' : 'ghost'}
         size="sm"
-        className="h-7 px-3 text-xs"
+        className="h-7 sm:h-7 px-2 sm:px-3 text-xs"
         onClick={() => onChange('guangzhou')}
       >
         广州
@@ -23,7 +23,7 @@ export function OfficeSelector({ value, onChange }: OfficeSelectorProps) {
       <Button
         variant={value === 'shenzhen' ? 'default' : 'ghost'}
         size="sm"
-        className="h-7 px-3 text-xs"
+        className="h-7 sm:h-7 px-2 sm:px-3 text-xs"
         onClick={() => onChange('shenzhen')}
       >
         深圳
