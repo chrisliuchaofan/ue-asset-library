@@ -1,12 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { BlurText } from '@/components/blur-text';
-import { motion } from 'framer-motion';
+import { HeroSection } from '@/components/hero-section';
 
 // 动态导入星系组件，禁用 SSR
 const GalaxyBackground = dynamic(
@@ -15,8 +10,6 @@ const GalaxyBackground = dynamic(
 );
 
 export default function HomePage() {
-  const [showButtons, setShowButtons] = useState(false);
-
   return (
     <div className="flex min-h-screen flex-col relative overflow-hidden">
       {/* 星系背景 */}
@@ -40,63 +33,7 @@ export default function HomePage() {
       />
       
       {/* 内容层 */}
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-16">
-        <motion.div 
-          className="mx-auto max-w-2xl text-center w-full flex flex-col items-center"
-          animate={{
-            y: showButtons ? -10 : 0,
-          }}
-          transition={{
-            duration: 0.5,
-            ease: [0.25, 0.1, 0.25, 1],
-            type: 'tween'
-          }}
-        >
-          <h1 className="mb-8 text-4xl font-bold tracking-tight sm:text-6xl">
-            <BlurText
-              text="恒星资产库"
-              className="text-white"
-              animateBy="letters"
-              direction="top"
-              delay={50}
-              stepDuration={0.4}
-              initialDelay={500}
-              loop={1}
-              onAnimationComplete={() => setShowButtons(true)}
-            />
-          </h1>
-          {showButtons ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ 
-                opacity: 1, 
-                scale: 1
-              }}
-              transition={{ 
-                duration: 0.5, 
-                ease: [0.25, 0.1, 0.25, 1],
-                type: 'tween'
-              }}
-              className="flex gap-4 justify-center items-center"
-            >
-              <Link href="/assets">
-                <Button size="lg" className="gap-2 bg-white text-black hover:bg-white/90">
-                  浏览资产
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link href="/materials">
-                <Button size="lg" variant="outline" className="gap-2 bg-white/10 text-white border-white/20 hover:bg-white/20">
-                  浏览素材
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-            </motion.div>
-          ) : (
-            <div className="h-[60px]" aria-hidden="true" />
-          )}
-        </motion.div>
-      </main>
+      <HeroSection />
     </div>
   );
 }

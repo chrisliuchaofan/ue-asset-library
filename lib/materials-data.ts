@@ -1,0 +1,104 @@
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { MaterialSchema, MaterialsManifestSchema, type Material } from '@/data/material.schema';
+
+const materialsPath = join(process.cwd(), 'data', 'materials.json');
+
+// 读取本地素材清单
+async function readLocalMaterials(): Promise<Material[]> {
+  try {
+    const file = await fs.readFile(materialsPath, 'utf-8');
+    const data = JSON.parse(file);
+    const validated = MaterialsManifestSchema.parse(data);
+    return validated.materials;
+  } catch (error) {
+    // 如果文件不存在或格式错误，返回空数组
+    if ((error as any).code === 'ENOENT') {
+      return [];
+    }
+    console.error('读取素材清单失败:', error);
+    return [];
+  }
+}
+
+// 保存本地素材清单
+async function writeLocalMaterials(materials: Material[]): Promise<void> {
+  const data = {
+    materials,
+  };
+  await fs.writeFile(materialsPath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+export async function getAllMaterials(): Promise<Material[]> {
+  return readLocalMaterials();
+}
+
+export async function getMaterialById(id: string): Promise<Material | null> {
+  const materials = await readLocalMaterials();
+  return materials.find((m) => m.id === id) || null;
+}
+
+export async function createMaterial(input: {
+  name: string;
+  type: 'UE视频' | 'AE视频' | '混剪' | 'AI视频' | '图片';
+  tag: '爆款' | '优质' | '达标';
+  quality: ('高品质' | '常规' | '迭代')[];
+  thumbnail?: string;
+  src?: string;
+  gallery?: string[];
+  filesize?: number;
+  width?: number;
+  height?: number;
+  duration?: number;
+}): Promise<Material> {
+  const materials = await readLocalMaterials();
+  
+  // 检查名称和类型是否同时重复
+  const nameTrimmed = input.name.trim();
+  const duplicateMaterial = materials.find((m) => 
+    m.name.trim() === nameTrimmed && m.type === input.type
+  );
+  if (duplicateMaterial) {
+    throw new Error(`素材名称 "${nameTrimmed}" 和类型 "${input.type}" 的组合已存在。请先检查是否已上传过该素材，确认没有后请更改命名或类型。`);
+  }
+  
+  const now = Date.now();
+  const material: Material = {
+    id: crypto.randomUUID(),
+    name: nameTrimmed,
+    type: input.type,
+    tag: input.tag,
+    quality: input.quality,
+    thumbnail: input.thumbnail || input.src || '',
+    src: input.src || input.thumbnail || '',
+    gallery: input.gallery,
+    filesize: input.filesize,
+    width: input.width,
+    height: input.height,
+    duration: input.duration,
+    createdAt: now,
+    updatedAt: now,
+  };
+  
+  materials.push(material);
+  await writeLocalMaterials(materials);
+  return material;
+}
+
+export async function updateMaterial(id: string, updates: Partial<Material>): Promise<Material> {
+  const materials = await readLocalMaterials();
+  const index = materials.findIndex((m) => m.id === id);
+  if (index === -1) {
+    throw new Error(`素材 ${id} 不存在`);
+  }
+  materials[index] = { ...materials[index], ...updates };
+  await writeLocalMaterials(materials);
+  return materials[index];
+}
+
+export async function deleteMaterial(id: string): Promise<void> {
+  const materials = await readLocalMaterials();
+  const filtered = materials.filter((m) => m.id !== id);
+  await writeLocalMaterials(filtered);
+}
+

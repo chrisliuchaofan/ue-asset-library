@@ -137,8 +137,6 @@ export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps
           selectedAssets={allSelectedAssets}
           onRemoveAsset={handleRemoveAsset}
           onClearAssets={handleClearAssets}
-          officeLocation={officeLocation}
-          onOfficeLocationChange={setOfficeLocation}
         />,
         portal
       )}

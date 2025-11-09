@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { type Asset } from '@/data/manifest.schema';
 import { formatFileSize, formatDuration, highlightText } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, ZoomIn } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, FolderOpen, Plus } from 'lucide-react';
 import { type OfficeLocation } from '@/lib/nas-utils';
 
 interface AssetCardGalleryProps {
@@ -127,6 +127,16 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     });
   }, [currentIndex, galleryUrls, isVideoUrl]);
 
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // 自动滚动播放超长名称
   useEffect(() => {
     const nameElement = nameRef.current;
@@ -231,9 +241,16 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0));
   };
 
-  const handleEnlarge = (e: React.MouseEvent) => {
+  // 处理双击事件
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // 清除单击延迟
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
     setIsEnlarged(true);
   };
 
@@ -246,7 +263,10 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     <>
       <Card className="group overflow-hidden transition-shadow hover:shadow-lg h-full flex flex-col relative border">
         {/* 固定大小的预览区域 */}
-        <div className="relative aspect-video w-full overflow-hidden bg-muted flex items-center justify-center">
+        <div 
+          className="relative aspect-video w-full overflow-hidden bg-muted flex items-center justify-center cursor-pointer"
+          onDoubleClick={handleDoubleClick}
+        >
           {/* 渲染所有视频（用于自动播放） */}
           {galleryUrls.map((url, index) => {
             const urlIsVideo = isVideoUrl(url);
@@ -379,22 +399,6 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             </div>
           )}
           
-          {/* 放大按钮 - 右下角 */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute bottom-2 right-2 h-8 w-8 bg-background/90 hover:bg-background z-20 shadow-sm"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleEnlarge(e);
-            }}
-            aria-label="放大预览"
-            title="放大预览"
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          
           {/* 点击预览区域跳转到详情页 */}
           <Link 
             href={`/assets/${asset.id}`}
@@ -402,29 +406,40 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             onClick={(e) => {
               // 如果点击的是按钮区域，不跳转
               const target = e.target as HTMLElement;
-              if (target.closest('button') || target.closest('[role="button"]') || target.closest('a')) {
+              if (target.closest('button') || target.closest('[role="button"]')) {
                 e.preventDefault();
                 e.stopPropagation();
+                return;
               }
+              
+              // 延迟执行跳转，等待可能的双击事件
+              e.preventDefault();
+              if (clickTimeoutRef.current) {
+                clearTimeout(clickTimeoutRef.current);
+              }
+              clickTimeoutRef.current = setTimeout(() => {
+                window.location.href = `/assets/${asset.id}`;
+                clickTimeoutRef.current = null;
+              }, 300); // 300ms 延迟，如果在这期间发生双击，会被清除
             }}
           />
         </div>
         
-        <CardContent className="p-2.5 sm:p-3 flex-1 flex flex-col relative">
+        <CardContent className="p-2 sm:p-2.5 sm:p-3 flex-1 flex flex-col relative">
           <Link href={`/assets/${asset.id}`} className="block">
             <h3
               ref={nameRef}
-              className="mb-1.5 text-[13px] sm:text-[14px] font-medium leading-tight hover:text-primary transition-colors cursor-pointer whitespace-nowrap overflow-x-auto scrollbar-hide"
+              className="mb-1 sm:mb-1.5 text-[12px] sm:text-[13px] md:text-[14px] font-medium leading-tight hover:text-primary transition-colors cursor-pointer whitespace-nowrap overflow-x-auto scrollbar-hide"
               style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
               dangerouslySetInnerHTML={{ __html: highlightedName }}
             />
           </Link>
           {/* 类型：资产名下方小灰字 */}
-          <div className="mb-2 text-[11px] sm:text-xs text-muted-foreground font-normal">
+          <div className="mb-1.5 sm:mb-2 text-[10px] sm:text-[11px] md:text-xs text-muted-foreground font-normal">
             {asset.type}
           </div>
           {/* 标签：圆角标签，超出用+N */}
-          <div className="mb-2 flex flex-wrap gap-1">
+          <div className="mb-1.5 sm:mb-2 flex flex-wrap gap-0.5 sm:gap-1">
             {(() => {
               // 确保 tags 是数组，如果是字符串则拆分（兼容旧数据）
               const tagsArray = Array.isArray(asset.tags)
@@ -436,12 +451,12 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               return (
                 <>
                   {displayTags.map((tag: string) => (
-                    <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0.5 rounded-full font-normal">
+                    <Badge key={tag} variant="secondary" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full font-normal">
                       {tag}
                     </Badge>
                   ))}
                   {tagsArray.length > 3 && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 rounded-full font-normal">
+                    <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full font-normal">
                       +{tagsArray.length - 3}
                     </Badge>
                   )}
@@ -450,12 +465,12 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             })()}
           </div>
           {/* 添加清单和 NAS 路径按钮 */}
-          <div className="mt-2 pt-2 border-t flex gap-1.5 relative z-20">
+          <div className="mt-2 pt-2 border-t flex gap-1.5 relative z-20 items-center">
             {/* 添加清单按钮 - 在前 */}
             <Button
               variant={isSelected ? "default" : "outline"}
               size="sm"
-              className="h-7 text-xs gap-1 px-2.5 flex-shrink-0 whitespace-nowrap relative z-20 pointer-events-auto"
+              className="h-7 text-xs gap-1 px-2 sm:px-2.5 flex-shrink-0 whitespace-nowrap relative z-20 pointer-events-auto flex items-center"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -472,7 +487,8 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               {isSelected ? (
                 <>
                   <Checkbox checked readOnly className="h-3 w-3 flex-shrink-0" />
-                  <span>已添加</span>
+                  <span className="hidden sm:inline">已添加</span>
+                  <span className="sm:hidden">已</span>
                 </>
               ) : (
                 <>
@@ -485,7 +501,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             <Button
               variant="ghost"
               size="sm"
-              className="flex-1 h-7 text-xs gap-1 min-w-0 relative z-20 pointer-events-auto"
+              className="flex-1 h-7 text-xs gap-1 min-w-0 relative z-20 pointer-events-auto flex items-center"
               onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -552,24 +568,47 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
           onClick={() => setIsEnlarged(false)}
+          onDoubleClick={(e) => {
+            // 双击关闭（仅对图片有效，视频使用关闭按钮）
+            if (!currentIsVideo) {
+              e.stopPropagation();
+              setIsEnlarged(false);
+            }
+          }}
         >
+          {/* 关闭按钮 - 视频时显示，图片时也显示但双击也可以关闭 */}
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-4 top-4 text-white hover:bg-white/20"
-            onClick={() => setIsEnlarged(false)}
+            className="absolute right-4 top-4 text-white hover:bg-white/20 z-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsEnlarged(false);
+            }}
           >
             <X className="h-6 w-6" />
           </Button>
-          <div className="relative h-full w-full max-w-7xl" onClick={(e) => e.stopPropagation()}>
+          <div 
+            className="relative h-full w-full max-w-7xl" 
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => {
+              // 双击关闭（仅对图片有效）
+              if (!currentIsVideo) {
+                e.stopPropagation();
+                setIsEnlarged(false);
+              }
+            }}
+          >
             {currentIsVideo ? (
-              <video
-                src={currentUrl}
-                controls
-                autoPlay
-                className="w-full h-full object-contain"
-                muted={false}
-              />
+              <div className="relative w-full h-full">
+                <video
+                  src={currentUrl}
+                  controls
+                  autoPlay
+                  className="w-full h-full object-contain"
+                  muted={false}
+                />
+              </div>
             ) : (
               <Image
                 src={currentUrl}
@@ -586,21 +625,27 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                 <Button
                   variant="outline"
                   size="icon"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border-white/30"
-                  onClick={() => setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1))}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border-white/30 z-40"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1));
+                  }}
                 >
                   <ChevronLeft className="h-6 w-6" />
                 </Button>
                 <Button
                   variant="outline"
                   size="icon"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border-white/30"
-                  onClick={() => setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0))}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border-white/30 z-40"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0));
+                  }}
                 >
                   <ChevronRight className="h-6 w-6" />
                 </Button>
                 {/* 指示器 */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-40">
                   {galleryUrls.map((_, index) => (
                     <button
                       key={index}
@@ -609,7 +654,10 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                           ? 'w-6 bg-white'
                           : 'w-2 bg-white/50 hover:bg-white/70'
                       }`}
-                      onClick={() => setCurrentIndex(index)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentIndex(index);
+                      }}
                     />
                   ))}
                 </div>

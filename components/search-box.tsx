@@ -57,15 +57,15 @@ export function SearchBox() {
   };
 
   return (
-    <div className="relative w-full max-w-md">
-      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    <div className="relative w-full max-w-xs sm:max-w-md">
+      <Search className="absolute left-2 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         type="search"
-        placeholder="搜索资产...（按回车确认）"
+        placeholder="搜索..."
         value={searchValue}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        className="pl-10"
+        className="pl-8 sm:pl-10 h-8 sm:h-10 text-sm"
         disabled={isPending}
       />
     </div>
