@@ -154,3 +154,4 @@ NEXT_PUBLIC_CDN_BASE=https://你的CDN域名
 2. 确保服务器可以访问阿里云 OSS（网络连通性）
 3. 建议使用 CDN 加速静态资源访问
 
+

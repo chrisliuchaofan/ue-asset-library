@@ -73,11 +73,16 @@ export function AssetCardGallery({ asset, keyword }: AssetCardGalleryProps) {
   
   // 获取所有预览图/视频 URL
   // 优先使用 gallery，如果没有则使用 thumbnail 和 src
+  // 注意：如果 thumbnail 和 src 相同，只使用一个
   const galleryUrls = asset.gallery && asset.gallery.length > 0 
     ? asset.gallery 
-    : asset.thumbnail 
+    : asset.thumbnail && asset.thumbnail !== asset.src
     ? [asset.thumbnail, asset.src].filter(Boolean)
-    : [asset.src].filter(Boolean);
+    : asset.thumbnail
+    ? [asset.thumbnail]
+    : asset.src
+    ? [asset.src]
+    : [];
   
   const highlightedName = highlightText(asset.name, keyword || '');
 
@@ -115,7 +120,9 @@ export function AssetCardGallery({ asset, keyword }: AssetCardGalleryProps) {
     setIsEnlarged(true);
   };
 
-  const currentUrl = galleryUrls[currentIndex] ? getClientAssetUrl(galleryUrls[currentIndex]) : '';
+  // 确保 currentIndex 在有效范围内
+  const validIndex = galleryUrls.length > 0 ? Math.min(currentIndex, galleryUrls.length - 1) : 0;
+  const currentUrl = galleryUrls[validIndex] ? getClientAssetUrl(galleryUrls[validIndex]) : '';
   const isVideo = currentUrl && (
     currentUrl.includes('.mp4') ||
     currentUrl.includes('.webm') ||
@@ -159,9 +166,17 @@ export function AssetCardGallery({ asset, keyword }: AssetCardGalleryProps) {
                   unoptimized={currentUrl.startsWith('http') || currentUrl.startsWith('/assets/')}
                   onError={(e) => {
                     console.error('图片加载失败:', currentUrl);
+                    console.error('原始路径:', galleryUrls[validIndex]);
+                    console.error('CDN Base:', getClientCdnBase());
                     // 如果是 OSS 路径但加载失败，可能是 CDN base 配置问题
                     if (currentUrl.startsWith('/assets/')) {
-                      console.warn('OSS 路径加载失败，请检查 NEXT_PUBLIC_CDN_BASE 配置');
+                      const ossConfig = typeof window !== 'undefined' ? (window as any).__OSS_CONFIG__ : null;
+                      console.warn('OSS 路径加载失败，请检查配置:', {
+                        cdnBase: getClientCdnBase(),
+                        ossConfig,
+                        originalPath: galleryUrls[validIndex],
+                        resolvedUrl: currentUrl
+                      });
                     }
                   }}
                 />

@@ -129,3 +129,4 @@ export function FilterSidebar({ tags, types, assets }: FilterSidebarProps) {
   );
 }
 
+
