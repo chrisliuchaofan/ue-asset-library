@@ -378,13 +378,21 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
   } catch (error: any) {
     // 如果文件不存在，返回空数组和默认类型
     if (error.code === 'NoSuchKey' || error.status === 404) {
+      console.warn('OSS manifest 文件不存在，返回空数组');
       return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
-    // DNS 解析失败或网络连接问题
-    if (error.code === 'ENOTFOUND' || error.message?.includes('ENOTFOUND') || error.message?.includes('getaddrinfo')) {
-      throw new Error(`无法连接到 OSS 服务器。请检查网络连接和 OSS 配置（Bucket: ${process.env.OSS_BUCKET || '未设置'}, Region: ${process.env.OSS_REGION || '未设置'}）。错误详情: ${error.message}`);
+    // DNS 解析失败或网络连接问题，或 OSS 服务被禁用
+    if (error.code === 'ENOTFOUND' || 
+        error.message?.includes('ENOTFOUND') || 
+        error.message?.includes('getaddrinfo') ||
+        error.message?.includes('UserDisable') ||
+        error.code === 'UserDisable') {
+      console.warn('OSS 连接失败或服务被禁用，返回空数组:', error.message);
+      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
-    throw new Error(`读取 OSS manifest 失败: ${error.message}`);
+    // 其他错误也返回空数组，避免服务器崩溃
+    console.error('读取 OSS manifest 失败，返回空数组:', error.message);
+    return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
   }
 }
 
@@ -451,17 +459,25 @@ async function readOSSManifestFull(): Promise<Manifest> {
       return asset;
     });
     
-    return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
+    return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] } as Manifest;
   } catch (error: any) {
     // 如果文件不存在，返回空manifest和默认类型
     if (error.code === 'NoSuchKey' || error.status === 404) {
-      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
+      console.warn('OSS manifest 文件不存在，返回空数组');
+      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] } as Manifest;
     }
-    // DNS 解析失败或网络连接问题
-    if (error.code === 'ENOTFOUND' || error.message?.includes('ENOTFOUND') || error.message?.includes('getaddrinfo')) {
-      throw new Error(`无法连接到 OSS 服务器。请检查网络连接和 OSS 配置（Bucket: ${process.env.OSS_BUCKET || '未设置'}, Region: ${process.env.OSS_REGION || '未设置'}）。错误详情: ${error.message}`);
+    // DNS 解析失败或网络连接问题，或 OSS 服务被禁用
+    if (error.code === 'ENOTFOUND' || 
+        error.message?.includes('ENOTFOUND') || 
+        error.message?.includes('getaddrinfo') ||
+        error.message?.includes('UserDisable') ||
+        error.code === 'UserDisable') {
+      console.warn('OSS 连接失败或服务被禁用，返回空数组:', error.message);
+      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] } as Manifest;
     }
-    throw new Error(`读取 OSS manifest 失败: ${error.message}`);
+    // 其他错误也返回空数组，避免服务器崩溃
+    console.error('读取 OSS manifest 失败，返回空数组:', error.message);
+    return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] } as Manifest;
   }
 }
 
