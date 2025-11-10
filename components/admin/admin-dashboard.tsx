@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { uploadFileDirect } from '@/lib/client/direct-upload';
 
 type StorageMode = 'local' | 'oss';
 
@@ -852,52 +853,88 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
 
       setUploadProgress('正在上传...');
       setUploadProgressPercent(0);
-      const formData = new FormData();
-      formData.append('file', file);
 
-      // 使用XMLHttpRequest来跟踪上传进度
-      const xhr = new XMLHttpRequest();
-      
-      const uploadPromise = new Promise<any>((resolve, reject) => {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
+      let data: {
+        url: string;
+        originalName: string;
+        type: 'image' | 'video';
+        size: number;
+        width?: number;
+        height?: number;
+        hash?: string;
+      };
+
+      if (storageMode === 'oss') {
+        const directResult = await uploadFileDirect(file, {
+          onProgress: (percent) => {
             setUploadProgressPercent(percent);
             setUploadProgress(`正在上传... ${percent}%`);
-          }
+          },
         });
 
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const data = JSON.parse(xhr.responseText);
-              resolve(data);
-            } catch (err) {
-              reject(new Error('服务器响应格式错误'));
+        data = {
+          url: directResult.fileUrl,
+          originalName: file.name,
+          type: file.type.startsWith('image/') ? 'image' : 'video',
+          size: file.size,
+          width: undefined,
+          height: undefined,
+        };
+      } else {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const xhr = new XMLHttpRequest();
+        const uploadPromise = new Promise<any>((resolve, reject) => {
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              setUploadProgressPercent(percent);
+              setUploadProgress(`正在上传... ${percent}%`);
             }
-          } else {
-            try {
-              const error = JSON.parse(xhr.responseText);
-              reject(new Error(error.message || '上传失败'));
-            } catch {
-              reject(new Error(`上传失败: HTTP ${xhr.status}`));
+          });
+
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const responseData = JSON.parse(xhr.responseText);
+                resolve(responseData);
+              } catch (err) {
+                reject(new Error('服务器响应格式错误'));
+              }
+            } else {
+              try {
+                const error = JSON.parse(xhr.responseText);
+                reject(new Error(error.message || '上传失败'));
+              } catch {
+                reject(new Error(`上传失败: HTTP ${xhr.status}`));
+              }
             }
-          }
+          });
+
+          xhr.addEventListener('error', () => {
+            reject(new Error('网络错误，请检查网络连接'));
+          });
+
+          xhr.addEventListener('abort', () => {
+            reject(new Error('上传已取消'));
+          });
+
+          xhr.open('POST', '/api/upload');
+          xhr.send(formData);
         });
 
-        xhr.addEventListener('error', () => {
-          reject(new Error('网络错误，请检查网络连接'));
-        });
-
-        xhr.addEventListener('abort', () => {
-          reject(new Error('上传已取消'));
-        });
-
-        xhr.open('POST', '/api/upload');
-        xhr.send(formData);
-      });
-
-      const data = await uploadPromise;
+        const responseData = await uploadPromise;
+        data = {
+          url: responseData.url,
+          originalName: responseData.originalName,
+          type: responseData.type,
+          size: responseData.size,
+          width: responseData.width,
+          height: responseData.height,
+          hash: responseData.hash,
+        };
+      }
 
       setUploadProgress(null);
       setUploadProgressPercent(0);
@@ -1025,55 +1062,90 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
           const fileIndex = files.indexOf(file) + 1;
           setUploadProgress(`正在上传 ${fileIndex}/${files.length}: ${file.name}...`);
           setUploadProgressPercent(0);
-          
-          const formData = new FormData();
-          formData.append('file', file);
 
-          // 使用XMLHttpRequest来跟踪上传进度
-          const xhr = new XMLHttpRequest();
-          
-          const uploadPromise = new Promise<any>((resolve, reject) => {
-            xhr.upload.addEventListener('progress', (e) => {
-              if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100);
+          let data: {
+            url: string;
+            originalName: string;
+            type: 'image' | 'video';
+            size: number;
+            width?: number;
+            height?: number;
+            hash?: string;
+          };
+
+          if (storageMode === 'oss') {
+            const directResult = await uploadFileDirect(file, {
+              onProgress: (percent) => {
                 setUploadProgressPercent(percent);
                 setUploadProgress(`正在上传 ${fileIndex}/${files.length}: ${file.name}... ${percent}%`);
-              }
+              },
             });
 
-            xhr.addEventListener('load', () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                  const data = JSON.parse(xhr.responseText);
-                  resolve(data);
-                } catch (err) {
-                  reject(new Error(`解析 ${file.name} 的响应失败`));
+            data = {
+              url: directResult.fileUrl,
+              originalName: file.name,
+              type: file.type.startsWith('image/') ? 'image' : 'video',
+              size: file.size,
+            };
+          } else {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const xhr = new XMLHttpRequest();
+
+            const uploadPromise = new Promise<any>((resolve, reject) => {
+              xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                  const percent = Math.round((e.loaded / e.total) * 100);
+                  setUploadProgressPercent(percent);
+                  setUploadProgress(`正在上传 ${fileIndex}/${files.length}: ${file.name}... ${percent}%`);
                 }
-              } else {
-                try {
-                  const error = JSON.parse(xhr.responseText);
-                  reject(new Error(error.message || `上传 ${file.name} 失败`));
-                } catch {
-                  reject(new Error(`上传 ${file.name} 失败: HTTP ${xhr.status}`));
+              });
+
+              xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  try {
+                    const responseData = JSON.parse(xhr.responseText);
+                    resolve(responseData);
+                  } catch (err) {
+                    reject(new Error(`解析 ${file.name} 的响应失败`));
+                  }
+                } else {
+                  try {
+                    const error = JSON.parse(xhr.responseText);
+                    reject(new Error(error.message || `上传 ${file.name} 失败`));
+                  } catch {
+                    reject(new Error(`上传 ${file.name} 失败: HTTP ${xhr.status}`));
+                  }
                 }
-              }
+              });
+
+              xhr.addEventListener('error', () => {
+                reject(new Error(`上传 ${file.name} 时发生网络错误`));
+              });
+
+              xhr.addEventListener('abort', () => {
+                reject(new Error(`上传 ${file.name} 已取消`));
+              });
+
+              xhr.open('POST', '/api/upload');
+              xhr.send(formData);
             });
 
-            xhr.addEventListener('error', () => {
-              reject(new Error(`上传 ${file.name} 时发生网络错误`));
-            });
+            const responseData = await uploadPromise;
+            data = {
+              url: responseData.url,
+              originalName: responseData.originalName,
+              type: responseData.type,
+              size: responseData.size,
+              width: responseData.width,
+              height: responseData.height,
+              hash: responseData.hash,
+            };
+          }
 
-            xhr.addEventListener('abort', () => {
-              reject(new Error(`上传 ${file.name} 已取消`));
-            });
-
-            xhr.open('POST', '/api/upload');
-            xhr.send(formData);
-          });
-
-          const data = await uploadPromise;
           const fileHash = await calculateFileHash(file);
-          
+
           newFiles.push({
             url: data.url,
             originalName: data.originalName,
@@ -1136,7 +1208,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         fileInputRef.current.value = '';
       }
     }
-  }, [uploadedFiles, checkFileExists, calculateFileHash, updateFormFromUploadedFiles]);
+  }, [uploadedFiles, checkFileExists, calculateFileHash, updateFormFromUploadedFiles, storageMode]);
 
   const handleDrop = useCallback(
     async (event: React.DragEvent<HTMLDivElement>) => {

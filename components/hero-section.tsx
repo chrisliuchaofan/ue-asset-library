@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { Library, Box, BookOpen } from "lucide-react";
 import clsx from "clsx";
+import Link from "next/link";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 12 },
@@ -45,37 +46,45 @@ export function HeroSection() {
         variants={fadeUp}
         className="mt-8 flex items-center gap-4"
       >
-        {/* 主按钮：同色系描边 */}
-        <motion.a
+        <Link
           href="/assets"
-          whileHover={reduce ? undefined : { y: -2, boxShadow: "0 8px 20px rgba(140,170,255,0.10)" }}
-          whileTap={{ y: 0 }}
-          className={clsx(
-            "inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm md:text-base font-semibold",
-            "text-zinc-100 ring-1 ring-[#CFE0FF]/60 hover:ring-[#CFE0FF]/80 hover:bg-white/5",
-            "transition-all duration-200"
-          )}
+          prefetch
           aria-label="进入资产"
+          className="inline-flex"
         >
-          <Library className="h-5 w-5 text-zinc-100" />
-          资产
-        </motion.a>
+          <motion.span
+            whileHover={reduce ? undefined : { y: -2, boxShadow: "0 8px 20px rgba(140,170,255,0.10)" }}
+            whileTap={{ y: 0 }}
+            className={clsx(
+              "inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm md:text-base font-semibold",
+              "text-zinc-100 ring-1 ring-[#CFE0FF]/60 hover:ring-[#CFE0FF]/80 hover:bg-white/5",
+              "transition-all duration-200"
+            )}
+          >
+            <Library className="h-5 w-5 text-zinc-100" />
+            资产
+          </motion.span>
+        </Link>
 
-        {/* 次按钮：同色系描边 */}
-        <motion.a
+        <Link
           href="/materials"
-          whileHover={reduce ? undefined : { y: -2, boxShadow: "0 8px 20px rgba(140,170,255,0.10)" }}
-          whileTap={{ y: 0 }}
-          className={clsx(
-            "inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm md:text-base font-semibold",
-            "text-zinc-100 ring-1 ring-[#CFE0FF]/60 hover:ring-[#CFE0FF]/80 hover:bg-white/5",
-            "transition-all duration-200"
-          )}
+          prefetch
           aria-label="进入素材"
+          className="inline-flex"
         >
-          <Box className="h-5 w-5 text-zinc-100" />
-          素材
-        </motion.a>
+          <motion.span
+            whileHover={reduce ? undefined : { y: -2, boxShadow: "0 8px 20px rgba(140,170,255,0.10)" }}
+            whileTap={{ y: 0 }}
+            className={clsx(
+              "inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm md:text-base font-semibold",
+              "text-zinc-100 ring-1 ring-[#CFE0FF]/60 hover:ring-[#CFE0FF]/80 hover:bg-white/5",
+              "transition-all duration-200"
+            )}
+          >
+            <Box className="h-5 w-5 text-zinc-100" />
+            素材
+          </motion.span>
+        </Link>
       </motion.div>
 
       {/* 可选：下方一个文档按钮，小而不抢戏 */}

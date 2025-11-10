@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { uploadFileDirect } from '@/lib/client/direct-upload';
 
 type StorageMode = 'local' | 'oss';
 
@@ -395,68 +396,112 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
     let successCount = 0;
     let failCount = 0;
+    let skippedCount = 0;
     const errors: string[] = [];
     const createdMaterials: Material[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setUploadProgress(`正在上传 ${i + 1}/${files.length}: ${file.name}...`);
-      setUploadProgressPercent(Math.round(((i + 1) / files.length) * 100));
+      setUploadProgressPercent(0);
 
       try {
         // 检查文件是否已存在
         const existingUrl = await checkFileExists(file);
         if (existingUrl) {
+          skippedCount++;
           setMessage(`文件 ${file.name} 已存在，跳过上传`);
           continue;
         }
 
         const localMetadata = await getLocalMediaMetadata(file);
 
-        // 上传文件
-        const formData = new FormData();
-        formData.append('file', file);
+        // 上传文件（根据存储模式选择直传或本地 API）
+        let uploadData: {
+          url: string;
+          originalName: string;
+          type: 'image' | 'video';
+          size: number;
+          width?: number;
+          height?: number;
+          duration?: number;
+          hash?: string;
+        };
 
-        const xhr = new XMLHttpRequest();
-        const uploadPromise = new Promise<any>((resolve, reject) => {
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const percent = Math.round((e.loaded / e.total) * 100);
+        if (storageMode === 'oss') {
+          const directResult = await uploadFileDirect(file, {
+            onProgress: (percent) => {
               setUploadProgress(`正在上传 ${i + 1}/${files.length}: ${file.name}... ${percent}%`);
-            }
+              setUploadProgressPercent(percent);
+            },
           });
 
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const data = JSON.parse(xhr.responseText);
-                resolve(data);
-              } catch (err) {
-                reject(new Error(`解析 ${file.name} 的响应失败`));
+          uploadData = {
+            url: directResult.fileUrl,
+            originalName: file.name,
+            type: file.type.startsWith('image/') ? 'image' : 'video',
+            size: file.size,
+            width: localMetadata.width,
+            height: localMetadata.height,
+            duration: localMetadata.duration,
+          };
+        } else {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const xhr = new XMLHttpRequest();
+          const uploadPromise = new Promise<any>((resolve, reject) => {
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                setUploadProgress(`正在上传 ${i + 1}/${files.length}: ${file.name}... ${percent}%`);
+                setUploadProgressPercent(percent);
               }
-            } else {
-              try {
-                const error = JSON.parse(xhr.responseText);
-                reject(new Error(error.message || `上传 ${file.name} 失败`));
-              } catch {
-                reject(new Error(`上传 ${file.name} 失败: HTTP ${xhr.status}`));
+            });
+
+            xhr.addEventListener('load', () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const data = JSON.parse(xhr.responseText);
+                  resolve(data);
+                } catch (err) {
+                  reject(new Error(`解析 ${file.name} 的响应失败`));
+                }
+              } else {
+                try {
+                  const error = JSON.parse(xhr.responseText);
+                  reject(new Error(error.message || `上传 ${file.name} 失败`));
+                } catch {
+                  reject(new Error(`上传 ${file.name} 失败: HTTP ${xhr.status}`));
+                }
               }
-            }
+            });
+
+            xhr.addEventListener('error', () => {
+              reject(new Error(`上传 ${file.name} 时发生网络错误`));
+            });
+
+            xhr.addEventListener('abort', () => {
+              reject(new Error(`上传 ${file.name} 已取消`));
+            });
+
+            xhr.open('POST', '/api/upload');
+            xhr.send(formData);
           });
 
-          xhr.addEventListener('error', () => {
-            reject(new Error(`上传 ${file.name} 时发生网络错误`));
-          });
+          const responseData = await uploadPromise;
+          uploadData = {
+            url: responseData.url,
+            originalName: responseData.originalName,
+            type: responseData.type,
+            size: responseData.size,
+            width: responseData.width ?? localMetadata.width,
+            height: responseData.height ?? localMetadata.height,
+            duration: responseData.duration ?? localMetadata.duration,
+            hash: responseData.hash,
+          };
+        }
 
-          xhr.addEventListener('abort', () => {
-            reject(new Error(`上传 ${file.name} 已取消`));
-          });
-
-          xhr.open('POST', '/api/upload');
-          xhr.send(formData);
-        });
-
-        const uploadData = await uploadPromise;
         const fileHash = await calculateFileHash(file);
 
         // 为每个文件创建一个素材
@@ -503,9 +548,18 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         createdMaterials.push(createdMaterial);
         successCount++;
       } catch (error) {
-        console.error(`处理文件 ${file.name} 失败:`, error);
+        const message =
+          error instanceof Error ? error.message : '未知错误';
+        console.error(`处理文件 ${file.name} 失败:`, message);
+
+        // 如果是重复素材，提示并跳过
+        if (message.includes('已存在') || message.includes('组合已存在')) {
+          skippedCount++;
+          continue;
+        }
+
         failCount++;
-        errors.push(`${file.name}: ${error instanceof Error ? error.message : '未知错误'}`);
+        errors.push(`${file.name}: ${message}`);
       }
     }
 
@@ -521,8 +575,25 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       if (typeof window !== 'undefined') {
         window.alert(successMessage);
       }
-    } else {
-      setMessage(`所有文件处理失败`);
+    } else if (successCount === 0 && failCount === 0 && skippedCount > 0) {
+      const skipMessage = `已跳过 ${skippedCount} 个重复素材`;
+      setMessage(skipMessage);
+      if (typeof window !== 'undefined') {
+        window.alert(skipMessage);
+      }
+    } else if (failCount === files.length) {
+      const failureMessage =
+        errors.length > 0 ? `所有文件处理失败：${errors.join('；')}` : '所有文件处理失败';
+      setMessage(failureMessage);
+      if (typeof window !== 'undefined') {
+        window.alert(failureMessage);
+      }
+    } else if (failCount > 0) {
+      const partialMessage = `成功 ${successCount} 个，失败 ${failCount} 个${skippedCount > 0 ? `，跳过 ${skippedCount} 个重复素材` : ''}`;
+      setMessage(partialMessage);
+      if (typeof window !== 'undefined') {
+        window.alert(`${partialMessage}\n失败详情：\n${errors.join('\n')}`);
+      }
     }
 
     if (errors.length > 0) {
@@ -551,50 +622,90 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
       const localMetadata = await getLocalMediaMetadata(file);
 
-      const formData = new FormData();
-      formData.append('file', file);
+      let data: {
+        url: string;
+        originalName: string;
+        type: 'image' | 'video';
+        size: number;
+        width?: number;
+        height?: number;
+        duration?: number;
+        hash?: string;
+      };
 
-      const xhr = new XMLHttpRequest();
-      const uploadPromise = new Promise<any>((resolve, reject) => {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
+      if (storageMode === 'oss') {
+        const directResult = await uploadFileDirect(file, {
+          onProgress: (percent) => {
             setUploadProgressPercent(percent);
             setUploadProgress(`正在上传 ${file.name}... ${percent}%`);
-          }
+          },
         });
 
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const data = JSON.parse(xhr.responseText);
-              resolve(data);
-            } catch (err) {
-              reject(new Error('服务器响应格式错误'));
+        data = {
+          url: directResult.fileUrl,
+          originalName: file.name,
+          type: file.type.startsWith('image/') ? 'image' : 'video',
+          size: file.size,
+          width: localMetadata.width,
+          height: localMetadata.height,
+          duration: localMetadata.duration,
+          hash: undefined,
+        };
+      } else {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const xhr = new XMLHttpRequest();
+        const uploadPromise = new Promise<any>((resolve, reject) => {
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              setUploadProgressPercent(percent);
+              setUploadProgress(`正在上传 ${file.name}... ${percent}%`);
             }
-          } else {
-            try {
-              const error = JSON.parse(xhr.responseText);
-              reject(new Error(error.message || '上传失败'));
-            } catch {
-              reject(new Error(`上传失败: HTTP ${xhr.status}`));
+          });
+
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const responseData = JSON.parse(xhr.responseText);
+                resolve(responseData);
+              } catch (err) {
+                reject(new Error('服务器响应格式错误'));
+              }
+            } else {
+              try {
+                const error = JSON.parse(xhr.responseText);
+                reject(new Error(error.message || '上传失败'));
+              } catch {
+                reject(new Error(`上传失败: HTTP ${xhr.status}`));
+              }
             }
-          }
+          });
+
+          xhr.addEventListener('error', () => {
+            reject(new Error('网络错误，请检查网络连接'));
+          });
+
+          xhr.addEventListener('abort', () => {
+            reject(new Error('上传已取消'));
+          });
+
+          xhr.open('POST', '/api/upload');
+          xhr.send(formData);
         });
 
-        xhr.addEventListener('error', () => {
-          reject(new Error('网络错误，请检查网络连接'));
-        });
-
-        xhr.addEventListener('abort', () => {
-          reject(new Error('上传已取消'));
-        });
-
-        xhr.open('POST', '/api/upload');
-        xhr.send(formData);
-      });
-
-      const data = await uploadPromise;
+        const responseData = await uploadPromise;
+        data = {
+          url: responseData.url,
+          originalName: responseData.originalName,
+          type: responseData.type,
+          size: responseData.size,
+          width: responseData.width ?? localMetadata.width,
+          height: responseData.height ?? localMetadata.height,
+          duration: responseData.duration ?? localMetadata.duration,
+        };
+      }
 
       setUploadProgress(null);
       setUploadProgressPercent(0);
