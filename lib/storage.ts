@@ -278,7 +278,15 @@ async function writeLocalManifest(assets: Asset[], allowedTypes?: string[]): Pro
 
 async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: string[] }> {
   try {
-    const client = getOSSClient();
+    // 尝试获取OSS客户端，如果配置不完整则返回空数组
+    let client: OSS;
+    try {
+      client = getOSSClient();
+    } catch (configError: any) {
+      console.warn('OSS 配置不完整，返回空数组:', configError.message);
+      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
+    }
+    
     const result = await client.get(MANIFEST_FILE_NAME);
     const data = JSON.parse(result.content.toString('utf-8'));
     
@@ -358,22 +366,43 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
         }
         
         // 再次尝试解析
-        const manifest = ManifestSchema.parse(data);
-        const parsedAssets = manifest.assets;
-        
-        // 恢复原始类型（如果之前临时替换了）
-        const finalAssets = parsedAssets.map((asset: any, index: number) => {
-          const originalAsset = originalAssets[index];
-          if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
-            return { ...asset, type: originalAsset.type };
-          }
-          return asset;
-        });
-        
-        return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
+        try {
+          const manifest = ManifestSchema.parse(data);
+          const parsedAssets = manifest.assets;
+          
+          // 恢复原始类型（如果之前临时替换了）
+          const finalAssets = parsedAssets.map((asset: any, index: number) => {
+            const originalAsset = originalAssets[index];
+            if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
+              return { ...asset, type: originalAsset.type };
+            }
+            return asset;
+          });
+          
+          return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
+        } catch (retryError) {
+          console.error('重试解析仍然失败，返回空数组:', retryError);
+          return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
+        }
       }
       
-      throw parseError;
+      // 如果验证失败，尝试返回空数组或过滤有效数据
+      console.error('Manifest数据格式验证失败，返回空数组:', parseError);
+      if (data && Array.isArray(data.assets)) {
+        // 如果数据结构基本正确，尝试过滤有效数据
+        const validAssets = data.assets.filter((a: any) => {
+          try {
+            AssetSchema.parse(a);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+        return { assets: validAssets, allowedTypes: allowedTypes };
+      }
+      
+      // 如果完全无法解析，返回空数组
+      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
   } catch (error: any) {
     // 如果文件不存在，返回空数组和默认类型
@@ -398,7 +427,15 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
 
 async function readOSSManifestFull(): Promise<Manifest> {
   try {
-    const client = getOSSClient();
+    // 尝试获取OSS客户端，如果配置不完整则返回空manifest
+    let client: OSS;
+    try {
+      client = getOSSClient();
+    } catch (configError: any) {
+      console.warn('OSS 配置不完整，返回空manifest:', configError.message);
+      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] } as Manifest;
+    }
+    
     const result = await client.get(MANIFEST_FILE_NAME);
     const data = JSON.parse(result.content.toString('utf-8'));
     
