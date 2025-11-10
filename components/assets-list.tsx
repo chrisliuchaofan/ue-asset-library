@@ -10,6 +10,7 @@ import { PAGINATION } from '@/lib/constants';
 import { type OfficeLocation } from '@/lib/nas-utils';
 import { useMemo } from 'react';
 import Link from 'next/link';
+import type { FilterSnapshot } from '@/components/filter-sidebar';
 
 function filterAssets(
   assets: Asset[],
@@ -72,22 +73,51 @@ interface AssetsListProps {
   selectedAssetIds?: Set<string>;
   onToggleSelection?: (assetId: string) => void;
   officeLocation?: OfficeLocation;
+  optimisticFilters?: FilterSnapshot;
 }
 
-function AssetsListContent({ assets, selectedAssetIds, onToggleSelection, officeLocation = 'guangzhou' }: AssetsListProps) {
+function AssetsListContent({
+  assets,
+  selectedAssetIds,
+  onToggleSelection,
+  officeLocation = 'guangzhou',
+  optimisticFilters,
+}: AssetsListProps) {
   const searchParams = useSearchParams();
   const keyword = searchParams.get('q') || undefined;
-  const selectedTags = searchParams.get('tags')?.split(',').filter(Boolean);
-  const selectedTypes = searchParams.get('types')?.split(',').filter(Boolean);
-  const selectedStyles = searchParams.get('styles')?.split(',').filter(Boolean);
-  const selectedSources = searchParams.get('sources')?.split(',').filter(Boolean);
-  const selectedVersions = searchParams.get('versions')?.split(',').filter(Boolean);
+  const selectedTags = searchParams.get('tags')?.split(',').filter(Boolean) || [];
+  const selectedTypes = searchParams.get('types')?.split(',').filter(Boolean) || [];
+  const selectedStyles = searchParams.get('styles')?.split(',').filter(Boolean) || [];
+  const selectedSources = searchParams.get('sources')?.split(',').filter(Boolean) || [];
+  const selectedVersions = searchParams.get('versions')?.split(',').filter(Boolean) || [];
   const page = parseInt(searchParams.get('page') || '1', 10);
   const itemsPerPage = 50; // ✅ 每页显示50个资产，铺满首屏
 
+  const effectiveFilters = useMemo(() => {
+    if (optimisticFilters) {
+      return optimisticFilters;
+    }
+    return {
+      tags: selectedTags,
+      types: selectedTypes,
+      styles: selectedStyles,
+      sources: selectedSources,
+      versions: selectedVersions,
+    };
+  }, [optimisticFilters, selectedTags, selectedTypes, selectedStyles, selectedSources, selectedVersions]);
+
   const filteredAssets = useMemo(
-    () => filterAssets(assets, keyword, selectedTags, selectedTypes, selectedStyles, selectedSources, selectedVersions),
-    [assets, keyword, selectedTags, selectedTypes, selectedStyles, selectedSources, selectedVersions]
+    () =>
+      filterAssets(
+        assets,
+        keyword,
+        effectiveFilters.tags.length ? effectiveFilters.tags : undefined,
+        effectiveFilters.types.length ? effectiveFilters.types : undefined,
+        effectiveFilters.styles.length ? effectiveFilters.styles : undefined,
+        effectiveFilters.sources.length ? effectiveFilters.sources : undefined,
+        effectiveFilters.versions.length ? effectiveFilters.versions : undefined
+      ),
+    [assets, keyword, effectiveFilters]
   );
 
   const totalPages = Math.ceil(filteredAssets.length / itemsPerPage);
@@ -210,7 +240,7 @@ function AssetsListContent({ assets, selectedAssetIds, onToggleSelection, office
   );
 }
 
-export function AssetsList({ assets, selectedAssetIds, onToggleSelection, officeLocation }: AssetsListProps) {
+export function AssetsList({ assets, selectedAssetIds, onToggleSelection, officeLocation, optimisticFilters }: AssetsListProps) {
   return (
     <Suspense fallback={<AssetsListSkeleton />}>
       <AssetsListContent 
@@ -218,6 +248,7 @@ export function AssetsList({ assets, selectedAssetIds, onToggleSelection, office
         selectedAssetIds={selectedAssetIds}
         onToggleSelection={onToggleSelection}
         officeLocation={officeLocation}
+        optimisticFilters={optimisticFilters}
       />
     </Suspense>
   );

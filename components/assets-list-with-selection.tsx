@@ -6,9 +6,11 @@ import { AssetsList } from './assets-list';
 import { HeaderActions } from './header-actions';
 import { useOfficeLocation } from './office-selector';
 import type { Asset } from '@/data/manifest.schema';
+import type { FilterSnapshot } from '@/components/filter-sidebar';
 
 interface AssetsListWithSelectionProps {
   assets: Asset[];
+  optimisticFilters?: FilterSnapshot | null;
 }
 
 const SELECTED_ASSETS_STORAGE_KEY = 'selected-asset-ids';
@@ -39,7 +41,7 @@ function saveSelectedAssetIds(ids: Set<string>): void {
   }
 }
 
-export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps) {
+export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsListWithSelectionProps) {
   // 初始化时从 localStorage 恢复，并过滤掉不存在的资产 ID
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(() => new Set());
   const [hasHydratedSelection, setHasHydratedSelection] = useState(false);
@@ -137,11 +139,12 @@ export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps
           找到 {assets.length} 个资产
         </div>
       </div>
-      <AssetsList 
-        assets={assets} 
-        selectedAssetIds={selectedAssetIds} 
+      <AssetsList
+        assets={assets}
+        selectedAssetIds={selectedAssetIds}
         onToggleSelection={handleToggleSelection}
         officeLocation={officeLocation}
+        optimisticFilters={optimisticFilters ?? undefined}
       />
       {headerPortal && createPortal(
         <HeaderActions
