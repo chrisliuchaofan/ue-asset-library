@@ -21,18 +21,20 @@ export default async function AdminPage() {
   const cdnBase = getCdnBase();
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 pb-16 pt-8 sm:px-8">
-      <div className="mb-8 space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">后台管理</h1>
-        <p className="text-sm text-muted-foreground">
-          在本地模式下可以直接操作 manifest.json；部署到 NAS 或云环境后，可根据 STORAGE_MODE 切换到远程存储。
-        </p>
-      </div>
+    <div className="min-h-screen w-full bg-[#04050f] pb-16 pt-8 text-slate-100">
+      <div className="admin-surface mx-auto w-full max-w-7xl px-4 sm:px-8">
+        <div className="mb-8 space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">后台管理</h1>
+          <p className="text-sm text-slate-400">
+            在本地模式下可以直接操作 manifest.json；部署到 NAS 或云环境后，可根据 STORAGE_MODE 切换到远程存储。
+          </p>
+        </div>
 
-      <AdminTabs>
-        <AdminDashboard initialAssets={assets} storageMode={storageMode} cdnBase={cdnBase} />
-        <AdminMaterialsDashboard initialMaterials={materials} storageMode={storageMode} cdnBase={cdnBase} />
-      </AdminTabs>
+        <AdminTabs>
+          <AdminDashboard initialAssets={assets} storageMode={storageMode} cdnBase={cdnBase} />
+          <AdminMaterialsDashboard initialMaterials={materials} storageMode={storageMode} cdnBase={cdnBase} />
+        </AdminTabs>
+      </div>
     </div>
   );
 }

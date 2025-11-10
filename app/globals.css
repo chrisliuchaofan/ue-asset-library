@@ -47,6 +47,28 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
   }
+
+  .admin-surface {
+    --background: 225 45% 5.6%;
+    --foreground: 210 38% 96%;
+    --card: 224 45% 9%;
+    --card-foreground: 210 38% 96%;
+    --popover: 224 45% 9%;
+    --popover-foreground: 210 38% 96%;
+    --primary: 212 92% 72%;
+    --primary-foreground: 223 47% 12%;
+    --secondary: 225 32% 18%;
+    --secondary-foreground: 210 38% 96%;
+    --muted: 225 32% 18%;
+    --muted-foreground: 215 20% 72%;
+    --accent: 225 32% 18%;
+    --accent-foreground: 210 38% 96%;
+    --destructive: 2 65% 48%;
+    --destructive-foreground: 210 38% 96%;
+    --border: 225 32% 28%;
+    --input: 225 32% 28%;
+    --ring: 215 70% 65%;
+  }
 }
 
 @layer base {
