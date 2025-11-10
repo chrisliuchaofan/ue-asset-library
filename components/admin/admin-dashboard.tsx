@@ -1318,7 +1318,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
           <div className="flex h-[72px] items-center">
             <div className="relative group">
               {currentPreviewUrl ? (
-                <div className="relative h-[64px] w-[64px] overflow-hidden rounded-md border border-border/50 bg-muted">
+                <div className="relative h-[64px] w-[64px] overflow-hidden rounded-md border border-white/15 bg-[#111a2d]">
                   {isVideoUrl(currentThumbnail) ? (
                     <video src={currentPreviewUrl} className="h-full w-full object-cover" muted playsInline />
                   ) : (
@@ -1351,7 +1351,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">选择预览图</div>
+                        <div className="px-2 py-1.5 text-xs font-medium text-slate-300">选择预览图</div>
                         <DropdownMenuSeparator />
                         {allMediaFiles.map((file, index) => {
                           const filePreviewUrl = getPreviewUrl(file.url);
@@ -1362,7 +1362,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                               onClick={() => handleSelectThumbnail(file.url)}
                               className="flex items-center gap-2"
                             >
-                              <div className="h-8 w-8 overflow-hidden rounded bg-muted">
+                              <div className="h-8 w-8 overflow-hidden rounded bg-[#0f172a]">
                                 {file.type === 'video' ? (
                                   <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
                                 ) : (
@@ -1391,7 +1391,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 </div>
               ) : (
                 <div className="relative group">
-                  <div className="flex h-[64px] w-[64px] items-center justify-center rounded-md border border-dashed border-border/60 bg-muted/20 text-[11px] text-muted-foreground">
+                  <div className="flex h-[64px] w-[64px] items-center justify-center rounded-md border border-dashed border-white/15 bg-white/5 text-[11px] text-slate-400">
                     无预览
                   </div>
                   {allMediaFiles.length > 0 && (
@@ -1406,7 +1406,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">选择预览图</div>
+                        <div className="px-2 py-1.5 text-xs font-medium text-slate-300">选择预览图</div>
                         <DropdownMenuSeparator />
                         {allMediaFiles.map((file, index) => {
                           const filePreviewUrl = getPreviewUrl(file.url);
@@ -1416,7 +1416,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                               onClick={() => handleSelectThumbnail(file.url)}
                               className="flex items-center gap-2"
                             >
-                              <div className="h-8 w-8 overflow-hidden rounded bg-muted">
+                              <div className="h-8 w-8 overflow-hidden rounded bg-[#0f172a]">
                                 {file.type === 'video' ? (
                                   <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
                                 ) : (
@@ -1494,7 +1494,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
               minute: '2-digit',
             })
           : '-';
-        return <div className="flex h-[72px] items-center text-[11px] text-muted-foreground whitespace-nowrap">{display}</div>;
+        return <div className="flex h-[72px] items-center text-[11px] text-slate-400 whitespace-nowrap">{display}</div>;
       }
       case 'actions':
         return (
@@ -1502,7 +1502,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
             <Button
               size="icon"
               variant="outline"
-              className="h-8 w-8 rounded-lg border-border/60 text-sm font-semibold"
+              className="h-8 w-8 rounded-lg border-white/20 text-sm font-semibold"
               onClick={() => window.open(`/assets/${asset.id}`, '_blank', 'noopener,noreferrer')}
             >
               预
@@ -1635,27 +1635,27 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         </Link>
       </div>
 
-      <Card className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-sm shadow-lg shadow-black/5">
-        <CardHeader className="flex flex-col gap-1 border-b border-border/40 bg-background/40 px-5 py-4 sm:px-6">
+      <Card className="rounded-2xl border border-white/10 bg-[#0d1424]/85 backdrop-blur-xl shadow-[0_24px_60px_rgba(4,9,20,0.65)]">
+        <CardHeader className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-5 py-4 sm:px-6">
           <CardTitle className="text-base font-semibold">存储状态</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 px-5 py-4 text-sm text-muted-foreground sm:px-6">
+        <CardContent className="space-y-2 px-5 py-4 text-sm text-slate-400 sm:px-6">
           <div>
             当前存储模式：<Badge variant="outline">{storageMode}</Badge>
           </div>
           <div>CDN / 静态资源基路径：{normalizedCdnBase || '/'}</div>
           {storageMode === 'oss' ? (
-            <p className="text-green-600">
+            <p className="text-emerald-400">
               OSS 模式已启用，可以直接通过此页面管理资产，数据将保存到阿里云 OSS。
             </p>
           ) : (
-            <p>本地模式允许通过此页面直接编辑 manifest.json，用于预览和调试。</p>
+            <p className="text-slate-300">本地模式允许通过此页面直接编辑 manifest.json，用于预览和调试。</p>
           )}
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-sm shadow-lg shadow-black/5">
-        <CardHeader className="border-b border-border/40 bg-background/40 px-5 py-4 sm:px-6">
+      <Card className="rounded-2xl border border-white/10 bg-[#0d1424]/85 backdrop-blur-xl shadow-[0_24px_60px_rgba(4,9,20,0.65)]">
+        <CardHeader className="border-b border-white/10 bg-white/5 px-5 py-4 sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base font-semibold">资产列表</CardTitle>
             <div className="flex flex-wrap items-center gap-2">
@@ -1699,7 +1699,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   placeholder="搜索资产名称或标签..."
                   value={searchKeyword}
@@ -1708,7 +1708,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 />
               </div>
               <select
-                className="h-9 rounded-md border border-border/50 bg-background/70 px-3 text-sm"
+                className="h-9 rounded-md border border-white/10 bg-[#131a2c]/90 px-3 text-sm text-slate-100"
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
               >
@@ -1720,7 +1720,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 ))}
               </select>
               <select
-                className="h-9 rounded-md border border-border/50 bg-background/70 px-3 text-sm"
+                className="h-9 rounded-md border border-white/10 bg-[#131a2c]/90 px-3 text-sm text-slate-100"
                 value={filterTag}
                 onChange={(e) => setFilterTag(e.target.value)}
               >
@@ -1733,7 +1733,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
               </select>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-slate-400">
                 共找到 {filteredAssets.length} 个资产
                 {filteredAssets.length !== assets.length && `（共 ${assets.length} 个）`}
               </p>
@@ -1745,7 +1745,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                   className={`h-7 rounded-md border px-3 text-xs transition ${
                     sortKey === 'updatedAt'
                       ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border/60 text-muted-foreground hover:border-border/80 hover:text-foreground'
+                      : 'border-white/20 text-slate-300 hover:border-white/30 hover:text-white'
                   }`}
                 >
                   按时间
@@ -1757,7 +1757,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                   className={`h-7 rounded-md border px-3 text-xs transition ${
                     sortKey === 'name'
                       ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border/60 text-muted-foreground hover:border-border/80 hover:text-foreground'
+                      : 'border-white/20 text-slate-300 hover:border-white/30 hover:text-white'
                   }`}
                 >
                   按名称
@@ -1768,7 +1768,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                   className={`h-7 rounded-md border px-3 text-xs transition ${
                     showPaths
                       ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border/60 text-muted-foreground hover:border-border/80 hover:text-foreground'
+                      : 'border-white/20 text-slate-300 hover:border-white/30 hover:text-white'
                   }`}
                 >
                   {showPaths ? '隐藏路径' : '显示路径'}
@@ -1777,7 +1777,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm">
+          <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0a1020]/80">
             <div className="overflow-x-auto">
               <table className="min-w-full table-fixed text-xs sm:text-sm">
                 <colgroup>
@@ -1786,7 +1786,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                     <col key={column.id} style={{ width: `${columnWidths[column.id]}px` }} />
                   ))}
                 </colgroup>
-                <thead className="bg-muted/60 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <thead className="bg-white/5 text-left text-[11px] uppercase tracking-wide text-slate-300">
                   <tr>
                     <th className="px-2 py-2">
                       <div className="flex h-[72px] items-center justify-center">
@@ -1835,17 +1835,18 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                     })}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/50">
+                <tbody className="divide-y divide-white/10">
                   {displayedAssets.map((asset) => {
+                    const isSelected = selectedAssetIds.has(asset.id);
                     return (
                       <tr
                         key={asset.id}
-                        className={`align-middle transition-colors`}
+                        className={`align-middle transition-colors ${isSelected ? 'bg-white/10' : 'hover:bg-white/5'}`}
                       >
                         <td className="px-2 py-2">
                           <div className="flex h-[72px] items-center justify-center">
                             <Checkbox
-                              checked={selectedAssetIds.has(asset.id)}
+                              checked={isSelected}
                               onChange={(e) => {
                                 const nextSelection = new Set(selectedAssetIds);
                                 if (e.target.checked) {
@@ -1894,8 +1895,8 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         </CardContent>
       </Card>
 
-      <Card id="asset-form-card" className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-sm shadow-lg shadow-black/5">
-        <CardHeader className="border-b border-border/40 bg-background/40 px-5 py-4 sm:px-6">
+      <Card id="asset-form-card" className="rounded-2xl border border-white/10 bg-[#0d1424]/85 backdrop-blur-xl shadow-[0_24px_60px_rgba(4,9,20,0.65)]">
+        <CardHeader className="border-b border-white/10 bg-white/5 px-5 py-4 sm:px-6">
           <CardTitle className="text-base font-semibold">{editingAssetId ? '编辑资产' : '新增资产'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5 px-5 py-5 sm:px-6">
@@ -1919,13 +1920,13 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
               htmlFor="file-upload"
               className="cursor-pointer flex flex-col items-center gap-2"
             >
-              <Upload className="h-8 w-8 text-muted-foreground" />
-              <div className="text-sm text-muted-foreground w-full">
+              <Upload className="h-8 w-8 text-slate-400" />
+              <div className="text-sm text-slate-300 w-full">
                 {uploading ? (
                   <div className="space-y-2 w-full">
                     <div className="text-center">{uploadProgress || '上传中...'}</div>
                     {uploadProgressPercent > 0 && (
-                      <div className="w-full bg-muted rounded-full h-2">
+                      <div className="w-full rounded-full h-2 bg-[#0d1424]">
                         <div
                           className="bg-primary h-2 rounded-full transition-all duration-300"
                           style={{ width: `${uploadProgressPercent}%` }}
@@ -1946,7 +1947,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
 
           {/* 预览区域 */}
           {previewUrls.length > 0 && (
-            <div className="relative border rounded-lg p-4 bg-muted/50">
+            <div className="relative border border-white/10 rounded-lg p-4 bg-[#0c1322]/70">
               <div className="flex items-start justify-between mb-2">
                 <span className="text-sm font-medium">
                   预览 ({currentPreviewIndex + 1}/{previewUrls.length})
@@ -1963,7 +1964,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-background">
+              <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-[#0f172a]">
                 {previewUrls[currentPreviewIndex] && (
                   <>
                     {(() => {
@@ -2035,7 +2036,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                   return (
                     <div
                       key={index}
-                      className="relative group border rounded-lg overflow-hidden bg-muted/50"
+                      className="relative group border border-white/10 rounded-lg overflow-hidden bg-[#0c1322]/70"
                     >
                       <div className="aspect-video relative">
                         {file.type === 'image' ? (
@@ -2203,7 +2204,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 onChange={handleInputChange('shenzhenNas')}
                 disabled={loading}
               />
-              <p className="text-xs text-muted-foreground">注意：广州NAS和深圳NAS至少需要填写一个</p>
+              <p className="text-xs text-slate-400">注意：广州NAS和深圳NAS至少需要填写一个</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">封面路径</label>
@@ -2245,7 +2246,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                     </Button>
                   </>
                 )}
-                {message && <span className="text-sm text-muted-foreground">{message}</span>}
+                {message && <span className="text-sm text-slate-300">{message}</span>}
               </div>
         </CardContent>
       </Card>
