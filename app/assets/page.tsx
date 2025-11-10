@@ -1,10 +1,7 @@
 import { Suspense } from 'react';
-import { AssetsList, AssetsListSkeleton } from '@/components/assets-list';
-import { AssetsListWithSelection } from '@/components/assets-list-with-selection';
 import { SearchBox } from '@/components/search-box';
-import { FilterSidebar } from '@/components/filter-sidebar';
 import { HeaderActions } from '@/components/header-actions';
-import { SidebarToggle } from '@/components/sidebar-toggle';
+import { AssetsPageShell } from '@/components/assets-page-shell';
 import { getAllAssets, getAllTags, getAllTypes, getAllStyles, getAllSources, getAllEngineVersions } from '@/lib/data';
 import type { Metadata } from 'next';
 
@@ -52,50 +49,14 @@ export default async function AssetsPage() {
         </div>
       </header>
 
-      <SidebarToggle>
-        {({ isOpen, toggle }) => (
-          <div className="flex flex-1">
-            <aside
-              className={`${
-                isOpen ? 'block' : 'hidden'
-              } w-64 flex-shrink-0 border-r bg-muted/30 p-4 transition-all`}
-            >
-              <Suspense fallback={<div className="w-full" />}>
-                <FilterSidebar
-                  types={types}
-                  styles={styles}
-                  tags={tags}
-                  sources={sources}
-                  engineVersions={engineVersions}
-                  assets={allAssets}
-                />
-              </Suspense>
-            </aside>
-
-            <main className="flex-1 p-2 sm:p-4 lg:p-6 relative">
-              <button
-                onClick={toggle}
-                className="fixed top-20 left-4 z-40 p-2 rounded-md bg-background border shadow-md hover:bg-muted transition-colors"
-                aria-label={isOpen ? '隐藏筛选栏' : '显示筛选栏'}
-                title={isOpen ? '隐藏筛选栏' : '显示筛选栏'}
-              >
-                {isOpen ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                )}
-              </button>
-              <Suspense fallback={<AssetsListSkeleton />}>
-                <AssetsListWithSelection assets={allAssets} />
-              </Suspense>
-            </main>
-          </div>
-        )}
-      </SidebarToggle>
+      <AssetsPageShell
+        assets={allAssets}
+        types={types}
+        styles={styles}
+        tags={tags}
+        sources={sources}
+        engineVersions={engineVersions}
+      />
     </div>
   );
 }
