@@ -936,7 +936,12 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         updateFormFromUploadedFiles(updated);
         return updated;
       });
-      setMessage(`文件上传成功: ${data.originalName}`);
+
+      const successMessage = `文件上传成功: ${data.originalName}`;
+      setMessage(successMessage);
+      if (typeof window !== 'undefined') {
+        window.alert(successMessage);
+      }
 
       // 如果是图片，自动创建资产
       if (data.type === 'image') {
@@ -1097,9 +1102,17 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
       setUploadProgress(null);
       setUploadProgressPercent(0);
       if (duplicateFiles.length > 0) {
-        setMessage(`成功处理 ${files.length} 个文件，其中 ${duplicateFiles.length} 个已存在（已跳过重复上传）`);
+        const successMessage = `成功处理 ${files.length} 个文件，其中 ${duplicateFiles.length} 个已存在（已跳过重复上传）`;
+        setMessage(successMessage);
+        if (typeof window !== 'undefined') {
+          window.alert(successMessage);
+        }
       } else {
-        setMessage(`成功上传 ${files.length} 个文件`);
+        const successMessage = `成功上传 ${files.length} 个文件`;
+        setMessage(successMessage);
+        if (typeof window !== 'undefined') {
+          window.alert(successMessage);
+        }
       }
     } catch (error) {
       console.error(error);

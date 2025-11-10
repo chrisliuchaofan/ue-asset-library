@@ -132,10 +132,18 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
   // 计算文件 hash（用于唯一性检查）
   const calculateFileHash = useCallback(async (file: File): Promise<string> => {
-    const buffer = await file.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    try {
+      if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
+        const buffer = await file.arrayBuffer();
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+      }
+    } catch (error) {
+      console.warn('计算文件哈希失败，使用回退方案:', error);
+    }
+    const fallback = `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`;
+    return fallback;
   }, []);
 
   // 检查文件是否已上传
@@ -147,6 +155,73 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     }
     return null;
   }, [uploadedFiles, calculateFileHash]);
+
+  const getMaterialMissingFields = useCallback((material: Material) => {
+    const missing: string[] = [];
+    if (!material.thumbnail) missing.push('预览图');
+    if (!material.src) missing.push('资源路径');
+    if (!material.gallery || material.gallery.length === 0) missing.push('画廊');
+    if (!material.quality || material.quality.length === 0) missing.push('质量');
+    if (!material.tag) missing.push('标签');
+    if (material.type === 'UE视频') {
+      if (material.duration == null) missing.push('时长');
+    } else if (material.type === '图片') {
+      if (material.width == null || material.height == null) missing.push('尺寸');
+    }
+    return missing;
+  }, []);
+
+  const getLocalMediaMetadata = useCallback(async (file: File) => {
+    const result: { width?: number; height?: number; duration?: number } = {};
+
+    const cleanup = (url: string) => {
+      if (url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    };
+
+    try {
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        await new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            result.width = img.naturalWidth;
+            result.height = img.naturalHeight;
+            cleanup(url);
+            resolve();
+          };
+          img.onerror = (err) => {
+            cleanup(url);
+            reject(err);
+          };
+          img.src = url;
+        });
+      } else if (file.type.startsWith('video/')) {
+        const url = URL.createObjectURL(file);
+        await new Promise<void>((resolve, reject) => {
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.onloadedmetadata = () => {
+            result.width = video.videoWidth || undefined;
+            result.height = video.videoHeight || undefined;
+            result.duration = isFinite(video.duration) ? Math.round(video.duration) : undefined;
+            cleanup(url);
+            resolve();
+          };
+          video.onerror = (err) => {
+            cleanup(url);
+            reject(err);
+          };
+          video.src = url;
+        });
+      }
+    } catch (error) {
+      console.warn('获取本地素材尺寸信息失败:', error);
+    }
+
+    return result;
+  }, []);
 
   const handleColumnResizeStart = useCallback(
     (event: ReactMouseEvent<HTMLSpanElement>, columnId: (typeof MATERIAL_COLUMNS)[number]['id']) => {
@@ -321,6 +396,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     let successCount = 0;
     let failCount = 0;
     const errors: string[] = [];
+    const createdMaterials: Material[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -334,6 +410,8 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           setMessage(`文件 ${file.name} 已存在，跳过上传`);
           continue;
         }
+
+        const localMetadata = await getLocalMediaMetadata(file);
 
         // 上传文件
         const formData = new FormData();
@@ -402,9 +480,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           src: uploadData.url,
           gallery: [uploadData.url],
           filesize: uploadData.size,
-          width: uploadData.width,
-          height: uploadData.height,
-          duration: uploadData.duration,
+          width: uploadData.width ?? localMetadata.width,
+          height: uploadData.height ?? localMetadata.height,
+          duration: uploadData.duration ?? localMetadata.duration,
         };
 
         // 创建素材
@@ -421,6 +499,8 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           throw new Error(error.message || `创建素材失败: ${materialName}`);
         }
 
+        const createdMaterial: Material = await createResponse.json();
+        createdMaterials.push(createdMaterial);
         successCount++;
       } catch (error) {
         console.error(`处理文件 ${file.name} 失败:`, error);
@@ -433,9 +513,14 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     setUploadProgress(null);
     setUploadProgressPercent(0);
 
-    if (successCount > 0) {
+    if (createdMaterials.length > 0) {
+      setMaterials((prev) => [...createdMaterials, ...prev]);
       await refreshMaterials();
-      setMessage(`成功创建 ${successCount} 个素材${failCount > 0 ? `，失败 ${failCount} 个` : ''}`);
+      const successMessage = `成功创建 ${successCount} 个素材${failCount > 0 ? `，失败 ${failCount} 个` : ''}`;
+      setMessage(successMessage);
+      if (typeof window !== 'undefined') {
+        window.alert(successMessage);
+      }
     } else {
       setMessage(`所有文件处理失败`);
     }
@@ -448,7 +533,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, [checkFileExists, calculateFileHash, refreshMaterials]);
+  }, [checkFileExists, calculateFileHash, refreshMaterials, getLocalMediaMetadata, storageMode, normalizedCdnBase]);
 
   // 单文件上传（用于编辑时添加文件）
   const handleFileUpload = useCallback(async (file: File) => {
@@ -463,6 +548,8 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         setUploading(false);
         return;
       }
+
+      const localMetadata = await getLocalMediaMetadata(file);
 
       const formData = new FormData();
       formData.append('file', file);
@@ -525,8 +612,8 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         originalName: data.originalName,
         type: data.type,
         size: data.size,
-        width: data.width,
-        height: data.height,
+        width: data.width ?? localMetadata.width,
+        height: data.height ?? localMetadata.height,
         hash: data.hash || fileHash,
       };
 
@@ -535,7 +622,23 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         updateFormFromUploadedFiles(updated);
         return updated;
       });
-      setMessage(`文件上传成功: ${data.originalName}`);
+      const successMessage = `文件上传成功: ${data.originalName}`;
+      setMessage(successMessage);
+      if (typeof window !== 'undefined') {
+        window.alert(successMessage);
+      }
+
+      // 如果是视频，自动创建资产
+      if (data.type === 'video') {
+        const thumbnailUrl = await extractVideoThumbnail(file);
+        if (thumbnailUrl) {
+          setForm((prev) => ({
+            ...prev,
+            thumbnail: thumbnailUrl,
+          }));
+          setMessage('已从视频中提取缩略图');
+        }
+      }
     } catch (error) {
       console.error(error);
       const errorMessage = error instanceof Error ? error.message : '上传失败';
@@ -548,7 +651,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         fileInputRef.current.value = '';
       }
     }
-  }, [storageMode, normalizedCdnBase, uploadedFiles, checkFileExists, calculateFileHash, updateFormFromUploadedFiles]);
+  }, [storageMode, normalizedCdnBase, uploadedFiles, checkFileExists, calculateFileHash, updateFormFromUploadedFiles, extractVideoThumbnail, getLocalMediaMetadata]);
 
   const handleFileSelect = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -648,6 +751,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     columnId: (typeof MATERIAL_COLUMNS)[number]['id'],
     material: Material
   ) => {
+    const missingFields = getMaterialMissingFields(material);
+    const needsReview = missingFields.length > 0;
+
     switch (columnId) {
       case 'preview': {
         const previewSource = getPreviewUrl(material.thumbnail || material.src);
@@ -683,8 +789,13 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       }
       case 'name':
         return (
-          <div className="flex h-[72px] items-center text-sm font-medium text-foreground" title={material.name}>
+          <div className="flex h-[72px] items-center text-sm font-medium text-foreground gap-2" title={needsReview ? `待完善：${missingFields.join('、')}` : material.name}>
             <span className="truncate">{material.name}</span>
+            {needsReview && (
+              <Badge variant="destructive" className="bg-amber-500/20 text-amber-200 border border-amber-400/40 text-[10px]">
+                待完善
+              </Badge>
+            )}
           </div>
         );
       case 'type':
@@ -960,8 +1071,12 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         throw new Error(error.message || '删除素材失败');
       }
 
+      setMaterials((prev) => prev.filter((material) => material.id !== id));
       await refreshMaterials();
       setMessage('素材已删除');
+      if (typeof window !== 'undefined') {
+        window.alert(`已删除素材：${materialName}`);
+      }
       if (editingMaterialId === id) {
         resetForm();
       }
@@ -1362,11 +1477,14 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 </thead>
                 <tbody className="divide-y divide-white/10">
                   {displayedMaterials.map((material) => {
+                    const missingFields = getMaterialMissingFields(material);
+                    const isIncomplete = missingFields.length > 0;
                     const isSelected = selectedMaterialIds.has(material.id);
                     return (
                       <tr
                         key={material.id}
-                        className={`align-middle transition-colors ${isSelected ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                        className={`align-middle transition-colors ${isSelected ? 'bg-white/10' : 'hover:bg-white/5'} ${isIncomplete ? 'border border-amber-400/40 bg-amber-500/10' : ''}`}
+                        title={isIncomplete ? `待完善：${missingFields.join('、')}` : undefined}
                       >
                         <td className="px-2 py-2">
                           <div className="flex h-[72px] items-center justify-center">
