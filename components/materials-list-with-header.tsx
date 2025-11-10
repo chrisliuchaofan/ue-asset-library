@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { MaterialsList } from '@/components/materials-list';
 import { HeaderActions } from '@/components/header-actions';
 import { type Material } from '@/data/material.schema';
+import { useOfficeLocation } from '@/components/office-selector';
 
 interface MaterialsListWithHeaderProps {
   materials: Material[];
@@ -12,6 +13,7 @@ interface MaterialsListWithHeaderProps {
 
 export function MaterialsListWithHeader({ materials }: MaterialsListWithHeaderProps) {
   const [mounted, setMounted] = useState(false);
+  const [officeLocation, setOfficeLocation] = useOfficeLocation();
 
   useEffect(() => {
     setMounted(true);
@@ -28,7 +30,10 @@ export function MaterialsListWithHeader({ materials }: MaterialsListWithHeaderPr
       </div>
       <MaterialsList materials={materials} />
       {portal && createPortal(
-        <HeaderActions />,
+        <HeaderActions
+          officeLocation={officeLocation}
+          onOfficeChange={setOfficeLocation}
+        />,
         portal
       )}
     </>

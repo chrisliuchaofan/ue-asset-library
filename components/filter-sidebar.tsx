@@ -1,13 +1,10 @@
 'use client';
 
+import { useState, useTransition, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useCallback, useTransition, useState } from 'react';
-import { type Asset } from '@/data/manifest.schema';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface FilterSidebarProps {
   types: string[];
@@ -15,81 +12,63 @@ interface FilterSidebarProps {
   tags: string[];
   sources: string[];
   engineVersions: string[];
-  assets: Asset[];
 }
 
-// 筛选项组件（支持折叠）
 function FilterSection({
   title,
   items,
   selectedItems,
   onToggle,
-  getCount,
   isPending,
-  maxVisible = 6,
 }: {
   title: string;
   items: string[];
   selectedItems: string[];
   onToggle: (value: string, checked: boolean) => void;
-  getCount: (value: string) => number;
   isPending: boolean;
-  maxVisible?: number;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const visibleItems = isExpanded ? items : items.slice(0, maxVisible);
-  const hasMore = items.length > maxVisible;
+  const [expanded, setExpanded] = useState(false);
+  const limit = 6;
+  const visibleItems = expanded ? items : items.slice(0, limit);
+  const hasMore = items.length > limit;
 
   return (
-    <div>
-      <h3 className="mb-4 text-sm font-semibold">{title}</h3>
-      <div className="grid grid-cols-2 gap-2">
+    <section className="space-y-2">
+      <h3 className="text-sm font-medium text-slate-600 dark:text-slate-100/85">{title}</h3>
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1">
         {visibleItems.map((item) => {
           const checked = selectedItems.includes(item);
-          const count = getCount(item);
           return (
-            <div key={item} className="flex items-center space-x-1.5">
+            <Label
+              key={item}
+              htmlFor={`${title}-${item}`}
+              className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/[0.08]"
+            >
               <Checkbox
                 id={`${title}-${item}`}
                 checked={checked}
                 onChange={(e) => onToggle(item, e.target.checked)}
                 disabled={isPending}
-                className="h-4 w-4"
+                className="h-3.5 w-3.5 rounded border border-slate-300 bg-white data-[state=checked]:border-primary data-[state=checked]:bg-primary dark:border-white/20 dark:bg-transparent dark:data-[state=checked]:border-primary/70"
               />
-              <Label
-                htmlFor={`${title}-${item}`}
-                className="flex-1 cursor-pointer text-xs font-normal leading-tight"
-              >
-                {item} ({count})
-              </Label>
-            </div>
+              <span className="leading-none truncate">{item}</span>
+            </Label>
           );
         })}
+        {hasMore && (
+          <div className="col-span-2 flex justify-center pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 rounded-md border border-slate-300 px-3 text-xs text-slate-700 hover:bg-slate-100 dark:border-white/18 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08]"
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? '收起' : '更多'}
+            </Button>
+          </div>
+        )}
       </div>
-      {hasMore && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mt-2 h-7 px-2 text-xs min-w-0 self-start"
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          <span className="flex items-center justify-center gap-1 truncate">
-            {isExpanded ? (
-              <>
-                <ChevronUp className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">收起</span>
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">展开</span>
-                <span className="flex-shrink-0">({items.length - maxVisible} 个)</span>
-              </>
-            )}
-          </span>
-        </Button>
-      )}
-    </div>
+    </section>
   );
 }
 
@@ -99,7 +78,6 @@ export function FilterSidebar({
   tags,
   sources,
   engineVersions,
-  assets,
 }: FilterSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -125,55 +103,13 @@ export function FilterSidebar({
       } else {
         params.delete(key);
       }
-      params.delete('page'); // 重置页码
+      params.delete('page');
 
       startTransition(() => {
         router.push(`${pathname}?${params.toString()}`);
       });
     },
     [router, pathname, searchParams]
-  );
-
-  // 计算每个筛选项的数量
-  const getTypeCount = useCallback(
-    (value: string) => {
-      return assets.filter((asset) => asset.type === value).length;
-    },
-    [assets]
-  );
-
-  const getStyleCount = useCallback(
-    (value: string) => {
-      return assets.filter((asset) => {
-        if (!asset.style) return false;
-        if (Array.isArray(asset.style)) {
-          return asset.style.includes(value);
-        }
-        return asset.style === value;
-      }).length;
-    },
-    [assets]
-  );
-
-  const getTagCount = useCallback(
-    (value: string) => {
-      return assets.filter((asset) => asset.tags.includes(value)).length;
-    },
-    [assets]
-  );
-
-  const getSourceCount = useCallback(
-    (value: string) => {
-      return assets.filter((asset) => asset.source === value).length;
-    },
-    [assets]
-  );
-
-  const getVersionCount = useCallback(
-    (value: string) => {
-      return assets.filter((asset) => asset.engineVersion === value).length;
-    },
-    [assets]
   );
 
   const hasActiveFilters =
@@ -195,15 +131,13 @@ export function FilterSidebar({
   }, [router, pathname, searchParams]);
 
   return (
-    <aside className="w-64 space-y-6">
+    <div className="flex h-full flex-col gap-4 text-sm text-slate-700 dark:text-slate-200">
       <FilterSection
         title="类型"
         items={types}
         selectedItems={selectedTypes}
         onToggle={(value, checked) => updateFilters('types', value, checked)}
-        getCount={getTypeCount}
         isPending={isPending}
-        maxVisible={6}
       />
 
       <FilterSection
@@ -211,9 +145,7 @@ export function FilterSidebar({
         items={styles}
         selectedItems={selectedStyles}
         onToggle={(value, checked) => updateFilters('styles', value, checked)}
-        getCount={getStyleCount}
         isPending={isPending}
-        maxVisible={6}
       />
 
       <FilterSection
@@ -221,9 +153,7 @@ export function FilterSidebar({
         items={tags}
         selectedItems={selectedTags}
         onToggle={(value, checked) => updateFilters('tags', value, checked)}
-        getCount={getTagCount}
         isPending={isPending}
-        maxVisible={6}
       />
 
       <FilterSection
@@ -231,9 +161,7 @@ export function FilterSidebar({
         items={sources}
         selectedItems={selectedSources}
         onToggle={(value, checked) => updateFilters('sources', value, checked)}
-        getCount={getSourceCount}
         isPending={isPending}
-        maxVisible={6}
       />
 
       <FilterSection
@@ -241,22 +169,18 @@ export function FilterSidebar({
         items={engineVersions}
         selectedItems={selectedVersions}
         onToggle={(value, checked) => updateFilters('versions', value, checked)}
-        getCount={getVersionCount}
         isPending={isPending}
-        maxVisible={6}
       />
 
-      <div className="mt-6 border-t pt-6">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={clearAllFilters}
-          className="h-8 px-3 text-xs self-start"
-          disabled={!hasActiveFilters || isPending}
-        >
-          清空筛选
-        </Button>
-      </div>
-    </aside>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={clearAllFilters}
+        className="inline-flex h-7 gap-1 rounded-md border border-slate-300 px-3 text-xs text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-primary/30 dark:border-white/18 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08] dark:focus-visible:ring-primary/40 self-center"
+        disabled={!hasActiveFilters || isPending}
+      >
+        清空筛选
+      </Button>
+    </div>
   );
 }

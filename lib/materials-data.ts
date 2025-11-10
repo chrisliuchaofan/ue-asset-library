@@ -126,7 +126,11 @@ export async function updateMaterial(id: string, updates: Partial<Material>): Pr
   if (index === -1) {
     throw new Error(`素材 ${id} 不存在`);
   }
-  materials[index] = { ...materials[index], ...updates };
+  materials[index] = {
+    ...materials[index],
+    ...updates,
+    updatedAt: Date.now(),
+  };
   await writeLocalMaterials(materials);
   return materials[index];
 }

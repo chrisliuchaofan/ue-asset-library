@@ -41,16 +41,8 @@ function saveSelectedAssetIds(ids: Set<string>): void {
 
 export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps) {
   // 初始化时从 localStorage 恢复，并过滤掉不存在的资产 ID
-  const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(() => {
-    const savedIds = loadSelectedAssetIds();
-    // 如果资产列表已加载，过滤掉不存在的 ID
-    if (assets.length > 0) {
-      const assetIdSet = new Set(assets.map(a => a.id));
-      const validIds = Array.from(savedIds).filter(id => assetIdSet.has(id));
-      return new Set(validIds);
-    }
-    return savedIds;
-  });
+  const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(() => new Set());
+  const [hasHydratedSelection, setHasHydratedSelection] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [officeLocation, setOfficeLocation] = useOfficeLocation();
 
@@ -58,8 +50,26 @@ export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (hasHydratedSelection) return;
+    const savedIds = loadSelectedAssetIds();
+    if (savedIds.size === 0) {
+      setHasHydratedSelection(true);
+      return;
+    }
+    if (assets.length > 0) {
+      const assetIdSet = new Set(assets.map(a => a.id));
+      const validIds = Array.from(savedIds).filter(id => assetIdSet.has(id));
+      setSelectedAssetIds(new Set(validIds));
+    } else {
+      setSelectedAssetIds(new Set(savedIds));
+    }
+    setHasHydratedSelection(true);
+  }, [assets, hasHydratedSelection]);
+
   // 当资产列表加载后，清理无效的已选择 ID（仅在资产列表变化时执行）
   useEffect(() => {
+    if (!hasHydratedSelection) return;
     if (assets.length > 0 && selectedAssetIds.size > 0) {
       const assetIdSet = new Set(assets.map(a => a.id));
       const validIds = Array.from(selectedAssetIds).filter(id => assetIdSet.has(id));
@@ -68,7 +78,7 @@ export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps
         setSelectedAssetIds(new Set(validIds));
       }
     }
-  }, [assets]); // 注意：这里不依赖 selectedAssetIds，避免循环更新
+  }, [assets, hasHydratedSelection]); // 注意：这里不依赖 selectedAssetIds，避免循环更新
 
   // 使用所有资产来获取完整的选中资产列表（包括不在当前页的）
   const allSelectedAssets = Array.from(selectedAssetIds)
@@ -77,6 +87,7 @@ export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps
   
   // 保存选择状态到 localStorage
   useEffect(() => {
+    if (!hasHydratedSelection) return;
     saveSelectedAssetIds(selectedAssetIds);
     // 调试：监控选中资产变化
     console.log('清单状态更新', { 
@@ -84,7 +95,7 @@ export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps
       assetIds: Array.from(selectedAssetIds),
       allSelectedAssets: allSelectedAssets.map(a => ({ id: a.id, name: a.name }))
     });
-  }, [selectedAssetIds, allSelectedAssets]);
+  }, [selectedAssetIds, allSelectedAssets, hasHydratedSelection]);
 
   const handleToggleSelection = useCallback((assetId: string) => {
     console.log('handleToggleSelection 被调用', { assetId });
@@ -117,7 +128,7 @@ export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps
     }
   }, []);
 
-  const portal = mounted ? document.getElementById('header-actions-portal') : null;
+  const headerPortal = mounted ? document.getElementById('header-actions-portal') : null;
 
   return (
     <>
@@ -132,13 +143,15 @@ export function AssetsListWithSelection({ assets }: AssetsListWithSelectionProps
         onToggleSelection={handleToggleSelection}
         officeLocation={officeLocation}
       />
-      {portal && createPortal(
+      {headerPortal && createPortal(
         <HeaderActions
           selectedAssets={allSelectedAssets}
           onRemoveAsset={handleRemoveAsset}
           onClearAssets={handleClearAssets}
+          officeLocation={officeLocation}
+          onOfficeChange={setOfficeLocation}
         />,
-        portal
+        headerPortal
       )}
     </>
   );

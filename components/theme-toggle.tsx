@@ -9,22 +9,41 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 
 type Theme = 'light' | 'dark' | 'system';
 
-export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('system');
+interface ThemeToggleProps {
+  className?: string;
+}
+
+export function ThemeToggle({ className }: ThemeToggleProps = {}) {
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = window.localStorage.getItem('theme') as Theme | null;
+      if (stored === 'light' || stored === 'dark' || stored === 'system') {
+        const root = window.document.documentElement;
+        const effective =
+          stored === 'system'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+            : stored;
+        root.classList.remove('light', 'dark');
+        root.classList.add(effective);
+        return stored;
+      }
+      const root = window.document.documentElement;
+      root.classList.remove('light', 'dark');
+      root.classList.add('dark');
+      window.localStorage.setItem('theme', 'dark');
+    }
+    return 'dark';
+  });
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // 从 localStorage 读取保存的主题
-    const savedTheme = localStorage.getItem('theme') as Theme | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-    } else {
-      setTheme('system');
-    }
   }, []);
 
   useEffect(() => {
@@ -47,7 +66,6 @@ export function ThemeToggle() {
     root.classList.add(effectiveTheme);
     localStorage.setItem('theme', theme);
 
-    // 监听系统主题变化
     if (theme === 'system') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const handleChange = (e: MediaQueryListEvent) => {
@@ -59,9 +77,11 @@ export function ThemeToggle() {
     }
   }, [theme, mounted]);
 
+  const triggerClasses = cn('h-9 w-9', className);
+
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" className="h-9 w-9">
+      <Button variant="ghost" size="icon" className={triggerClasses}>
         <Monitor className="h-4 w-4" />
       </Button>
     );
@@ -81,7 +101,7 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9">
+        <Button variant="ghost" size="icon" className={triggerClasses}>
           {getIcon()}
           <span className="sr-only">切换主题</span>
         </Button>

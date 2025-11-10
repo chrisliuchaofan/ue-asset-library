@@ -117,7 +117,9 @@ export async function POST(request: Request) {
       // OSS 模式：上传到 OSS
       const client = getOSSClient();
       const ossPath = `assets/${newFileName}`;
-      await client.put(ossPath, buffer, {
+      await (client as any).multipartUpload(ossPath, buffer, {
+        parallel: 4,
+        partSize: 10 * 1024 * 1024, // 10MB 分片
         contentType: fileType,
       });
 

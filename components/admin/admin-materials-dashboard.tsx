@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState, useRef, useEffect, type ChangeEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import Link from 'next/link';
 import type { Material } from '@/data/material.schema';
 import { MaterialTypeEnum, MaterialTagEnum, MaterialQualityEnum } from '@/data/material.schema';
@@ -8,10 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Edit, Search, Tags, ArrowLeft, ImageIcon } from 'lucide-react';
+import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, Tags, ArrowLeft, CheckSquare } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { MaterialsTagsManagementDialog } from './materials-tags-management-dialog';
+import { MaterialsBatchEditDialog } from './materials-batch-edit-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +33,20 @@ interface AdminMaterialsDashboardProps {
 const MATERIAL_TYPES = MaterialTypeEnum.options;
 const MATERIAL_TAGS = MaterialTagEnum.options;
 const MATERIAL_QUALITIES = MaterialQualityEnum.options;
+
+const PREVIEW_SIZE = 64;
+const ROW_HEIGHT = 72;
+const SELECTION_COL_WIDTH = 48;
+
+const MATERIAL_COLUMNS = [
+  { id: 'preview', label: '预览图', defaultWidth: 128, minWidth: 96 },
+  { id: 'name', label: '名称', defaultWidth: 240, minWidth: 160 },
+  { id: 'type', label: '类型', defaultWidth: 140, minWidth: 110 },
+  { id: 'tag', label: '标签', defaultWidth: 140, minWidth: 110 },
+  { id: 'quality', label: '质量', defaultWidth: 220, minWidth: 160 },
+  { id: 'updatedAt', label: '更新时间', defaultWidth: 160, minWidth: 140 },
+  { id: 'actions', label: '操作', defaultWidth: 160, minWidth: 140 },
+] as const;
 
 interface FormState {
   name: string;
@@ -89,6 +105,19 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   const [filterTag, setFilterTag] = useState<string>('');
   const [showAllMaterials, setShowAllMaterials] = useState(false);
   const [tagsManagementOpen, setTagsManagementOpen] = useState(false);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<string>>(new Set());
+  const [batchEditOpen, setBatchEditOpen] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<Record<(typeof MATERIAL_COLUMNS)[number]['id'], number>>(() =>
+    MATERIAL_COLUMNS.reduce((acc, column) => {
+      acc[column.id] = column.defaultWidth;
+      return acc;
+    }, {} as Record<(typeof MATERIAL_COLUMNS)[number]['id'], number>)
+  );
+  const [sortKey, setSortKey] = useState<'updatedAt' | 'name'>('updatedAt');
+  const nameCollator = useMemo(
+    () => new Intl.Collator('zh-Hans-u-co-pinyin', { sensitivity: 'base', numeric: true }),
+    []
+  );
 
   const normalizedCdnBase = useMemo(() => cdnBase.replace(/\/+$/, ''), [cdnBase]);
 
@@ -118,6 +147,40 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     }
     return null;
   }, [uploadedFiles, calculateFileHash]);
+
+  const handleColumnResizeStart = useCallback(
+    (event: ReactMouseEvent<HTMLSpanElement>, columnId: (typeof MATERIAL_COLUMNS)[number]['id']) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const column = MATERIAL_COLUMNS.find((col) => col.id === columnId);
+      if (!column) return;
+
+      const startX = event.clientX;
+      const startWidth = columnWidths[columnId];
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX;
+        const nextWidth = Math.max(column.minWidth, startWidth + delta);
+        setColumnWidths((prev) => {
+          if (prev[columnId] === nextWidth) {
+            return prev;
+          }
+          return { ...prev, [columnId]: nextWidth };
+        });
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.classList.remove('select-none');
+      };
+
+      document.body.classList.add('select-none');
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    },
+    [columnWidths]
+  );
 
   // 更新表单从已上传文件列表
   const updateFormFromUploadedFiles = useCallback((files: typeof uploadedFiles) => {
@@ -545,14 +608,17 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       filtered = filtered.filter((material) => material.tag === filterTag);
     }
 
-    filtered = [...filtered].sort((a, b) => {
-      const aTime = a.createdAt || 0;
-      const bTime = b.createdAt || 0;
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortKey === 'name') {
+        return nameCollator.compare(a.name, b.name);
+      }
+      const aTime = a.updatedAt ?? a.createdAt ?? 0;
+      const bTime = b.updatedAt ?? b.createdAt ?? 0;
       return bTime - aTime;
     });
 
-    return filtered;
-  }, [materials, searchKeyword, filterType, filterTag]);
+    return sorted;
+  }, [materials, searchKeyword, filterType, filterTag, sortKey, nameCollator]);
 
   const displayedMaterials = useMemo(() => {
     if (showAllMaterials) {
@@ -577,6 +643,251 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     }
     return `${base.replace(/\/+$/, '')}${normalizedPath}`;
   }, [normalizedCdnBase]);
+
+  const renderMaterialCell = (
+    columnId: (typeof MATERIAL_COLUMNS)[number]['id'],
+    material: Material
+  ) => {
+    switch (columnId) {
+      case 'preview': {
+        const previewSource = getPreviewUrl(material.thumbnail || material.src);
+        const isVideo = Boolean(
+          material.thumbnail?.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/) ||
+            material.src?.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/)
+        );
+
+        return (
+          <div className="flex h-[72px] items-center">
+            <div className="relative h-[64px] w-[64px] overflow-hidden rounded-md border border-border/50 bg-muted">
+              {previewSource ? (
+                isVideo ? (
+                  <video src={previewSource} className="h-full w-full object-cover" muted playsInline />
+                ) : (
+                  <img
+                    src={previewSource}
+                    alt={material.name}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                )
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-[11px] text-muted-foreground">
+                  无预览
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'name':
+        return (
+          <div className="flex h-[72px] items-center text-sm font-medium text-foreground" title={material.name}>
+            <span className="truncate">{material.name}</span>
+          </div>
+        );
+      case 'type':
+        return (
+          <div className="flex h-[72px] items-center">
+            <Badge variant="secondary">{material.type}</Badge>
+          </div>
+        );
+      case 'tag':
+        return (
+          <div className="flex h-[72px] items-center">
+            <Badge variant="outline">{material.tag}</Badge>
+          </div>
+        );
+      case 'quality':
+        return (
+          <div className="flex h-[72px] flex-wrap items-center gap-1.5">
+            {material.quality.map((quality) => (
+              <Badge key={quality} variant="secondary" className="text-[11px]">
+                {quality}
+              </Badge>
+            ))}
+          </div>
+        );
+      case 'updatedAt': {
+        const timestamp = material.updatedAt ?? material.createdAt;
+        const formatted = timestamp
+          ? new Date(timestamp).toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '-';
+
+        return (
+          <div className="flex h-[72px] items-center text-[11px] text-muted-foreground whitespace-nowrap">
+            {formatted}
+          </div>
+        );
+      }
+      case 'actions':
+        return (
+          <div className="flex h-[72px] items-center gap-1.5">
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 rounded-lg border-border/60 text-sm font-semibold"
+              onClick={() => window.open(`/materials/${material.id}`, '_blank', 'noopener,noreferrer')}
+            >
+              预
+              <span className="sr-only">预览</span>
+            </Button>
+            <Button
+              size="icon"
+              variant="default"
+              className="h-8 w-8 rounded-lg text-sm font-semibold"
+              onClick={() => handleEdit(material)}
+              disabled={loading}
+            >
+              改
+              <span className="sr-only">修改</span>
+            </Button>
+            <Button
+              size="icon"
+              variant="destructive"
+              className="h-8 w-8 rounded-lg text-sm font-semibold"
+              onClick={() => handleDelete(material.id)}
+              disabled={loading}
+            >
+              删
+              <span className="sr-only">删除</span>
+            </Button>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const handleBatchUpdateType = useCallback(async (nextType: string) => {
+    const trimmed = nextType.trim();
+    if (!trimmed) {
+      throw new Error('类型不能为空');
+    }
+    if (selectedMaterialIds.size === 0) {
+      throw new Error('请先选择至少一个素材');
+    }
+
+    const materialIds = Array.from(selectedMaterialIds);
+    const response = await fetch('/api/materials/batch-actions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        materialIds,
+        action: 'update-type',
+        payload: { type: trimmed },
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || '批量更新类型失败');
+    }
+
+    await refreshMaterials();
+    setSelectedMaterialIds(new Set());
+    setMessage(result.message || `已更新 ${result.processed ?? materialIds.length} 个素材的类型`);
+  }, [selectedMaterialIds, refreshMaterials]);
+
+  const handleBatchUpdateTag = useCallback(async (nextTag: string) => {
+    const trimmed = nextTag.trim();
+    if (!trimmed) {
+      throw new Error('标签不能为空');
+    }
+    if (selectedMaterialIds.size === 0) {
+      throw new Error('请先选择至少一个素材');
+    }
+
+    const materialIds = Array.from(selectedMaterialIds);
+    const response = await fetch('/api/materials/batch-actions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        materialIds,
+        action: 'update-tag',
+        payload: { tag: trimmed },
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || '批量更新标签失败');
+    }
+
+    await refreshMaterials();
+    setSelectedMaterialIds(new Set());
+    setMessage(result.message || `已更新 ${result.processed ?? materialIds.length} 个素材的标签`);
+  }, [selectedMaterialIds, refreshMaterials]);
+
+  const handleBatchUpdateQuality = useCallback(async (qualities: string[]) => {
+    const filtered = Array.from(new Set(qualities.map((q) => q.trim()).filter(Boolean)));
+    if (filtered.length === 0) {
+      throw new Error('至少选择一个质量');
+    }
+    if (selectedMaterialIds.size === 0) {
+      throw new Error('请先选择至少一个素材');
+    }
+
+    const materialIds = Array.from(selectedMaterialIds);
+    const response = await fetch('/api/materials/batch-actions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        materialIds,
+        action: 'update-quality',
+        payload: { quality: filtered },
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || '批量更新质量失败');
+    }
+
+    await refreshMaterials();
+    setSelectedMaterialIds(new Set());
+    setMessage(result.message || `已更新 ${result.processed ?? materialIds.length} 个素材的质量`);
+  }, [selectedMaterialIds, refreshMaterials]);
+
+  const handleBatchDelete = useCallback(async () => {
+    if (selectedMaterialIds.size === 0) {
+      throw new Error('请先选择至少一个素材');
+    }
+
+    const materialIds = Array.from(selectedMaterialIds);
+    const response = await fetch('/api/materials/batch-actions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        materialIds,
+        action: 'delete',
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || '批量删除失败');
+    }
+
+    await refreshMaterials();
+    setSelectedMaterialIds(new Set());
+    setMessage(result.message || `已删除 ${result.processed ?? materialIds.length} 个素材`);
+  }, [selectedMaterialIds, refreshMaterials]);
 
   const handleCreate = async () => {
     setMessage(null);
@@ -654,6 +965,12 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       if (editingMaterialId === id) {
         resetForm();
       }
+      setSelectedMaterialIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     } catch (error) {
       console.error(error);
       setMessage(error instanceof Error ? error.message : '删除素材失败');
@@ -843,6 +1160,28 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     });
   };
 
+  useEffect(() => {
+    setSelectedMaterialIds((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set<string>();
+      for (const material of materials) {
+        if (prev.has(material.id)) {
+          next.add(material.id);
+        }
+      }
+      if (next.size === prev.size) {
+        return prev;
+      }
+      return next;
+    });
+  }, [materials]);
+
+  useEffect(() => {
+    if (batchEditOpen && selectedMaterialIds.size === 0) {
+      setBatchEditOpen(false);
+    }
+  }, [batchEditOpen, selectedMaterialIds]);
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -854,11 +1193,11 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         </Link>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>存储状态</CardTitle>
+      <Card className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-sm shadow-lg shadow-black/5">
+        <CardHeader className="flex flex-col gap-1 border-b border-border/40 bg-background/40 px-5 py-4 sm:px-6">
+          <CardTitle className="text-base font-semibold">存储状态</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
+        <CardContent className="space-y-2 px-5 py-4 text-sm text-muted-foreground sm:px-6">
           <div>
             当前存储模式：<Badge variant="outline">{storageMode}</Badge>
           </div>
@@ -866,25 +1205,35 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>素材列表</CardTitle>
-            <div className="flex gap-2">
+      <Card className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-sm shadow-lg shadow-black/5">
+        <CardHeader className="border-b border-border/40 bg-background/40 px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base font-semibold">素材列表</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedMaterialIds.size > 0 && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setBatchEditOpen(true)}
+                >
+                  <CheckSquare className="mr-2 h-4 w-4" />
+                  批量操作 ({selectedMaterialIds.size})
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setTagsManagementOpen(true)}
               >
-                <Tags className="h-4 w-4 mr-2" />
+                <Tags className="mr-2 h-4 w-4" />
                 标签和类型管理
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="mb-4 space-y-3">
-            <div className="flex gap-2">
+        <CardContent className="space-y-4 px-5 py-5 sm:px-6">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -895,7 +1244,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 />
               </div>
               <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                className="h-9 rounded-md border border-border/50 bg-background/70 px-3 text-sm"
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
               >
@@ -907,7 +1256,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 ))}
               </select>
               <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                className="h-9 rounded-md border border-border/50 bg-background/70 px-3 text-sm"
                 value={filterTag}
                 onChange={(e) => setFilterTag(e.target.value)}
               >
@@ -919,105 +1268,133 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 ))}
               </select>
             </div>
-            <div className="text-sm text-muted-foreground">
-              共找到 {filteredMaterials.length} 个素材
-              {filteredMaterials.length !== materials.length && `（共 ${materials.length} 个）`}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                共找到 {filteredMaterials.length} 个素材
+                {filteredMaterials.length !== materials.length && `（共 ${materials.length} 个）`}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSortKey('updatedAt')}
+                  aria-pressed={sortKey === 'updatedAt'}
+                  className={`h-7 rounded-md border px-3 text-xs transition ${
+                    sortKey === 'updatedAt'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/60 text-muted-foreground hover:border-border/80 hover:text-foreground'
+                  }`}
+                >
+                  按时间
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortKey('name')}
+                  aria-pressed={sortKey === 'name'}
+                  className={`h-7 rounded-md border px-3 text-xs transition ${
+                    sortKey === 'name'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/60 text-muted-foreground hover:border-border/80 hover:text-foreground'
+                  }`}
+                >
+                  按名称
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium w-16">预览</th>
-                  <th className="px-3 py-2 text-left font-medium">名称</th>
-                  <th className="px-3 py-2 text-left font-medium">类型</th>
-                  <th className="px-3 py-2 text-left font-medium">标签</th>
-                  <th className="px-3 py-2 text-left font-medium">质量</th>
-                  <th className="px-3 py-2 text-left font-medium">更新时间</th>
-                  <th className="px-3 py-2 text-left font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {displayedMaterials.map((material) => {
-                  const previewUrl = getPreviewUrl(material.thumbnail || material.src);
-                  return (
-                    <tr key={material.id}>
-                      <td className="px-3 py-2">
-                        <div className="w-16 h-16 relative rounded overflow-hidden bg-muted">
-                          {previewUrl ? (
-                            material.thumbnail?.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/) ||
-                            material.src?.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/) ? (
-                              <video
-                                src={previewUrl}
-                                className="w-full h-full object-cover"
-                                muted
-                                playsInline
-                              />
-                            ) : (
-                              <img
-                                src={previewUrl}
-                                alt={material.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
-                            )
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                              无预览
-                            </div>
+          <div className="overflow-hidden rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full table-fixed text-xs sm:text-sm">
+                <colgroup>
+                  <col style={{ width: `${SELECTION_COL_WIDTH}px` }} />
+                  {MATERIAL_COLUMNS.map((column) => (
+                    <col key={column.id} style={{ width: `${columnWidths[column.id]}px` }} />
+                  ))}
+                </colgroup>
+                <thead className="bg-muted/60 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-2 py-2">
+                      <div className="flex h-[72px] items-center justify-center">
+                        <Checkbox
+                          checked={
+                            displayedMaterials.length > 0 &&
+                            displayedMaterials.every((material) => selectedMaterialIds.has(material.id))
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const next = new Set(selectedMaterialIds);
+                              displayedMaterials.forEach((material) => next.add(material.id));
+                              setSelectedMaterialIds(next);
+                            } else {
+                              const next = new Set(selectedMaterialIds);
+                              displayedMaterials.forEach((material) => next.delete(material.id));
+                              setSelectedMaterialIds(next);
+                            }
+                          }}
+                        />
+                      </div>
+                    </th>
+                    {MATERIAL_COLUMNS.map((column) => {
+                      const isActions = column.id === 'actions';
+                      const isName = column.id === 'name';
+                      const isUpdatedAt = column.id === 'updatedAt';
+                      return (
+                        <th key={column.id} className="relative px-2 py-2 font-medium">
+                          <div className="flex items-center gap-2">
+                            <span>{column.label}</span>
+                            {isName && sortKey === 'name' && (
+                              <span className="rounded bg-primary/10 px-2 text-[10px] font-semibold text-primary">排序</span>
+                            )}
+                            {isUpdatedAt && sortKey === 'updatedAt' && (
+                              <span className="rounded bg-primary/10 px-2 text-[10px] font-semibold text-primary">排序</span>
+                            )}
+                          </div>
+                          {!isActions && (
+                            <span
+                              onMouseDown={(event) => handleColumnResizeStart(event, column.id)}
+                              className="absolute right-0 top-0 h-full w-2 cursor-col-resize select-none"
+                            />
                           )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">{material.name}</td>
-                      <td className="px-3 py-2">
-                        <Badge variant="secondary">{material.type}</Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant="outline">{material.tag}</Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          {material.quality.map((q) => (
-                            <Badge key={q} variant="secondary" className="text-xs">
-                              {q}
-                            </Badge>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                        {material.updatedAt
-                          ? new Date(material.updatedAt).toLocaleString('zh-CN')
-                          : '-'}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => handleEdit(material)}
-                            disabled={loading}
-                          >
-                            <Edit className="h-3 w-3 mr-1" />
-                            修改
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDelete(material.id)}
-                            disabled={loading}
-                          >
-                            删除
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {displayedMaterials.map((material) => {
+                    const isSelected = selectedMaterialIds.has(material.id);
+                    return (
+                      <tr
+                        key={material.id}
+                        className={`align-middle transition-colors ${isSelected ? 'bg-muted/40' : 'hover:bg-muted/20'}`}
+                      >
+                        <td className="px-2 py-2">
+                          <div className="flex h-[72px] items-center justify-center">
+                            <Checkbox
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const nextSelection = new Set(selectedMaterialIds);
+                                if (e.target.checked) {
+                                  nextSelection.add(material.id);
+                                } else {
+                                  nextSelection.delete(material.id);
+                                }
+                                setSelectedMaterialIds(nextSelection);
+                              }}
+                            />
+                          </div>
+                        </td>
+                        {MATERIAL_COLUMNS.map((column) => (
+                          <td key={column.id} className="px-2 py-2">
+                            {renderMaterialCell(column.id, material)}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {filteredMaterials.length > 5 && (
@@ -1042,11 +1419,27 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         </CardContent>
       </Card>
 
-      <Card id="material-form-card">
-        <CardHeader>
-          <CardTitle>{editingMaterialId ? '编辑素材' : '新增素材'}</CardTitle>
+      <MaterialsBatchEditDialog
+        open={batchEditOpen}
+        onOpenChange={setBatchEditOpen}
+        selectedCount={selectedMaterialIds.size}
+        types={MATERIAL_TYPES}
+        tags={MATERIAL_TAGS}
+        qualities={MATERIAL_QUALITIES}
+        onUpdateType={handleBatchUpdateType}
+        onUpdateTag={handleBatchUpdateTag}
+        onUpdateQuality={handleBatchUpdateQuality}
+        onDelete={handleBatchDelete}
+      />
+
+      <Card
+        id="material-form-card"
+        className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-sm shadow-lg shadow-black/5"
+      >
+        <CardHeader className="border-b border-border/40 bg-background/40 px-5 py-4 sm:px-6">
+          <CardTitle className="text-base font-semibold">{editingMaterialId ? '编辑素材' : '新增素材'}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 px-5 py-5 sm:px-6">
           {/* 文件上传区域 */}
           <div
             className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center transition-colors hover:border-primary/50"

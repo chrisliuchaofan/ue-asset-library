@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useMemo, useState, useRef, useEffect, type ChangeEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import Link from 'next/link';
 import type { Asset } from '@/data/manifest.schema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Edit, Search, Download, FileArchive, Tags, ArrowLeft, CheckSquare, ImageIcon, MoreVertical } from 'lucide-react';
+import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, FileArchive, Tags, ArrowLeft, CheckSquare, ImageIcon, MoreVertical } from 'lucide-react';
 import { BatchUploadDialog } from './batch-upload-dialog';
 import { TagsManagementDialog } from './tags-management-dialog';
 import { BatchEditDialog } from './batch-edit-dialog';
@@ -39,6 +40,20 @@ const SOURCE_SUGGESTIONS = ['内部', '外部', '网络'];
 
 // 版本建议值
 const VERSION_SUGGESTIONS = ['UE5.6', 'UE5.5', 'UE5.4', 'UE5.3', 'UE4.3'];
+
+const PREVIEW_SIZE = 64;
+const ROW_HEIGHT = 72;
+const SELECTION_COL_WIDTH = 48;
+
+const ASSET_COLUMNS = [
+  { id: 'preview', label: '预览图', defaultWidth: 128, minWidth: 96 },
+  { id: 'name', label: '名称', defaultWidth: 240, minWidth: 160 },
+  { id: 'type', label: '类型', defaultWidth: 120, minWidth: 96 },
+  { id: 'tags', label: '标签', defaultWidth: 220, minWidth: 160 },
+  { id: 'paths', label: '资源路径', defaultWidth: 420, minWidth: 260 },
+  { id: 'updatedAt', label: '更新时间', defaultWidth: 160, minWidth: 140 },
+  { id: 'actions', label: '操作', defaultWidth: 160, minWidth: 140 },
+] as const;
 
 interface FormState {
   name: string;
@@ -109,28 +124,47 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
   const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [allowedTypes, setAllowedTypes] = useState<string[]>([]); // 允许的资产类型列表（动态获取）
+  const [showPaths, setShowPaths] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<Record<(typeof ASSET_COLUMNS)[number]['id'], number>>(() =>
+    ASSET_COLUMNS.reduce((acc, column) => {
+      acc[column.id] = column.defaultWidth;
+      return acc;
+    }, {} as Record<(typeof ASSET_COLUMNS)[number]['id'], number>)
+  );
+  const visibleAssetColumns = useMemo(
+    () => ASSET_COLUMNS.filter((column) => showPaths || column.id !== 'paths'),
+    [showPaths]
+  );
+  const [sortKey, setSortKey] = useState<'updatedAt' | 'name'>('updatedAt');
+  const nameCollator = useMemo(
+    () => new Intl.Collator('zh-Hans-u-co-pinyin', { sensitivity: 'base', numeric: true }),
+    []
+  );
 
   // OSS 模式已支持读写，不再设为只读
   const isReadOnly = false;
 
   // 从API获取允许的类型列表
-  useEffect(() => {
-    fetch('/api/assets/types')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.allowedTypes && Array.isArray(data.allowedTypes)) {
+  const fetchAllowedTypes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/assets/types');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.allowedTypes) && data.allowedTypes.length > 0) {
           setAllowedTypes(data.allowedTypes);
-        } else {
-          // 如果获取失败，使用默认类型
-          setAllowedTypes([...DEFAULT_ASSET_TYPES]);
+          return;
         }
-      })
-      .catch((err) => {
-        console.error('获取类型列表失败:', err);
-        // 如果获取失败，使用默认类型
-        setAllowedTypes([...DEFAULT_ASSET_TYPES]);
-      });
+      }
+      setAllowedTypes([...DEFAULT_ASSET_TYPES]);
+    } catch (err) {
+      console.error('获取类型列表失败:', err);
+      setAllowedTypes([...DEFAULT_ASSET_TYPES]);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchAllowedTypes();
+  }, [fetchAllowedTypes]);
 
   const resetForm = useCallback(() => {
     setForm(initialFormState);
@@ -282,31 +316,67 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
 
   // 处理批量添加标签
   const handleBatchAddTags = useCallback(async (newTags: string[]) => {
-    if (selectedAssetIds.size === 0) return;
+    if (selectedAssetIds.size === 0) {
+      throw new Error('请先选择至少一个资产');
+    }
 
-    const response = await fetch('/api/assets/batch-tags', {
+    const count = selectedAssetIds.size;
+
+    const response = await fetch('/api/assets/batch-actions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         assetIds: Array.from(selectedAssetIds),
-        tagsToAdd: newTags,
+        action: 'add-tags',
+        payload: { tags: newTags },
       }),
     });
 
+    const result = await response.json();
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || '批量添加标签失败');
+      throw new Error(result.message || '批量添加标签失败');
     }
 
-    const count = selectedAssetIds.size;
-    // 刷新资产列表
     await refreshAssets();
-    // 清空选择
     setSelectedAssetIds(new Set());
-    setMessage(`已为 ${count} 个资产添加标签`);
-  }, [selectedAssetIds, refreshAssets, setSelectedAssetIds, setMessage]);
+    setMessage(result.message || `已为 ${count} 个资产添加标签`);
+  }, [selectedAssetIds, refreshAssets]);
+
+  const handleColumnResizeStart = useCallback(
+    (event: ReactMouseEvent<HTMLSpanElement>, columnId: (typeof ASSET_COLUMNS)[number]['id']) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const column = ASSET_COLUMNS.find((col) => col.id === columnId);
+      if (!column) return;
+
+      const startX = event.clientX;
+      const startWidth = columnWidths[columnId];
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX;
+        const nextWidth = Math.max(column.minWidth, startWidth + delta);
+        setColumnWidths((prev) => {
+          if (prev[columnId] === nextWidth) {
+            return prev;
+          }
+          return { ...prev, [columnId]: nextWidth };
+        });
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.classList.remove('select-none');
+      };
+
+      document.body.classList.add('select-none');
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    },
+    [columnWidths]
+  );
 
   // 处理标签管理保存
   const handleTagsSave = useCallback(async (tagMappings: { oldTag: string; newTag: string | null }[]) => {
@@ -330,18 +400,10 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
 
   // 处理类型管理保存
   const handleTypesSave = useCallback(async () => {
-    // 重新获取类型列表
-    const response = await fetch('/api/assets/types');
-    if (response.ok) {
-      const data = await response.json();
-      if (data.allowedTypes && Array.isArray(data.allowedTypes)) {
-        setAllowedTypes(data.allowedTypes);
-        // 刷新资产列表（因为类型可能被重命名）
-        await refreshAssets();
-        setMessage('类型已更新');
-      }
-    }
-  }, [refreshAssets]);
+    await fetchAllowedTypes();
+    await refreshAssets();
+    setMessage('类型已更新');
+  }, [fetchAllowedTypes, refreshAssets]);
 
   const handleCreate = async () => {
     setMessage(null);
@@ -372,7 +434,12 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      const style = styleValues.length === 1 ? styleValues[0] : styleValues.length > 1 ? styleValues : undefined;
+      const style =
+        styleValues.length === 0
+          ? undefined
+          : styleValues.length === 1
+          ? styleValues[0]
+          : styleValues;
 
       const payload = {
         name: form.name.trim(),
@@ -672,7 +739,12 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      const style = styleValues.length === 1 ? styleValues[0] : styleValues.length > 1 ? styleValues : undefined;
+      const style =
+        styleValues.length === 0
+          ? undefined
+          : styleValues.length === 1
+          ? styleValues[0]
+          : styleValues;
 
       // 确保类型已trim
       const assetType = form.type.trim();
@@ -1085,7 +1157,6 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
   const filteredAssets = useMemo(() => {
     let filtered = assets;
 
-    // 搜索关键词
     if (searchKeyword.trim()) {
       const keyword = searchKeyword.toLowerCase();
       filtered = filtered.filter(
@@ -1095,25 +1166,25 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
       );
     }
 
-    // 类型筛选
     if (filterType) {
       filtered = filtered.filter((asset) => asset.type === filterType);
     }
 
-    // 标签筛选
     if (filterTag) {
       filtered = filtered.filter((asset) => asset.tags.includes(filterTag));
     }
 
-    // 按上传时间排序（最新的在前）
-    filtered = [...filtered].sort((a, b) => {
-      const aTime = a.createdAt || 0;
-      const bTime = b.createdAt || 0;
-      return bTime - aTime; // 降序
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortKey === 'name') {
+        return nameCollator.compare(a.name, b.name);
+      }
+      const aTime = a.updatedAt ?? a.createdAt ?? 0;
+      const bTime = b.updatedAt ?? b.createdAt ?? 0;
+      return bTime - aTime;
     });
 
-    return filtered;
-  }, [assets, searchKeyword, filterType, filterTag]);
+    return sorted;
+  }, [assets, searchKeyword, filterType, filterTag, sortKey, nameCollator]);
 
   // 分页显示（默认显示5条）
   const displayedAssets = useMemo(() => {
@@ -1162,6 +1233,396 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
     return `${base.replace(/\/+$/, '')}${normalizedPath}`;
   }, [normalizedCdnBase]);
 
+  const renderAssetCell = (
+    columnId: (typeof ASSET_COLUMNS)[number]['id'],
+    asset: Asset
+  ) => {
+    switch (columnId) {
+      case 'preview': {
+        const allMediaFiles: Array<{ url: string; label: string; type: 'image' | 'video' }> = [];
+        const isVideoUrl = (url: string) => {
+          if (!url) return false;
+          const lower = url.toLowerCase();
+          return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
+        };
+
+        if (asset.thumbnail) {
+          allMediaFiles.push({
+            url: asset.thumbnail,
+            label: '封面图',
+            type: isVideoUrl(asset.thumbnail) ? 'video' : 'image',
+          });
+        }
+
+        if (asset.src && asset.src !== asset.thumbnail) {
+          allMediaFiles.push({
+            url: asset.src,
+            label: '资源文件',
+            type: isVideoUrl(asset.src) ? 'video' : 'image',
+          });
+        }
+
+        if (asset.gallery && asset.gallery.length > 0) {
+          asset.gallery.forEach((url, index) => {
+            if (url && url !== asset.thumbnail && url !== asset.src) {
+              allMediaFiles.push({
+                url,
+                label: `画廊 ${index + 1}`,
+                type: isVideoUrl(url) ? 'video' : 'image',
+              });
+            }
+          });
+        }
+
+        if (allMediaFiles.length === 0 && asset.src) {
+          allMediaFiles.push({
+            url: asset.src,
+            label: '资源文件',
+            type: isVideoUrl(asset.src) ? 'video' : 'image',
+          });
+        }
+
+        const currentThumbnail = asset.thumbnail || '';
+        const currentPreviewUrl = getPreviewUrl(currentThumbnail);
+
+        const handleSelectThumbnail = async (selectedUrl: string | null) => {
+          try {
+            setLoading(true);
+            const response = await fetch(`/api/assets/${asset.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                id: asset.id,
+                thumbnail: selectedUrl || undefined,
+              }),
+            });
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.message || '更新预览图失败');
+            }
+
+            await refreshAssets();
+            setMessage('预览图已更新');
+          } catch (error) {
+            console.error(error);
+            setMessage(error instanceof Error ? error.message : '更新预览图失败');
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        return (
+          <div className="flex h-[72px] items-center">
+            <div className="relative group">
+              {currentPreviewUrl ? (
+                <div className="relative h-[64px] w-[64px] overflow-hidden rounded-md border border-border/50 bg-muted">
+                  {isVideoUrl(currentThumbnail) ? (
+                    <video src={currentPreviewUrl} className="h-full w-full object-cover" muted playsInline />
+                  ) : (
+                    <img
+                      src={currentPreviewUrl}
+                      alt={asset.name}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement;
+                        console.warn(`[预览图加载失败] 资产 "${asset.name}" (ID: ${asset.id}):`, {
+                          previewUrl: currentPreviewUrl,
+                          thumbnail: asset.thumbnail,
+                          src: asset.src,
+                          '尝试的URL': img.src,
+                        });
+                        img.src =
+                          'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="56" height="56"%3E%3Crect fill="%23ccc" width="56" height="56"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999" font-size="10"%3E无预览%3C/text%3E%3C/svg%3E';
+                      }}
+                    />
+                  )}
+                  {allMediaFiles.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1 h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
+                        >
+                          <MoreVertical className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">选择预览图</div>
+                        <DropdownMenuSeparator />
+                        {allMediaFiles.map((file, index) => {
+                          const filePreviewUrl = getPreviewUrl(file.url);
+                          const active = currentThumbnail === file.url;
+                          return (
+                            <DropdownMenuItem
+                              key={index}
+                              onClick={() => handleSelectThumbnail(file.url)}
+                              className="flex items-center gap-2"
+                            >
+                              <div className="h-8 w-8 overflow-hidden rounded bg-muted">
+                                {file.type === 'video' ? (
+                                  <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
+                                ) : (
+                                  <img
+                                    src={filePreviewUrl}
+                                    alt={file.label}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                )}
+                              </div>
+                              <span className="flex-1 truncate text-xs">{file.label}</span>
+                              {active && <Star className="h-3 w-3 text-primary" />}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleSelectThumbnail(null)} className="text-destructive">
+                          取消预览图
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              ) : (
+                <div className="relative group">
+                  <div className="flex h-[64px] w-[64px] items-center justify-center rounded-md border border-dashed border-border/60 bg-muted/20 text-[11px] text-muted-foreground">
+                    无预览
+                  </div>
+                  {allMediaFiles.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-1 top-1 h-6 w-6 opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100"
+                        >
+                          <ImageIcon className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">选择预览图</div>
+                        <DropdownMenuSeparator />
+                        {allMediaFiles.map((file, index) => {
+                          const filePreviewUrl = getPreviewUrl(file.url);
+                          return (
+                            <DropdownMenuItem
+                              key={index}
+                              onClick={() => handleSelectThumbnail(file.url)}
+                              className="flex items-center gap-2"
+                            >
+                              <div className="h-8 w-8 overflow-hidden rounded bg-muted">
+                                {file.type === 'video' ? (
+                                  <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
+                                ) : (
+                                  <img
+                                    src={filePreviewUrl}
+                                    alt={file.label}
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                )}
+                              </div>
+                              <span className="flex-1 truncate text-xs">{file.label}</span>
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+      case 'name':
+        return (
+          <div className="flex h-[72px] items-center text-sm font-medium text-foreground" title={asset.name}>
+            <span className="truncate">{asset.name}</span>
+          </div>
+        );
+      case 'type':
+        return (
+          <div className="flex h-[72px] items-center whitespace-nowrap text-xs sm:text-sm">
+            {asset.type}
+          </div>
+        );
+      case 'tags': {
+        const tagsArray = Array.isArray(asset.tags)
+          ? asset.tags
+          : typeof (asset as any).tags === 'string'
+            ? (asset as any).tags
+                .split(',')
+                .map((t: string) => t.trim())
+                .filter(Boolean)
+            : [];
+        return (
+          <div className="flex h-[72px] flex-wrap items-center gap-1">
+            {tagsArray.map((tag: string) => (
+              <Badge key={tag} variant="secondary" className="text-[11px] font-medium">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        );
+      }
+      case 'paths':
+        return (
+          <div className="flex h-[72px] items-center">
+            <div className="space-y-1 break-all text-[11px] leading-relaxed text-muted-foreground">
+              {asset.thumbnail && <div>封面：{asset.thumbnail}</div>}
+              <div>资源：{asset.src}</div>
+            </div>
+          </div>
+        );
+      case 'updatedAt': {
+        const updateTime = asset.updatedAt || asset.createdAt;
+        const display = updateTime
+          ? new Date(updateTime).toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '-';
+        return <div className="flex h-[72px] items-center text-[11px] text-muted-foreground whitespace-nowrap">{display}</div>;
+      }
+      case 'actions':
+        return (
+          <div className="flex h-[72px] items-center gap-1.5">
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 rounded-lg border-border/60 text-sm font-semibold"
+              onClick={() => window.open(`/assets/${asset.id}`, '_blank', 'noopener,noreferrer')}
+            >
+              预
+              <span className="sr-only">预览</span>
+            </Button>
+            <Button
+              size="icon"
+              variant="default"
+              className="h-8 w-8 rounded-lg text-sm font-semibold"
+              onClick={() => handleEdit(asset)}
+              disabled={loading}
+            >
+              改
+              <span className="sr-only">修改</span>
+            </Button>
+            <Button
+              size="icon"
+              variant="destructive"
+              className="h-8 w-8 rounded-lg text-sm font-semibold"
+              onClick={() => handleDelete(asset.id)}
+              disabled={loading}
+            >
+              删
+              <span className="sr-only">删除</span>
+            </Button>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const handleBatchUpdateType = useCallback(async (nextType: string) => {
+    if (selectedAssetIds.size === 0) {
+      throw new Error('请先选择至少一个资产');
+    }
+
+    const count = selectedAssetIds.size;
+
+    const response = await fetch('/api/assets/batch-actions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        assetIds: Array.from(selectedAssetIds),
+        action: 'update-type',
+        payload: { type: nextType },
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || '批量更新类型失败');
+    }
+
+    await refreshAssets();
+    await fetchAllowedTypes();
+    setSelectedAssetIds(new Set());
+    setMessage(result.message || `已更新 ${result.processed ?? count} 个资产的类型`);
+  }, [selectedAssetIds, refreshAssets, fetchAllowedTypes]);
+
+  const handleBatchUpdateVersion = useCallback(async (nextVersion: string) => {
+    if (selectedAssetIds.size === 0) {
+      throw new Error('请先选择至少一个资产');
+    }
+
+    const count = selectedAssetIds.size;
+
+    const response = await fetch('/api/assets/batch-actions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        assetIds: Array.from(selectedAssetIds),
+        action: 'update-version',
+        payload: { engineVersion: nextVersion },
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || '批量更新版本失败');
+    }
+
+    await refreshAssets();
+    setSelectedAssetIds(new Set());
+    setMessage(result.message || `已更新 ${result.processed ?? count} 个资产的版本`);
+  }, [selectedAssetIds, refreshAssets]);
+
+  const handleBatchDelete = useCallback(async () => {
+    if (selectedAssetIds.size === 0) {
+      throw new Error('请先选择至少一个资产');
+    }
+
+    const count = selectedAssetIds.size;
+
+    const response = await fetch('/api/assets/batch-actions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        assetIds: Array.from(selectedAssetIds),
+        action: 'delete',
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || '批量删除失败');
+    }
+
+    await refreshAssets();
+    await fetchAllowedTypes();
+    setSelectedAssetIds(new Set());
+    setMessage(result.message || `已删除 ${result.processed ?? count} 个资产`);
+  }, [selectedAssetIds, refreshAssets, fetchAllowedTypes]);
+
   return (
     <div className="space-y-8">
       {/* 返回资产页按钮 */}
@@ -1174,11 +1635,11 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         </Link>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>存储状态</CardTitle>
+      <Card className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-sm shadow-lg shadow-black/5">
+        <CardHeader className="flex flex-col gap-1 border-b border-border/40 bg-background/40 px-5 py-4 sm:px-6">
+          <CardTitle className="text-base font-semibold">存储状态</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
+        <CardContent className="space-y-2 px-5 py-4 text-sm text-muted-foreground sm:px-6">
           <div>
             当前存储模式：<Badge variant="outline">{storageMode}</Badge>
           </div>
@@ -1193,11 +1654,11 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>资产列表</CardTitle>
-            <div className="flex gap-2">
+      <Card className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-sm shadow-lg shadow-black/5">
+        <CardHeader className="border-b border-border/40 bg-background/40 px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base font-semibold">资产列表</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
               {selectedAssetIds.size > 0 && (
                 <Button
                   variant="default"
@@ -1233,10 +1694,10 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4 px-5 py-5 sm:px-6">
           {/* 搜索和筛选栏 */}
-          <div className="mb-4 space-y-3">
-            <div className="flex gap-2">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -1247,7 +1708,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 />
               </div>
               <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                className="h-9 rounded-md border border-border/50 bg-background/70 px-3 text-sm"
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
               >
@@ -1259,7 +1720,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 ))}
               </select>
               <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                className="h-9 rounded-md border border-border/50 bg-background/70 px-3 text-sm"
                 value={filterTag}
                 onChange={(e) => setFilterTag(e.target.value)}
               >
@@ -1271,417 +1732,143 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 ))}
               </select>
             </div>
-            <div className="text-sm text-muted-foreground">
-              共找到 {filteredAssets.length} 个资产
-              {filteredAssets.length !== assets.length && `（共 ${assets.length} 个）`}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                共找到 {filteredAssets.length} 个资产
+                {filteredAssets.length !== assets.length && `（共 ${assets.length} 个）`}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSortKey('updatedAt')}
+                  aria-pressed={sortKey === 'updatedAt'}
+                  className={`h-7 rounded-md border px-3 text-xs transition ${
+                    sortKey === 'updatedAt'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/60 text-muted-foreground hover:border-border/80 hover:text-foreground'
+                  }`}
+                >
+                  按时间
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortKey('name')}
+                  aria-pressed={sortKey === 'name'}
+                  className={`h-7 rounded-md border px-3 text-xs transition ${
+                    sortKey === 'name'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/60 text-muted-foreground hover:border-border/80 hover:text-foreground'
+                  }`}
+                >
+                  按名称
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPaths((prev) => !prev)}
+                  className={`h-7 rounded-md border px-3 text-xs transition ${
+                    showPaths
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/60 text-muted-foreground hover:border-border/80 hover:text-foreground'
+                  }`}
+                >
+                  {showPaths ? '隐藏路径' : '显示路径'}
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium w-12">
-                    <Checkbox
-                      checked={displayedAssets.length > 0 && displayedAssets.every((asset) => selectedAssetIds.has(asset.id))}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          const newSelected = new Set(selectedAssetIds);
-                          displayedAssets.forEach((asset) => newSelected.add(asset.id));
-                          setSelectedAssetIds(newSelected);
-                        } else {
-                          const newSelected = new Set(selectedAssetIds);
-                          displayedAssets.forEach((asset) => newSelected.delete(asset.id));
-                          setSelectedAssetIds(newSelected);
-                        }
-                      }}
-                    />
-                  </th>
-                  <th className="px-3 py-2 text-left font-medium">预览图</th>
-                  <th className="px-3 py-2 text-left font-medium">名称</th>
-                  <th className="px-3 py-2 text-left font-medium">类型</th>
-                  <th className="px-3 py-2 text-left font-medium">标签</th>
-                  <th className="px-3 py-2 text-left font-medium">资源路径</th>
-                  <th className="px-3 py-2 text-left font-medium">更新时间</th>
-                  <th className="px-3 py-2 text-left font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {displayedAssets.map((asset) => {
-                  // 获取预览图URL：优先使用thumbnail，如果没有则使用src
-                  const thumbnailOrSrc = asset.thumbnail || asset.src;
-                  const previewUrl = getPreviewUrl(thumbnailOrSrc);
-                  
-                  // 调试信息（开发环境）
-                  if (process.env.NODE_ENV === 'development' && !previewUrl && (asset.thumbnail || asset.src)) {
-                    console.warn(`[预览图调试] 资产 "${asset.name}" (ID: ${asset.id}):`, {
-                      thumbnail: asset.thumbnail,
-                      src: asset.src,
-                      thumbnailOrSrc,
-                      previewUrl,
-                      'getPreviewUrl结果': previewUrl,
-                    });
-                  }
-                  
-                  const isVideoUrl = (url: string) => {
-                    if (!url) return false;
-                    const lower = url.toLowerCase();
-                    return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
-                  };
-                  const isVideo = isVideoUrl(asset.src);
-                  
-                  const isSelected = selectedAssetIds.has(asset.id);
-                  return (
-                    <tr key={asset.id} className={isSelected ? 'bg-muted/30' : ''}>
-                      <td className="px-3 py-2">
+          <div className="overflow-hidden rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full table-fixed text-xs sm:text-sm">
+                <colgroup>
+                  <col style={{ width: `${SELECTION_COL_WIDTH}px` }} />
+                  {visibleAssetColumns.map((column) => (
+                    <col key={column.id} style={{ width: `${columnWidths[column.id]}px` }} />
+                  ))}
+                </colgroup>
+                <thead className="bg-muted/60 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-2 py-2">
+                      <div className="flex h-[72px] items-center justify-center">
                         <Checkbox
-                          checked={isSelected}
+                          checked={
+                            displayedAssets.length > 0 &&
+                            displayedAssets.every((asset) => selectedAssetIds.has(asset.id))
+                          }
                           onChange={(e) => {
-                            const newSelected = new Set(selectedAssetIds);
                             if (e.target.checked) {
-                              newSelected.add(asset.id);
+                              const newSelected = new Set(selectedAssetIds);
+                              displayedAssets.forEach((asset) => newSelected.add(asset.id));
+                              setSelectedAssetIds(newSelected);
                             } else {
-                              newSelected.delete(asset.id);
+                              const newSelected = new Set(selectedAssetIds);
+                              displayedAssets.forEach((asset) => newSelected.delete(asset.id));
+                              setSelectedAssetIds(newSelected);
                             }
-                            setSelectedAssetIds(newSelected);
                           }}
                         />
-                      </td>
-                      <td className="px-3 py-2">
-                        {(() => {
-                          // ✅ 收集资产的所有媒体文件（thumbnail, src, gallery）
-                          const allMediaFiles: Array<{ url: string; label: string; type: 'image' | 'video' }> = [];
-                          
-                          // 添加thumbnail
-                          if (asset.thumbnail) {
-                            allMediaFiles.push({
-                              url: asset.thumbnail,
-                              label: '封面图',
-                              type: isVideoUrl(asset.thumbnail) ? 'video' : 'image',
-                            });
-                          }
-                          
-                          // 添加src（如果与thumbnail不同）
-                          if (asset.src && asset.src !== asset.thumbnail) {
-                            allMediaFiles.push({
-                              url: asset.src,
-                              label: '资源文件',
-                              type: isVideoUrl(asset.src) ? 'video' : 'image',
-                            });
-                          }
-                          
-                          // 添加gallery中的文件
-                          if (asset.gallery && asset.gallery.length > 0) {
-                            asset.gallery.forEach((url, index) => {
-                              if (url && url !== asset.thumbnail && url !== asset.src) {
-                                allMediaFiles.push({
-                                  url: url,
-                                  label: `画廊 ${index + 1}`,
-                                  type: isVideoUrl(url) ? 'video' : 'image',
-                                });
-                              }
-                            });
-                          }
-                          
-                          // ✅ 如果没有媒体文件，但src存在，添加src作为默认选项
-                          if (allMediaFiles.length === 0 && asset.src) {
-                            allMediaFiles.push({
-                              url: asset.src,
-                              label: '资源文件',
-                              type: isVideoUrl(asset.src) ? 'video' : 'image',
-                            });
-                          }
-                          
-                          // 当前选中的预览图URL
-                          const currentThumbnail = asset.thumbnail || '';
-                          const currentPreviewUrl = getPreviewUrl(currentThumbnail);
-                          
-                          // 处理选择预览图
-                          const handleSelectThumbnail = async (selectedUrl: string | null) => {
-                            try {
-                              setLoading(true);
-                              const response = await fetch(`/api/assets/${asset.id}`, {
-                                method: 'PUT',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                  id: asset.id,
-                                  thumbnail: selectedUrl || undefined, // 如果为null，设置为undefined以清除预览图
-                                }),
-                              });
-                              
-                              if (!response.ok) {
-                                const error = await response.json();
-                                throw new Error(error.message || '更新预览图失败');
-                              }
-                              
-                              // 刷新资产列表
-                              await refreshAssets();
-                              setMessage('预览图已更新');
-                            } catch (error) {
-                              console.error(error);
-                              setMessage(error instanceof Error ? error.message : '更新预览图失败');
-                            } finally {
-                              setLoading(false);
-                            }
-                          };
-                          
-                          return (
-                            <div className="relative group">
-                              {currentPreviewUrl ? (
-                                <div className="w-16 h-16 relative rounded overflow-hidden bg-muted">
-                                  {isVideoUrl(currentThumbnail) ? (
-                                    <video
-                                      src={currentPreviewUrl}
-                                      className="w-full h-full object-cover"
-                                      muted
-                                      playsInline
-                                    />
-                                  ) : (
-                                    <img
-                                      src={currentPreviewUrl}
-                                      alt={asset.name}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        const img = e.target as HTMLImageElement;
-                                        console.warn(`[预览图加载失败] 资产 "${asset.name}" (ID: ${asset.id}):`, {
-                                          previewUrl: currentPreviewUrl,
-                                          thumbnail: asset.thumbnail,
-                                          src: asset.src,
-                                          '尝试的URL': img.src,
-                                        });
-                                        img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64"%3E%3Crect fill="%23ccc" width="64" height="64"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3E无预览%3C/text%3E%3C/svg%3E';
-                                      }}
-                                      onLoad={(e) => {
-                                        const img = e.target as HTMLImageElement;
-                                        const isValid = img.naturalWidth > 0 && img.naturalHeight > 0;
-                                        
-                                        if (process.env.NODE_ENV === 'development') {
-                                          if (isValid) {
-                                            console.log(`[预览图加载成功] 资产 "${asset.name}":`, {
-                                              previewUrl: currentPreviewUrl,
-                                              width: img.naturalWidth,
-                                              height: img.naturalHeight,
-                                            });
-                                          } else {
-                                            console.warn(`[预览图加载但无效] 资产 "${asset.name}":`, {
-                                              previewUrl: currentPreviewUrl,
-                                              'naturalWidth': img.naturalWidth,
-                                              'naturalHeight': img.naturalHeight,
-                                              '可能原因': '图片文件损坏或格式不正确，或返回的不是图片内容',
-                                            });
-                                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64"%3E%3Crect fill="%23ccc" width="64" height="64"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3E无预览%3C/text%3E%3C/svg%3E';
-                                          }
-                                        } else {
-                                          if (!isValid) {
-                                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64"%3E%3Crect fill="%23ccc" width="64" height="64"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3E无预览%3C/text%3E%3C/svg%3E';
-                                          }
-                                        }
-                                      }}
-                                    />
-                                  )}
-                                  {/* ✅ 选择预览图按钮（即使只有一个文件也可以选择） */}
-                                  {allMediaFiles.length > 0 && (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="absolute top-0 right-0 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <MoreVertical className="h-3 w-3" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="w-48">
-                                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                                          选择预览图
-                                        </div>
-                                        <DropdownMenuSeparator />
-                                        {allMediaFiles.map((file, index) => {
-                                          const filePreviewUrl = getPreviewUrl(file.url);
-                                          const isSelected = currentThumbnail === file.url;
-                                          return (
-                                            <DropdownMenuItem
-                                              key={index}
-                                              onClick={() => handleSelectThumbnail(file.url)}
-                                              className="flex items-center gap-2 cursor-pointer"
-                                            >
-                                              <div className="w-8 h-8 relative rounded overflow-hidden bg-muted flex-shrink-0">
-                                                {file.type === 'video' ? (
-                                                  <video
-                                                    src={filePreviewUrl}
-                                                    className="w-full h-full object-cover"
-                                                    muted
-                                                    playsInline
-                                                  />
-                                                ) : (
-                                                  <img
-                                                    src={filePreviewUrl}
-                                                    alt={file.label}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                      (e.target as HTMLImageElement).style.display = 'none';
-                                                    }}
-                                                  />
-                                                )}
-                                              </div>
-                                              <span className="flex-1 truncate">{file.label}</span>
-                                              {isSelected && <Star className="h-3 w-3 text-primary flex-shrink-0" />}
-                                            </DropdownMenuItem>
-                                          );
-                                        })}
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          onClick={() => handleSelectThumbnail(null)}
-                                          className="text-destructive cursor-pointer"
-                                        >
-                                          取消预览图
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="relative">
-                                  <div className="w-16 h-16 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
-                                    无预览
-                                  </div>
-                                  {/* ✅ 如果有可用媒体文件，显示选择按钮 */}
-                                  {allMediaFiles.length > 0 && (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="absolute top-0 right-0 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <ImageIcon className="h-3 w-3" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="w-48">
-                                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                                          选择预览图
-                                        </div>
-                                        <DropdownMenuSeparator />
-                                        {allMediaFiles.map((file, index) => {
-                                          const filePreviewUrl = getPreviewUrl(file.url);
-                                          return (
-                                            <DropdownMenuItem
-                                              key={index}
-                                              onClick={() => handleSelectThumbnail(file.url)}
-                                              className="flex items-center gap-2 cursor-pointer"
-                                            >
-                                              <div className="w-8 h-8 relative rounded overflow-hidden bg-muted flex-shrink-0">
-                                                {file.type === 'video' ? (
-                                                  <video
-                                                    src={filePreviewUrl}
-                                                    className="w-full h-full object-cover"
-                                                    muted
-                                                    playsInline
-                                                  />
-                                                ) : (
-                                                  <img
-                                                    src={filePreviewUrl}
-                                                    alt={file.label}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => {
-                                                      (e.target as HTMLImageElement).style.display = 'none';
-                                                    }}
-                                                  />
-                                                )}
-                                              </div>
-                                              <span className="flex-1 truncate">{file.label}</span>
-                                            </DropdownMenuItem>
-                                          );
-                                        })}
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-3 py-2">{asset.name}</td>
-                      <td className="px-3 py-2">
-                        {asset.type}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          {(() => {
-                            // 确保 tags 是数组，如果是字符串则拆分（兼容旧数据）
-                            const tagsArray = Array.isArray(asset.tags)
-                              ? asset.tags
-                              : typeof (asset as any).tags === 'string'
-                              ? (asset as any).tags.split(',').map((t: string) => t.trim()).filter(Boolean)
-                              : [];
-                            return tagsArray.map((tag: string) => (
-                              <Badge key={tag} variant="secondary" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ));
-                          })()}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="space-y-1 break-all text-xs max-w-xs">
-                          {asset.thumbnail && <div>封面：{asset.thumbnail}</div>}
-                          <div>资源：{asset.src}</div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                        {(() => {
-                          const updateTime = asset.updatedAt || asset.createdAt;
-                          if (updateTime) {
-                            const date = new Date(updateTime);
-                            return date.toLocaleString('zh-CN', {
-                              year: 'numeric',
-                              month: '2-digit',
-                              day: '2-digit',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            });
-                          }
-                          return '-';
-                        })()}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => window.open(`/assets/${asset.id}`, '_blank')}
-                          >
-                            预览
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => handleEdit(asset)}
-                            disabled={loading}
-                          >
-                            <Edit className="h-3 w-3 mr-1" />
-                            修改
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDelete(asset.id)}
-                            disabled={loading}
-                          >
-                            删除
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </th>
+                    {visibleAssetColumns.map((column) => {
+                      const isActions = column.id === 'actions';
+                      const isName = column.id === 'name';
+                      const isUpdatedAt = column.id === 'updatedAt';
+                      return (
+                        <th key={column.id} className="relative px-2 py-2 font-medium">
+                          <div className="flex items-center gap-2">
+                            <span>{column.label}</span>
+                            {isName && sortKey === 'name' && (
+                              <span className="rounded bg-primary/10 px-2 text-[10px] font-semibold text-primary">排序</span>
+                            )}
+                            {isUpdatedAt && sortKey === 'updatedAt' && (
+                              <span className="rounded bg-primary/10 px-2 text-[10px] font-semibold text-primary">排序</span>
+                            )}
+                          </div>
+                          {!isActions && (
+                            <span
+                              onMouseDown={(event) => handleColumnResizeStart(event, column.id)}
+                              className="absolute right-0 top-0 h-full w-2 cursor-col-resize select-none"
+                            />
+                          )}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {displayedAssets.map((asset) => {
+                    return (
+                      <tr
+                        key={asset.id}
+                        className={`align-middle transition-colors`}
+                      >
+                        <td className="px-2 py-2">
+                          <div className="flex h-[72px] items-center justify-center">
+                            <Checkbox
+                              checked={selectedAssetIds.has(asset.id)}
+                              onChange={(e) => {
+                                const nextSelection = new Set(selectedAssetIds);
+                                if (e.target.checked) {
+                                  nextSelection.add(asset.id);
+                                } else {
+                                  nextSelection.delete(asset.id);
+                                }
+                                setSelectedAssetIds(nextSelection);
+                              }}
+                            />
+                          </div>
+                        </td>
+                        {visibleAssetColumns.map((column) => (
+                          <td key={column.id} className="px-2 py-2">
+                            {renderAssetCell(column.id, asset)}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* 分页控制 */}
@@ -1707,11 +1894,11 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         </CardContent>
       </Card>
 
-      <Card id="asset-form-card">
-        <CardHeader>
-          <CardTitle>{editingAssetId ? '编辑资产' : '新增资产'}</CardTitle>
+      <Card id="asset-form-card" className="rounded-2xl border border-border/60 bg-background/60 backdrop-blur-sm shadow-lg shadow-black/5">
+        <CardHeader className="border-b border-border/40 bg-background/40 px-5 py-4 sm:px-6">
+          <CardTitle className="text-base font-semibold">{editingAssetId ? '编辑资产' : '新增资产'}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5 px-5 py-5 sm:px-6">
           {/* 文件上传区域 */}
           <div
             className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center transition-colors hover:border-primary/50"
@@ -2087,7 +2274,11 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         open={batchEditOpen}
         onOpenChange={setBatchEditOpen}
         selectedCount={selectedAssetIds.size}
-        onSave={handleBatchAddTags}
+        allowedTypes={allowedTypes.length > 0 ? allowedTypes : [...DEFAULT_ASSET_TYPES]}
+        onAddTags={handleBatchAddTags}
+        onUpdateType={handleBatchUpdateType}
+        onUpdateVersion={handleBatchUpdateVersion}
+        onDelete={handleBatchDelete}
       />
     </div>
   );
