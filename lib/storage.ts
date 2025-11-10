@@ -68,85 +68,56 @@ function getOSSClient(): OSS {
 }
 
 async function readLocalManifest(): Promise<{ assets: Asset[]; allowedTypes: string[] }> {
-  const file = await fs.readFile(manifestPath, 'utf-8');
-  const data = JSON.parse(file);
-  
-  // 先获取 allowedTypes（如果存在）
-  const allowedTypes = data.allowedTypes && Array.isArray(data.allowedTypes) 
-    ? data.allowedTypes 
-    : [...DEFAULT_ASSET_TYPES];
-  
-  // 保存原始资产数据（用于恢复类型）
-  const originalAssets = data.assets && Array.isArray(data.assets) ? JSON.parse(JSON.stringify(data.assets)) : [];
-  
-  // 在解析前转换旧数据：将 image/video 类型转换为"其他"，确保 tags 是数组，添加时间戳
-  // 同时处理不在 DEFAULT_ASSET_TYPES 中但在 allowedTypes 中的类型
-  if (data.assets && Array.isArray(data.assets)) {
-    const now = Date.now();
-    data.assets = data.assets.map((asset: any) => {
-      const assetTags = asset.tags;
-      let assetType = asset.type;
-      
-      // 转换 image/video 类型
-      if (assetType === 'image' || assetType === 'video') {
-        assetType = '其他';
-      }
-      // 如果类型在 allowedTypes 中但不在 DEFAULT_ASSET_TYPES 中，临时替换为"其他"以通过验证
-      else if (!DEFAULT_ASSET_TYPES.includes(assetType) && allowedTypes.includes(assetType)) {
-        assetType = '其他'; // 临时替换
-      }
-      
-      return {
-        ...asset,
-        type: assetType,
-        tags: Array.isArray(assetTags)
-          ? assetTags
-          : typeof assetTags === 'string'
-          ? assetTags.split(',').map((t: string) => t.trim()).filter(Boolean)
-          : [],
-        // 为旧数据添加时间戳（使用当前时间作为默认值）
-        createdAt: asset.createdAt || now,
-        updatedAt: asset.updatedAt || asset.createdAt || now,
-      };
-    });
-  }
-  
-  // 如果没有allowedTypes，使用默认值
-  if (!data.allowedTypes || !Array.isArray(data.allowedTypes)) {
-    data.allowedTypes = [...DEFAULT_ASSET_TYPES];
-  }
-  
   try {
-    const manifest = ManifestSchema.parse(data);
-    const parsedAssets = manifest.assets;
+    const file = await fs.readFile(manifestPath, 'utf-8');
+    const data = JSON.parse(file);
     
-    // 恢复原始类型（如果之前临时替换了）
-    const finalAssets = parsedAssets.map((asset: any, index: number) => {
-      const originalAsset = originalAssets[index];
-      if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
-        return { ...asset, type: originalAsset.type };
-      }
-      return asset;
-    });
+    // 先获取 allowedTypes（如果存在）
+    const allowedTypes = data.allowedTypes && Array.isArray(data.allowedTypes) 
+      ? data.allowedTypes 
+      : [...DEFAULT_ASSET_TYPES];
     
-    return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
-  } catch (parseError: any) {
-    // 如果解析失败，可能是类型不在允许列表中，尝试更宽松的处理
-    console.warn('Manifest解析失败，尝试修复类型:', parseError);
+    // 保存原始资产数据（用于恢复类型）
+    const originalAssets = data.assets && Array.isArray(data.assets) ? JSON.parse(JSON.stringify(data.assets)) : [];
     
-    // 如果错误是类型相关的，尝试将所有不在DEFAULT_ASSET_TYPES中的类型都临时替换
-    if (parseError.issues && parseError.issues.some((issue: any) => issue.code === 'invalid_enum_value')) {
-      // 重新处理：将所有不在DEFAULT_ASSET_TYPES中的类型都替换为"其他"
-      if (data.assets && Array.isArray(data.assets)) {
-        data.assets = data.assets.map((asset: any) => {
-          if (!DEFAULT_ASSET_TYPES.includes(asset.type)) {
-            return { ...asset, type: '其他' };
-          }
-          return asset;
-        });
-      }
-      
-      // 再次尝试解析
+    // 在解析前转换旧数据：将 image/video 类型转换为"其他"，确保 tags 是数组，添加时间戳
+    // 同时处理不在 DEFAULT_ASSET_TYPES 中但在 allowedTypes 中的类型
+    if (data.assets && Array.isArray(data.assets)) {
+      const now = Date.now();
+      data.assets = data.assets.map((asset: any) => {
+        const assetTags = asset.tags;
+        let assetType = asset.type;
+        
+        // 转换 image/video 类型
+        if (assetType === 'image' || assetType === 'video') {
+          assetType = '其他';
+        }
+        // 如果类型在 allowedTypes 中但不在 DEFAULT_ASSET_TYPES 中，临时替换为"其他"以通过验证
+        else if (!DEFAULT_ASSET_TYPES.includes(assetType) && allowedTypes.includes(assetType)) {
+          assetType = '其他'; // 临时替换
+        }
+        
+        return {
+          ...asset,
+          type: assetType,
+          tags: Array.isArray(assetTags)
+            ? assetTags
+            : typeof assetTags === 'string'
+            ? assetTags.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : [],
+          // 为旧数据添加时间戳（使用当前时间作为默认值）
+          createdAt: asset.createdAt || now,
+          updatedAt: asset.updatedAt || asset.createdAt || now,
+        };
+      });
+    }
+    
+    // 如果没有allowedTypes，使用默认值
+    if (!data.allowedTypes || !Array.isArray(data.allowedTypes)) {
+      data.allowedTypes = [...DEFAULT_ASSET_TYPES];
+    }
+    
+    try {
       const manifest = ManifestSchema.parse(data);
       const parsedAssets = manifest.assets;
       
@@ -160,9 +131,65 @@ async function readLocalManifest(): Promise<{ assets: Asset[]; allowedTypes: str
       });
       
       return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
+    } catch (parseError: any) {
+      // 如果解析失败，可能是类型不在允许列表中，尝试更宽松的处理
+      console.warn('Manifest解析失败，尝试修复类型:', parseError);
+      
+      // 如果错误是类型相关的，尝试将所有不在DEFAULT_ASSET_TYPES中的类型都临时替换
+      if (parseError.issues && parseError.issues.some((issue: any) => issue.code === 'invalid_enum_value')) {
+        // 重新处理：将所有不在DEFAULT_ASSET_TYPES中的类型都替换为"其他"
+        if (data.assets && Array.isArray(data.assets)) {
+          data.assets = data.assets.map((asset: any) => {
+            if (!DEFAULT_ASSET_TYPES.includes(asset.type)) {
+              return { ...asset, type: '其他' };
+            }
+            return asset;
+          });
+        }
+        
+        // 再次尝试解析
+        const manifest = ManifestSchema.parse(data);
+        const parsedAssets = manifest.assets;
+        
+        // 恢复原始类型（如果之前临时替换了）
+        const finalAssets = parsedAssets.map((asset: any, index: number) => {
+          const originalAsset = originalAssets[index];
+          if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
+            return { ...asset, type: originalAsset.type };
+          }
+          return asset;
+        });
+        
+        return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
+      }
+      
+      // 如果验证失败，尝试返回空数组或过滤有效数据
+      console.error('Manifest数据格式验证失败:', parseError);
+      if (data && Array.isArray(data.assets)) {
+        // 如果数据结构基本正确，尝试过滤有效数据
+        const validAssets = data.assets.filter((a: any) => {
+          try {
+            AssetSchema.parse(a);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+        return { assets: validAssets, allowedTypes: allowedTypes };
+      }
+      
+      // 如果完全无法解析，返回空数组
+      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
-    
-    throw parseError;
+  } catch (error) {
+    // 如果文件不存在或格式错误，返回空数组
+    if ((error as any).code === 'ENOENT') {
+      console.warn('Manifest文件不存在，返回空数组');
+      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
+    }
+    console.error('读取Manifest失败:', error);
+    // 即使出错也返回空数组，避免服务器崩溃
+    return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
   }
 }
 

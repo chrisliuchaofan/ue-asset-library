@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "build:manifest": "tsx scripts/build_manifest.ts"
+    "build:manifest": "tsx scripts/build_manifest.ts",
+    "test": "npm run build",
+    "pre-push": "./scripts/pre-push.sh"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
