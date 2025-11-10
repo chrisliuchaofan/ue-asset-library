@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { randomBytes } from 'crypto';
 import OSS from 'ali-oss';
 import {
   AssetSchema,
@@ -20,6 +21,20 @@ const STORAGE_MODE: StorageMode =
 
 const manifestPath = join(process.cwd(), 'data', 'manifest.json');
 const MANIFEST_FILE_NAME = 'manifest.json';
+
+// 生成 UUID v4（兼容所有 Node.js 版本）
+function generateUUID(): string {
+  const bytes = randomBytes(16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
+  return [
+    bytes.toString('hex', 0, 4),
+    bytes.toString('hex', 4, 6),
+    bytes.toString('hex', 6, 8),
+    bytes.toString('hex', 8, 10),
+    bytes.toString('hex', 10, 16),
+  ].join('-');
+}
 
 // 初始化 OSS 客户端（仅在 OSS 模式下使用）
 let ossClient: OSS | null = null;
@@ -513,7 +528,7 @@ export async function createAsset(input: AssetCreateInput): Promise<Asset> {
   
   const assetDataForSchema = {
     ...input,
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? generateUUID(),
     tags: input.tags ?? [],
     thumbnail: input.thumbnail || input.src || '',
     src: input.src || input.thumbnail || '',
