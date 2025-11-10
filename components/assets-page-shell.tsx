@@ -31,7 +31,7 @@ export function AssetsPageShell({
       <aside
         className={`${
           isSidebarOpen ? "block" : "hidden"
-        } w-64 flex-shrink-0 border-r bg-muted/30 p-4 transition-all lg:block`}
+        } w-64 flex-shrink-0 border-r bg-muted/30 p-4 transition-all`}
       >
         <Suspense fallback={<div className="w-full" />}>
           <FilterSidebar

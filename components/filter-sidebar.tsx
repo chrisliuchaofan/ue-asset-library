@@ -70,7 +70,7 @@ function FilterSection({
         <Button
           variant="ghost"
           size="sm"
-          className="mt-2 h-7 w-full text-xs px-2 min-w-0"
+          className="mt-2 h-7 px-2 text-xs min-w-0 self-start"
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <span className="flex items-center justify-center gap-1 truncate">
@@ -246,12 +246,12 @@ export function FilterSidebar({
         maxVisible={6}
       />
 
-      <div className="mt-6 pt-6 border-t">
+      <div className="mt-6 border-t pt-6">
         <Button
           variant="outline"
           size="sm"
           onClick={clearAllFilters}
-          className="w-full text-xs"
+          className="h-8 px-3 text-xs self-start"
           disabled={!hasActiveFilters || isPending}
         >
           清空筛选
