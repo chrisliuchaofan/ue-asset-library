@@ -2,7 +2,7 @@
 
 // 文件上传限制
 export const FILE_UPLOAD_LIMITS = {
-  MAX_FILE_SIZE: 100 * 1024 * 1024, // 100MB
+  MAX_FILE_SIZE: 200 * 1024 * 1024, // 200MB
   MAX_FILE_NAME_LENGTH: 255,
 } as const;
 

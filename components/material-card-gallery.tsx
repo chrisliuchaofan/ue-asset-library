@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { type Material } from '@/data/material.schema';
-import { highlightText } from '@/lib/utils';
+import { highlightText, cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 interface MaterialCardGalleryProps {
@@ -223,12 +223,16 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
   const validIndex = galleryUrls.length > 0 ? Math.min(currentIndex, galleryUrls.length - 1) : 0;
   const currentUrl = galleryUrls[validIndex] ? getClientMaterialUrl(galleryUrls[validIndex]) : '';
   const currentIsVideo = currentUrl ? isVideoUrl(currentUrl) : false;
+  const previewWrapperClass = cn(
+    'relative w-full overflow-hidden bg-muted flex items-center justify-center cursor-pointer',
+    'h-[300px] sm:h-[360px] lg:h-[420px]'
+  );
 
   return (
     <>
       <Card className="group overflow-hidden transition-shadow hover:shadow-lg h-full flex flex-col relative border">
-        <div 
-          className="relative aspect-video w-full overflow-hidden bg-muted flex items-center justify-center cursor-pointer"
+        <div
+          className={previewWrapperClass}
           onDoubleClick={handleDoubleClick}
         >
           {galleryUrls.map((url, index) => {
@@ -241,7 +245,7 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
                     videoRefs.current[index] = el;
                   }}
                   src={getClientMaterialUrl(url)}
-                  className={`absolute inset-0 w-full h-full object-contain ${
+                  className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${
                     index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'
                   }`}
                   muted
@@ -258,7 +262,7 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
               src={currentUrl}
               alt={`${material.name} - ${currentIndex + 1}`}
               fill
-              className="object-contain transition-opacity z-10"
+              className="object-contain transition-opacity duration-200 z-10"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               loading={priority ? 'eager' : 'lazy'}
               priority={priority}
