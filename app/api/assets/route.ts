@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { AssetCreateSchema } from '@/data/manifest.schema';
-import { createAsset, getStorageMode, listAssets, getAllowedTypes, updateAllowedTypes } from '@/lib/storage';
+import { createAsset, listAssets, getAllowedTypes, updateAllowedTypes } from '@/lib/storage';
 import { z } from 'zod';
 
 export async function GET() {

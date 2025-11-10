@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useRef, useEffect, type ChangeEvent } f
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import Link from 'next/link';
 import type { Material } from '@/data/material.schema';
+import type { StorageMode } from '@/lib/storage';
 import { MaterialTypeEnum, MaterialTagEnum, MaterialQualityEnum } from '@/data/material.schema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,8 +22,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-
-type StorageMode = 'local' | 'oss';
 
 interface AdminMaterialsDashboardProps {
   initialMaterials: Material[];

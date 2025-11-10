@@ -26,7 +26,7 @@ export default async function AdminPage() {
         <div className="mb-8 space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">后台管理</h1>
           <p className="text-sm text-slate-400">
-            在本地模式下可以直接操作 manifest.json；部署到 NAS 或云环境后，可根据 STORAGE_MODE 切换到远程存储。
+            系统已统一使用 OSS 存储，确保资产与素材数据在本地与线上保持一致。
           </p>
         </div>
 
