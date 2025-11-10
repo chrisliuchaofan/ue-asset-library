@@ -187,12 +187,11 @@ web/
 #### `lib/storage.ts`
 - **功能**: 存储抽象层
 - **实现**:
-  - `local`：直接读写 `data/manifest.json`
-  - `oss`：预留实现（当前抛异常，等待对接阿里云 OSS 或 NAS API）
+  - `oss`：直接读写 OSS 中的 `manifest.json`，并提供错误兜底
 - **函数**:
   - `listAssets()`, `getAsset()`
   - `createAsset()`, `updateAsset()`, `deleteAsset()`
-  - `getStorageMode()`：读取 `STORAGE_MODE` / `NEXT_PUBLIC_STORAGE_MODE`
+  - `getStorageMode()`：返回当前存储模式（固定为 `oss`）
 
 #### `lib/utils.ts`
 - **功能**: 通用工具函数

@@ -1,39 +1,63 @@
 {
   "materials": [
     {
-      "id": "0489726f-7913-4b0c-97d3-1887345c0b42",
-      "name": "风格化写实_圈地围栏_1013",
+      "id": "6c1390dc-65b7-4e8a-ae00-4a4376a8536f",
+      "name": "#250422_2晓_3晓_4AE_6小游戏_9H6186红蓝对抗15_aA_b三冰_c竖",
+      "type": "AE视频",
+      "tag": "爆款",
+      "quality": [
+        "常规"
+      ],
+      "thumbnail": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762778903907-2rd080.mp4",
+      "src": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762778903907-2rd080.mp4",
+      "gallery": [
+        "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762778903907-2rd080.mp4"
+      ],
+      "filesize": 82875194,
+      "height": 1080,
+      "duration": 30,
+      "createdAt": 1762778910374,
+      "updatedAt": 1762778960827
+    },
+    {
+      "id": "331eec1b-4985-41d5-85de-4e69207b1a4a",
+      "name": "#250722_2晓_3晓_4AE_6小游戏_9H8516木场54_aA_b三冰_c竖",
       "type": "UE视频",
       "tag": "达标",
       "quality": [
         "常规"
       ],
-      "thumbnail": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711267881-d8mwjm.mp4",
-      "src": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711267881-d8mwjm.mp4",
+      "thumbnail": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762779540833-02mr32.mp4",
+      "src": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762779540833-02mr32.mp4",
       "gallery": [
-        "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711267881-d8mwjm.mp4"
+        "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762779540833-02mr32.mp4"
       ],
-      "filesize": 72634719,
-      "createdAt": 1762711282623,
-      "updatedAt": 1762711282623
+      "filesize": 113272024,
+      "width": 720,
+      "height": 1280,
+      "duration": 110,
+      "createdAt": 1762779549687,
+      "updatedAt": 1762779549687
     },
     {
-      "id": "7424b3fe-69c4-4b2f-ac9a-cec05407e9b6",
-      "name": "搭羊圈烤全羊",
+      "id": "73023c2c-536a-430b-be5c-6bf1c20b82ba",
+      "name": "#251011_1Z_2晓李鹏_3晓_4AE_6Z混剪_8C_917252RCB大猩猩偷围栏镜像_aB_b三冰_c竖",
       "type": "UE视频",
-      "tag": "爆款",
+      "tag": "达标",
       "quality": [
-        "高品质",
-        "迭代"
+        "常规"
       ],
-      "thumbnail": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711282740-1c4pdv.mp4",
-      "src": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711282740-1c4pdv.mp4",
+      "thumbnail": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762779550181-a73m26.mp4",
+      "src": "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762779550181-a73m26.mp4",
       "gallery": [
-        "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762711282740-1c4pdv.mp4"
+        "https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/1762779550181-a73m26.mp4"
       ],
-      "filesize": 14917887,
-      "createdAt": 1762711285472,
-      "updatedAt": 1762711285472
+      "filesize": 74815756,
+      "width": 1080,
+      "height": 1920,
+      "duration": 60,
+      "createdAt": 1762779555583,
+      "updatedAt": 1762779555583
     }
   ]
 }

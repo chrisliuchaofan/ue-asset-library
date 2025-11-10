@@ -41,7 +41,7 @@ export default function RootLayout({
 }>) {
   // ✅ 获取 CDN base（优先使用客户端可访问的变量）
   const cdnBase = process.env.NEXT_PUBLIC_CDN_BASE || '/';
-  const storageMode = process.env.STORAGE_MODE || process.env.NEXT_PUBLIC_STORAGE_MODE || 'local';
+  const storageMode = 'oss';
   // 优先使用 NEXT_PUBLIC_ 前缀的变量（客户端可访问），如果没有则使用服务端变量
   // 注意：服务端变量在客户端不可访问，所以需要 NEXT_PUBLIC_ 前缀
   const ossBucket = process.env.NEXT_PUBLIC_OSS_BUCKET || '';
@@ -57,24 +57,6 @@ export default function RootLayout({
   const finalOssRegion = ossRegion || (typeof window === 'undefined' ? serverOssRegion : '');
   
   // 构建注入到客户端的配置
-  const clientConfig: {
-    cdnBase: string;
-    storageMode: string;
-    oss?: { bucket: string; region: string };
-  } = {
-    cdnBase,
-    storageMode,
-  };
-  
-  // 如果是 OSS 模式，注入 OSS 配置（仅 bucket 和 region，不包含敏感信息）
-  // 注意：必须使用 NEXT_PUBLIC_ 前缀的变量才能在客户端访问
-  if (storageMode === 'oss' && (ossBucket || serverOssBucket) && (ossRegion || serverOssRegion)) {
-    clientConfig.oss = {
-      bucket: ossBucket || serverOssBucket,
-      region: ossRegion || serverOssRegion,
-    };
-  }
-  
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>

@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useRef, useEffect, type ChangeEvent } f
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import Link from 'next/link';
 import type { Asset } from '@/data/manifest.schema';
+import type { StorageMode } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -20,8 +21,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-
-type StorageMode = 'local' | 'oss';
 
 interface AdminDashboardProps {
   initialAssets: Asset[];
@@ -1219,7 +1218,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
     const base = normalizedCdnBase;
     const normalizedPath = url.startsWith('/') ? url : `/${url}`;
     
-    // 如果 base 是 /，直接返回路径（本地模式）
+    // 如果 base 是 /，直接返回路径
     if (base === '/' || !base || base.trim() === '') {
       // 如果路径是 OSS 路径，尝试构建完整 URL
       if (normalizedPath.startsWith('/assets/')) {
@@ -1657,13 +1656,9 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
             当前存储模式：<Badge variant="outline">{storageMode}</Badge>
           </div>
           <div>CDN / 静态资源基路径：{normalizedCdnBase || '/'}</div>
-          {storageMode === 'oss' ? (
-            <p className="text-emerald-400">
-              OSS 模式已启用，可以直接通过此页面管理资产，数据将保存到阿里云 OSS。
-            </p>
-          ) : (
-            <p className="text-slate-300">本地模式允许通过此页面直接编辑 manifest.json，用于预览和调试。</p>
-          )}
+          <p className="text-emerald-400">
+            OSS 模式已启用，可以直接通过此页面管理资产，数据将保存到阿里云 OSS。
+          </p>
         </CardContent>
       </Card>
 

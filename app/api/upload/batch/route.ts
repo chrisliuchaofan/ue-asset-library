@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
 import { createHash } from 'crypto';
-import { getStorageMode } from '@/lib/storage';
 import { FILE_UPLOAD_LIMITS, ALLOWED_FILE_EXTENSIONS, ALLOWED_MIME_TYPES } from '@/lib/constants';
 import OSS from 'ali-oss';
 import sharp from 'sharp';
-
-const STORAGE_MODE = (process.env.STORAGE_MODE as 'local' | 'oss' | undefined) ?? 'local';
 
 function getOSSClient(): OSS {
   const bucket = process.env.OSS_BUCKET;
@@ -97,52 +92,32 @@ async function uploadFile(
   let height: number | undefined;
   let thumbnailUrl: string | undefined;
 
-  if (STORAGE_MODE === 'local') {
-    const uploadDir = join(process.cwd(), 'public', 'demo');
-    await mkdir(uploadDir, { recursive: true });
-    const filePath = join(uploadDir, newFileName);
-    await writeFile(filePath, buffer);
-    fileUrl = `/demo/${newFileName}`;
+  const client = getOSSClient();
+  const ossPath = `assets/${newFileName}`;
+  await (client as any).multipartUpload(ossPath, buffer, {
+    parallel: 4,
+    partSize: 10 * 1024 * 1024,
+    contentType: fileType,
+  });
 
-    if (isImage) {
-      try {
-        const metadata = await sharp(buffer).metadata();
-        width = metadata.width;
-        height = metadata.height;
-      } catch (error) {
-        console.warn('无法读取图片尺寸:', error);
-      }
-    } else if (isVideo) {
-      // 视频：尝试生成缩略图
-      // 注意：这里简化处理，实际可以使用 ffmpeg 或客户端提取
-      // 暂时使用视频本身作为缩略图占位
-    }
+  const cdnBase = process.env.NEXT_PUBLIC_CDN_BASE || '';
+  if (cdnBase && cdnBase !== '/' && cdnBase.trim() !== '' && !cdnBase.startsWith('http')) {
+    fileUrl = `${cdnBase.replace(/\/+$/, '')}/${ossPath}`;
+  } else if (cdnBase && (cdnBase.startsWith('http://') || cdnBase.startsWith('https://'))) {
+    fileUrl = `${cdnBase.replace(/\/+$/, '')}/${ossPath}`;
   } else {
-    const client = getOSSClient();
-    const ossPath = `assets/${newFileName}`;
-    await client.put(ossPath, buffer, {
-      contentType: fileType,
-    });
+    const bucket = process.env.OSS_BUCKET!;
+    const region = process.env.OSS_REGION!.replace('oss-', '');
+    fileUrl = `https://${bucket}.oss-${region}.aliyuncs.com/${ossPath}`;
+  }
 
-    const cdnBase = process.env.NEXT_PUBLIC_CDN_BASE || '';
-    if (cdnBase && cdnBase !== '/' && cdnBase.trim() !== '' && !cdnBase.startsWith('http')) {
-      fileUrl = `${cdnBase.replace(/\/+$/, '')}/${ossPath}`;
-    } else if (cdnBase && (cdnBase.startsWith('http://') || cdnBase.startsWith('https://'))) {
-      fileUrl = `${cdnBase.replace(/\/+$/, '')}/${ossPath}`;
-    } else {
-      const bucket = process.env.OSS_BUCKET!;
-      const region = process.env.OSS_REGION!.replace('oss-', '');
-      fileUrl = `https://${bucket}.oss-${region}.aliyuncs.com/${ossPath}`;
-    }
-
-    if (isImage) {
-      try {
-        const metadata = await sharp(buffer).metadata();
-        width = metadata.width;
-        height = metadata.height;
-      } catch (error) {
-        console.warn('无法读取图片尺寸:', error);
-      }
+  if (isImage) {
+    try {
+      const metadata = await sharp(buffer).metadata();
+      width = metadata.width;
+      height = metadata.height;
+    } catch (error) {
+      console.warn('无法读取图片尺寸:', error);
     }
   }
 
