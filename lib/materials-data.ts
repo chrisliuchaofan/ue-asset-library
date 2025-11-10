@@ -1,9 +1,18 @@
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { randomBytes } from 'crypto';
-import { MaterialSchema, MaterialsManifestSchema, type Material } from '@/data/material.schema';
+import {
+  MaterialSchema,
+  MaterialsManifestSchema,
+  type Material,
+} from '@/data/material.schema';
+import { getOSSClient, getStorageMode } from '@/lib/storage';
+
+type StorageMode = 'local' | 'oss';
 
 const materialsPath = join(process.cwd(), 'data', 'materials.json');
+const MATERIALS_MANIFEST_FILE = 'materials.json';
+const STORAGE_MODE: StorageMode = getStorageMode();
 
 // 生成 UUID v4（兼容所有 Node.js 版本）
 function generateUUID(): string {
@@ -19,7 +28,11 @@ function generateUUID(): string {
   ].join('-');
 }
 
-// 读取本地素材清单
+async function ensureLocalDir() {
+  await fs.mkdir(dirname(materialsPath), { recursive: true });
+}
+
+// 本地模式：读取素材清单
 async function readLocalMaterials(): Promise<Material[]> {
   try {
     const file = await fs.readFile(materialsPath, 'utf-8');
@@ -56,20 +69,89 @@ async function readLocalMaterials(): Promise<Material[]> {
   }
 }
 
-// 保存本地素材清单
+// 本地模式：写入素材清单
 async function writeLocalMaterials(materials: Material[]): Promise<void> {
-  const data = {
-    materials,
-  };
-  await fs.writeFile(materialsPath, JSON.stringify(data, null, 2), 'utf-8');
+  await ensureLocalDir();
+  const payload = { materials };
+  await fs.writeFile(materialsPath, JSON.stringify(payload, null, 2), 'utf-8');
 }
 
-export async function getAllMaterials(): Promise<Material[]> {
+// OSS 模式：读取素材清单
+async function readOssMaterials(): Promise<Material[]> {
+  try {
+    const client = getOSSClient();
+    const result = await client.get(MATERIALS_MANIFEST_FILE);
+    const data = JSON.parse(result.content.toString('utf-8'));
+
+    try {
+      const validated = MaterialsManifestSchema.parse(data);
+      return validated.materials;
+    } catch (parseError) {
+      console.error('素材数据格式验证失败:', parseError);
+      if (data && Array.isArray(data.materials)) {
+        const validMaterials = data.materials.filter((item: unknown) => {
+          try {
+            MaterialSchema.parse(item);
+            return true;
+          } catch {
+            return false;
+          }
+        });
+        return validMaterials;
+      }
+      return [];
+    }
+  } catch (error) {
+    const err = error as any;
+    if (err?.code === 'NoSuchKey' || err?.status === 404) {
+      console.warn('OSS 未找到 materials.json，返回空数组');
+      return [];
+    }
+    if (
+      err?.code === 'ENOTFOUND' ||
+      err?.code === 'UserDisable' ||
+      err?.message?.includes?.('ENOTFOUND') ||
+      err?.message?.includes?.('getaddrinfo') ||
+      err?.message?.includes?.('UserDisable')
+    ) {
+      console.warn('连接 OSS 失败，返回空数组:', err?.message);
+      return [];
+    }
+    console.error('读取 OSS 素材清单失败:', error);
+    throw error;
+  }
+}
+
+// OSS 模式：写入素材清单
+async function writeOssMaterials(materials: Material[]): Promise<void> {
+  const client = getOSSClient();
+  const payload = JSON.stringify({ materials }, null, 2);
+  await client.put(MATERIALS_MANIFEST_FILE, Buffer.from(payload, 'utf-8'), {
+    contentType: 'application/json',
+  });
+}
+
+async function readMaterials(): Promise<Material[]> {
+  if (STORAGE_MODE === 'oss') {
+    return readOssMaterials();
+  }
   return readLocalMaterials();
 }
 
+async function writeMaterials(materials: Material[]): Promise<void> {
+  if (STORAGE_MODE === 'oss') {
+    await writeOssMaterials(materials);
+  } else {
+    await writeLocalMaterials(materials);
+  }
+}
+
+export async function getAllMaterials(): Promise<Material[]> {
+  return readMaterials();
+}
+
 export async function getMaterialById(id: string): Promise<Material | null> {
-  const materials = await readLocalMaterials();
+  const materials = await readMaterials();
   return materials.find((m) => m.id === id) || null;
 }
 
@@ -86,8 +168,8 @@ export async function createMaterial(input: {
   height?: number;
   duration?: number;
 }): Promise<Material> {
-  const materials = await readLocalMaterials();
-  
+  const materials = await readMaterials();
+
   // 检查名称和类型是否同时重复
   const nameTrimmed = input.name.trim();
   const duplicateMaterial = materials.find((m) => 
@@ -116,12 +198,12 @@ export async function createMaterial(input: {
   };
   
   materials.push(material);
-  await writeLocalMaterials(materials);
+  await writeMaterials(materials);
   return material;
 }
 
 export async function updateMaterial(id: string, updates: Partial<Material>): Promise<Material> {
-  const materials = await readLocalMaterials();
+  const materials = await readMaterials();
   const index = materials.findIndex((m) => m.id === id);
   if (index === -1) {
     throw new Error(`素材 ${id} 不存在`);
@@ -131,13 +213,13 @@ export async function updateMaterial(id: string, updates: Partial<Material>): Pr
     ...updates,
     updatedAt: Date.now(),
   };
-  await writeLocalMaterials(materials);
+  await writeMaterials(materials);
   return materials[index];
 }
 
 export async function deleteMaterial(id: string): Promise<void> {
-  const materials = await readLocalMaterials();
+  const materials = await readMaterials();
   const filtered = materials.filter((m) => m.id !== id);
-  await writeLocalMaterials(filtered);
+  await writeMaterials(filtered);
 }
 
