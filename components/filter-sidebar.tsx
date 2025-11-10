@@ -70,20 +70,23 @@ function FilterSection({
         <Button
           variant="ghost"
           size="sm"
-          className="mt-2 h-7 w-full text-xs"
+          className="mt-2 h-7 w-full text-xs px-2 min-w-0"
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          {isExpanded ? (
-            <>
-              <ChevronUp className="h-3 w-3 mr-1" />
-              收起
-            </>
-          ) : (
-            <>
-              <ChevronDown className="h-3 w-3 mr-1" />
-              展开 ({items.length - maxVisible} 个)
-            </>
-          )}
+          <span className="flex items-center justify-center gap-1 truncate">
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">收起</span>
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">展开</span>
+                <span className="flex-shrink-0">({items.length - maxVisible} 个)</span>
+              </>
+            )}
+          </span>
         </Button>
       )}
     </div>
