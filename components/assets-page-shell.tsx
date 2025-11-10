@@ -5,7 +5,7 @@ import type { MouseEvent as ReactMouseEvent } from "react";
 import { Suspense } from "react";
 import { createPortal } from "react-dom";
 import { Menu } from "lucide-react";
-import { FilterSidebar } from "@/components/filter-sidebar";
+import { FilterSidebar, type FilterSnapshot } from "@/components/filter-sidebar";
 import { AssetsListWithSelection } from "@/components/assets-list-with-selection";
 import { AssetsListSkeleton } from "@/components/assets-list";
 import type { Asset } from "@/data/manifest.schema";
@@ -30,6 +30,7 @@ export function AssetsPageShell({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(220);
+  const [optimisticFilters, setOptimisticFilters] = useState<FilterSnapshot | null>(null);
   const collapsedWidth = 48;
   const MIN_WIDTH = 220;
   const MAX_WIDTH = 420;
@@ -133,6 +134,7 @@ export function AssetsPageShell({
                     tags={tags}
                     sources={sources}
                     engineVersions={engineVersions}
+                    onOptimisticFiltersChange={setOptimisticFilters}
                   />
                 </Suspense>
               ) : (
@@ -170,7 +172,7 @@ export function AssetsPageShell({
         >
           <div className="p-3 sm:p-5 lg:p-6">
             <Suspense fallback={<AssetsListSkeleton />}>
-              <AssetsListWithSelection assets={assets} />
+              <AssetsListWithSelection assets={assets} optimisticFilters={optimisticFilters ?? undefined} />
             </Suspense>
           </div>
         </main>

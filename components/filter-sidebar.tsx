@@ -1,10 +1,18 @@
 'use client';
 
-import { useState, useTransition, useCallback } from 'react';
+import { useState, useTransition, useCallback, useEffect } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+
+export type FilterSnapshot = {
+  types: string[];
+  styles: string[];
+  tags: string[];
+  sources: string[];
+  versions: string[];
+};
 
 interface FilterSidebarProps {
   types: string[];
@@ -12,6 +20,7 @@ interface FilterSidebarProps {
   tags: string[];
   sources: string[];
   engineVersions: string[];
+  onOptimisticFiltersChange?: (filters: FilterSnapshot | null) => void;
 }
 
 function FilterSection({
@@ -78,6 +87,7 @@ export function FilterSidebar({
   tags,
   sources,
   engineVersions,
+  onOptimisticFiltersChange,
 }: FilterSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -90,12 +100,36 @@ export function FilterSidebar({
   const selectedSources = searchParams.get('sources')?.split(',').filter(Boolean) || [];
   const selectedVersions = searchParams.get('versions')?.split(',').filter(Boolean) || [];
 
+  const [localFilters, setLocalFilters] = useState<FilterSnapshot>({
+    types: selectedTypes,
+    styles: selectedStyles,
+    tags: selectedTags,
+    sources: selectedSources,
+    versions: selectedVersions,
+  });
+
+  useEffect(() => {
+    if (!isPending) {
+      const synced: FilterSnapshot = {
+        types: selectedTypes,
+        styles: selectedStyles,
+        tags: selectedTags,
+        sources: selectedSources,
+        versions: selectedVersions,
+      };
+      setLocalFilters(synced);
+      onOptimisticFiltersChange?.(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTypes, selectedStyles, selectedTags, selectedSources, selectedVersions, isPending]);
+
   const updateFilters = useCallback(
     (key: 'types' | 'styles' | 'tags' | 'sources' | 'versions', value: string, checked: boolean) => {
+      const currentSnapshot = localFilters;
       const params = new URLSearchParams(searchParams.toString());
-      const current = params.get(key)?.split(',').filter(Boolean) || [];
+      const current = currentSnapshot[key];
       const updated = checked
-        ? [...current, value]
+        ? Array.from(new Set([...current, value]))
         : current.filter((item) => item !== value);
 
       if (updated.length > 0) {
@@ -105,11 +139,18 @@ export function FilterSidebar({
       }
       params.delete('page');
 
+      const nextSnapshot: FilterSnapshot = {
+        ...currentSnapshot,
+        [key]: updated,
+      };
+      setLocalFilters(nextSnapshot);
+      onOptimisticFiltersChange?.(nextSnapshot);
+
       startTransition(() => {
         router.push(`${pathname}?${params.toString()}`);
       });
     },
-    [router, pathname, searchParams]
+    [router, pathname, searchParams, localFilters, onOptimisticFiltersChange]
   );
 
   const hasActiveFilters =
@@ -127,15 +168,22 @@ export function FilterSidebar({
     params.delete('sources');
     params.delete('versions');
     params.delete('page');
+    onOptimisticFiltersChange?.({
+      types: [],
+      styles: [],
+      tags: [],
+      sources: [],
+      versions: [],
+    });
     router.push(`${pathname}?${params.toString()}`);
-  }, [router, pathname, searchParams]);
+  }, [router, pathname, searchParams, onOptimisticFiltersChange]);
 
   return (
     <div className="flex h-full flex-col gap-4 text-sm text-slate-700 dark:text-slate-200">
       <FilterSection
         title="类型"
         items={types}
-        selectedItems={selectedTypes}
+        selectedItems={localFilters.types}
         onToggle={(value, checked) => updateFilters('types', value, checked)}
         isPending={isPending}
       />
@@ -143,7 +191,7 @@ export function FilterSidebar({
       <FilterSection
         title="风格"
         items={styles}
-        selectedItems={selectedStyles}
+        selectedItems={localFilters.styles}
         onToggle={(value, checked) => updateFilters('styles', value, checked)}
         isPending={isPending}
       />
@@ -151,7 +199,7 @@ export function FilterSidebar({
       <FilterSection
         title="标签"
         items={tags}
-        selectedItems={selectedTags}
+        selectedItems={localFilters.tags}
         onToggle={(value, checked) => updateFilters('tags', value, checked)}
         isPending={isPending}
       />
@@ -159,7 +207,7 @@ export function FilterSidebar({
       <FilterSection
         title="来源"
         items={sources}
-        selectedItems={selectedSources}
+        selectedItems={localFilters.sources}
         onToggle={(value, checked) => updateFilters('sources', value, checked)}
         isPending={isPending}
       />
@@ -167,7 +215,7 @@ export function FilterSidebar({
       <FilterSection
         title="版本"
         items={engineVersions}
-        selectedItems={selectedVersions}
+        selectedItems={localFilters.versions}
         onToggle={(value, checked) => updateFilters('versions', value, checked)}
         isPending={isPending}
       />
