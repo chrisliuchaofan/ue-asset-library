@@ -93,15 +93,12 @@ npm run build:manifest
 
 ```env
 NEXT_PUBLIC_CDN_BASE=/
-STORAGE_MODE=oss
-NEXT_PUBLIC_STORAGE_MODE=oss
-OSS_BUCKET=your-bucket
-OSS_REGION=oss-cn-xxx
-OSS_ACCESS_KEY_ID=xxx
-OSS_ACCESS_KEY_SECRET=xxx
+STORAGE_MODE=local
+NEXT_PUBLIC_STORAGE_MODE=local
 ```
 
-如果资产文件托管在 CDN 上，可以设置 `NEXT_PUBLIC_CDN_BASE` 为 CDN 基础 URL。所有读写操作都会直接使用 OSS。
+如果资产文件托管在 CDN 上，可以设置 `NEXT_PUBLIC_CDN_BASE` 为 CDN 基础 URL。
+当部署到 OSS 或 NAS 后，只需切换 `STORAGE_MODE` / `NEXT_PUBLIC_STORAGE_MODE` 为 `oss`，并在 `lib/storage.ts` 中补充远程实现即可。
 
 ### 5. 启动开发服务器
 
@@ -125,7 +122,7 @@ npm start
 - `/` - 首页
 - `/assets` - 资产列表页（支持搜索、筛选、分页）
 - `/assets/[id]` - 资产详情页
-- `/admin` - 后台管理页面（支持在 OSS 模式下直接增删改资产与素材）
+- `/admin` - 后台管理页面（本地模式可增删资产，远程模式只读）
 
 ### 数据层
 
@@ -146,10 +143,12 @@ npm start
 ### API
 
 - `GET /api/assets` - 获取资产列表
-- `POST /api/assets` - 新建资产
+- `POST /api/assets` - 新建资产（local 模式写入 manifest.json）
 - `GET /api/assets/:id` - 获取单个资产
 - `PUT /api/assets/:id` - 更新资产
 - `DELETE /api/assets/:id` - 删除资产
+
+> ⚠️ 当 `STORAGE_MODE=oss` 时，上述写操作会提示未实现，需按实际云存储逻辑扩展 `lib/storage.ts`。
 
 ### 工具函数
 
