@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
-import { MaterialsListWithHeader } from '@/components/materials-list-with-header';
-import { MaterialFilterSidebar } from '@/components/material-filter-sidebar';
 import { SearchBox } from '@/components/search-box';
+import { MaterialsPageShell } from '@/components/materials-page-shell';
 import { getAllMaterials } from '@/lib/materials-data';
 import type { Metadata } from 'next';
 
@@ -19,31 +18,26 @@ export default async function MaterialsPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 sm:h-16 items-center gap-2 sm:gap-4 px-2 sm:px-4">
-          <a href="/" className="text-sm sm:text-lg font-semibold whitespace-nowrap">
-            恒星UE资产库
-          </a>
-          <div className="flex-1 min-w-0" />
-          <Suspense>
-            <SearchBox />
-          </Suspense>
-          <div id="header-actions-portal" />
+        <div className="relative flex h-14 w-full items-center pl-0 pr-2 sm:h-16 sm:pr-4">
+          <div className="flex h-full w-12 items-center justify-center">
+            <div id="sidebar-toggle-portal" className="flex h-full w-full items-center justify-center" />
+          </div>
+
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="pointer-events-auto w-full max-w-xs px-4 sm:max-w-md sm:px-0">
+              <Suspense>
+                <SearchBox />
+              </Suspense>
+            </div>
+          </div>
+
+          <div className="ml-auto flex h-full flex-1 items-center justify-end">
+            <div id="header-actions-portal" className="flex items-center gap-1.5 sm:gap-2" />
+          </div>
         </div>
       </header>
 
-      <div className="flex flex-1">
-        <aside className="hidden lg:block w-64 flex-shrink-0 border-r bg-muted/30 p-4">
-          <Suspense fallback={<div className="w-full" />}>
-            <MaterialFilterSidebar materials={allMaterials} />
-          </Suspense>
-        </aside>
-
-        <main className="flex-1 p-2 sm:p-4 lg:p-6">
-          <Suspense fallback={<div>加载中...</div>}>
-            <MaterialsListWithHeader materials={allMaterials} />
-          </Suspense>
-        </main>
-      </div>
+      <MaterialsPageShell materials={allMaterials} />
     </div>
   );
 }

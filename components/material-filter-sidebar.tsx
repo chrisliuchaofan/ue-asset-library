@@ -1,28 +1,85 @@
 'use client';
 
+import { useState, useTransition, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useCallback, useTransition } from 'react';
-import { type Material } from '@/data/material.schema';
 
-interface MaterialFilterSidebarProps {
-  materials: Material[];
-}
-
-// 素材类型选项
 const MATERIAL_TYPES = ['UE视频', 'AE视频', '混剪', 'AI视频', '图片'] as const;
-
-// 素材标签选项
 const MATERIAL_TAGS = ['爆款', '优质', '达标'] as const;
-
-// 素材质量选项
 const MATERIAL_QUALITIES = ['高品质', '常规', '迭代'] as const;
 
-export function MaterialFilterSidebar({ materials }: MaterialFilterSidebarProps) {
+interface FilterSectionProps {
+  title: string;
+  items: readonly string[];
+  selectedItems: string[];
+  mode: 'single' | 'multi';
+  isPending: boolean;
+  onChange: (nextValues: string[]) => void;
+}
+
+function FilterSection({ title, items, selectedItems, mode, isPending, onChange }: FilterSectionProps) {
+  const [expanded, setExpanded] = useState(false);
+  const limit = 6;
+  const visibleItems = expanded ? items : items.slice(0, limit);
+  const hasMore = items.length > limit;
+
+  const handleToggle = (item: string, checked: boolean) => {
+    if (mode === 'single') {
+      onChange(checked ? [item] : []);
+      return;
+    }
+
+    if (checked) {
+      const next = Array.from(new Set([...selectedItems, item]));
+      onChange(next);
+    } else {
+      onChange(selectedItems.filter((value) => value !== item));
+    }
+  };
+
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-medium text-slate-600 dark:text-slate-100/85">{title}</h3>
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+        {visibleItems.map((item) => {
+          const checked = selectedItems.includes(item);
+          return (
+            <Label
+              key={item}
+              htmlFor={`${title}-${item}`}
+              className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/[0.08]"
+            >
+              <Checkbox
+                id={`${title}-${item}`}
+                checked={checked}
+                onChange={(event) => handleToggle(item, event.target.checked)}
+                disabled={isPending}
+                className="h-3.5 w-3.5 rounded border border-slate-300 bg-white data-[state=checked]:border-primary data-[state=checked]:bg-primary dark:border-white/20 dark:bg-transparent dark:data-[state=checked]:border-primary/70"
+              />
+              <span className="leading-none truncate">{item}</span>
+            </Label>
+          );
+        })}
+        {hasMore && (
+          <div className="col-span-2 flex justify-center pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 rounded-md border border-slate-300 px-3 text-xs text-slate-700 hover:bg-slate-100 dark:border-white/18 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08]"
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {expanded ? '收起' : '更多'}
+            </Button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function MaterialFilterSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -32,22 +89,9 @@ export function MaterialFilterSidebar({ materials }: MaterialFilterSidebarProps)
   const selectedTag = searchParams.get('tag') || '';
   const selectedQualities = searchParams.get('qualities')?.split(',').filter(Boolean) || [];
 
-  // 计算每个筛选项的数量
-  const getTypeCount = useCallback((type: string) => {
-    return materials.filter((m) => m.type === type).length;
-  }, [materials]);
-
-  const getTagCount = useCallback((tag: string) => {
-    return materials.filter((m) => m.tag === tag).length;
-  }, [materials]);
-
-  const getQualityCount = useCallback((quality: string) => {
-    return materials.filter((m) => m.quality.includes(quality as any)).length;
-  }, [materials]);
-
   const updateParams = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
-    
+
     Object.entries(updates).forEach(([key, value]) => {
       if (value === null || value === '') {
         params.delete(key);
@@ -55,124 +99,72 @@ export function MaterialFilterSidebar({ materials }: MaterialFilterSidebarProps)
         params.set(key, value);
       }
     });
-    
-    params.delete('page'); // 重置页码
-    
+
+    params.delete('page');
+
     startTransition(() => {
       router.push(`${pathname}?${params.toString()}`);
     });
   }, [router, pathname, searchParams]);
 
-  const handleTypeChange = useCallback((type: string) => {
-    updateParams({ type: type === selectedType ? null : type });
-  }, [selectedType, updateParams]);
+  const handleTypeChange = useCallback((values: string[]) => {
+    const next = values[0] ?? null;
+    updateParams({ type: next });
+  }, [updateParams]);
 
-  const handleTagChange = useCallback((tag: string) => {
-    updateParams({ tag: tag === selectedTag ? null : tag });
-  }, [selectedTag, updateParams]);
+  const handleTagChange = useCallback((values: string[]) => {
+    const next = values[0] ?? null;
+    updateParams({ tag: next });
+  }, [updateParams]);
 
-  const handleQualityToggle = useCallback((quality: string, checked: boolean) => {
-    const newQualities = checked
-      ? [...selectedQualities, quality]
-      : selectedQualities.filter((q) => q !== quality);
-    updateParams({ qualities: newQualities.length > 0 ? newQualities.join(',') : null });
-  }, [selectedQualities, updateParams]);
+  const handleQualityChange = useCallback((values: string[]) => {
+    updateParams({ qualities: values.length > 0 ? values.join(',') : null });
+  }, [updateParams]);
 
   const handleClearFilters = useCallback(() => {
     updateParams({ type: null, tag: null, qualities: null });
   }, [updateParams]);
 
-  const hasActiveFilters = selectedType || selectedTag || selectedQualities.length > 0;
+  const hasActiveFilters = Boolean(selectedType || selectedTag || selectedQualities.length > 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">筛选</h2>
-        {hasActiveFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClearFilters}
-            disabled={isPending}
-            className="h-7 text-xs"
-          >
-            清除
-          </Button>
-        )}
-      </div>
+    <div className="flex h-full flex-col gap-4 text-sm text-slate-700 dark:text-slate-200">
+      <FilterSection
+        title="类型"
+        items={MATERIAL_TYPES}
+        selectedItems={selectedType ? [selectedType] : []}
+        mode="single"
+        isPending={isPending}
+        onChange={handleTypeChange}
+      />
 
-      {/* 类型筛选（单选） */}
-      <div>
-        <h3 className="mb-3 text-sm font-semibold">类型</h3>
-        <RadioGroup value={selectedType} onValueChange={handleTypeChange} disabled={isPending}>
-          <div className="space-y-2">
-            {MATERIAL_TYPES.map((type) => {
-              const count = getTypeCount(type);
-              return (
-                <div key={type} className="flex items-center space-x-2">
-                  <RadioGroupItem value={type} id={`type-${type}`} />
-                  <Label
-                    htmlFor={`type-${type}`}
-                    className="flex-1 cursor-pointer text-sm font-normal"
-                  >
-                    {type} <span className="text-muted-foreground">({count})</span>
-                  </Label>
-                </div>
-              );
-            })}
-          </div>
-        </RadioGroup>
-      </div>
+      <FilterSection
+        title="标签"
+        items={MATERIAL_TAGS}
+        selectedItems={selectedTag ? [selectedTag] : []}
+        mode="single"
+        isPending={isPending}
+        onChange={handleTagChange}
+      />
 
-      {/* 标签筛选（单选） */}
-      <div>
-        <h3 className="mb-3 text-sm font-semibold">标签</h3>
-        <RadioGroup value={selectedTag} onValueChange={handleTagChange} disabled={isPending}>
-          <div className="space-y-2">
-            {MATERIAL_TAGS.map((tag) => {
-              const count = getTagCount(tag);
-              return (
-                <div key={tag} className="flex items-center space-x-2">
-                  <RadioGroupItem value={tag} id={`tag-${tag}`} />
-                  <Label
-                    htmlFor={`tag-${tag}`}
-                    className="flex-1 cursor-pointer text-sm font-normal"
-                  >
-                    {tag} <span className="text-muted-foreground">({count})</span>
-                  </Label>
-                </div>
-              );
-            })}
-          </div>
-        </RadioGroup>
-      </div>
+      <FilterSection
+        title="质量"
+        items={MATERIAL_QUALITIES}
+        selectedItems={selectedQualities}
+        mode="multi"
+        isPending={isPending}
+        onChange={handleQualityChange}
+      />
 
-      {/* 质量筛选（多选） */}
-      <div>
-        <h3 className="mb-3 text-sm font-semibold">质量</h3>
-        <div className="space-y-2">
-          {MATERIAL_QUALITIES.map((quality) => {
-            const checked = selectedQualities.includes(quality);
-            const count = getQualityCount(quality);
-            return (
-              <div key={quality} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`quality-${quality}`}
-                  checked={checked}
-                  onChange={(e) => handleQualityToggle(quality, e.target.checked)}
-                  disabled={isPending}
-                />
-                <Label
-                  htmlFor={`quality-${quality}`}
-                  className="flex-1 cursor-pointer text-sm font-normal"
-                >
-                  {quality} <span className="text-muted-foreground">({count})</span>
-                </Label>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleClearFilters}
+        className="self-center inline-flex h-7 gap-1 rounded-md border border-slate-300 px-3 text-xs text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-primary/30 dark:border-white/18 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08] dark:focus-visible:ring-primary/40"
+        disabled={!hasActiveFilters || isPending}
+      >
+        清空筛选
+      </Button>
     </div>
   );
 }

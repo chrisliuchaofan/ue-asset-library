@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { type Asset } from '@/data/manifest.schema';
 import { formatFileSize, formatDuration, highlightText } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, X, FolderOpen, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check } from 'lucide-react';
 import { type OfficeLocation } from '@/lib/nas-utils';
 
 interface AssetCardGalleryProps {
@@ -73,6 +74,23 @@ function getClientAssetUrl(path: string): string {
 }
 
 export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou' }: AssetCardGalleryProps) {
+  const router = useRouter();
+  const selectionMarkup = useMemo(() => {
+    if (isSelected) {
+      return (
+        <>
+          <Check className="h-3 w-3 flex-shrink-0" />
+          <span>已选</span>
+        </>
+      );
+    }
+    return (
+      <>
+        <Plus className="h-3 w-3 flex-shrink-0" />
+        <span>清单</span>
+      </>
+    );
+  }, [isSelected]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEnlarged, setIsEnlarged] = useState(false);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
@@ -418,7 +436,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                 clearTimeout(clickTimeoutRef.current);
               }
               clickTimeoutRef.current = setTimeout(() => {
-                window.location.href = `/assets/${asset.id}`;
+                router.push(`/assets/${asset.id}`);
                 clickTimeoutRef.current = null;
               }, 300); // 300ms 延迟，如果在这期间发生双击，会被清除
             }}
@@ -464,13 +482,13 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               );
             })()}
           </div>
-          {/* 添加清单和 NAS 路径按钮 */}
+          {/* 添加清单 / 详情 / NAS 按钮 */}
           <div className="mt-2 pt-2 border-t flex gap-1.5 relative z-20 items-center">
             {/* 添加清单按钮 - 在前 */}
             <Button
-              variant={isSelected ? "default" : "outline"}
+              variant={isSelected ? 'default' : 'outline'}
               size="sm"
-              className="h-7 text-xs gap-1 px-2 sm:px-2.5 flex-shrink-0 whitespace-nowrap relative z-20 pointer-events-auto flex items-center"
+              className="h-7 text-xs gap-1 px-2 sm:px-2.5 flex-1 min-w-0 whitespace-nowrap"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -484,24 +502,13 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               title={isSelected ? "已添加，点击移出清单" : "添加到清单"}
               type="button"
             >
-              {isSelected ? (
-                <>
-                  <Checkbox checked readOnly className="h-3 w-3 flex-shrink-0" />
-                  <span className="hidden sm:inline">已添加</span>
-                  <span className="sm:hidden">已</span>
-                </>
-              ) : (
-                <>
-                  <Plus className="h-3 w-3 flex-shrink-0" />
-                  <span>清单</span>
-                </>
-              )}
+              {selectionMarkup}
             </Button>
-            {/* NAS 路径按钮 */}
+            {/* NAS 按钮 */}
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="flex-1 h-7 text-xs gap-1 min-w-0 relative z-20 pointer-events-auto flex items-center"
+              className="h-7 text-xs gap-1 px-2 sm:px-2.5 flex-1 min-w-0 whitespace-nowrap"
               onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -558,6 +565,22 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             >
               <FolderOpen className="h-3 w-3 flex-shrink-0" />
               <span>NAS</span>
+            </Button>
+            {/* 详情按钮 */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1 px-2 sm:px-2.5 flex-1 min-w-0 whitespace-nowrap"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                router.push(`/assets/${asset.id}`);
+              }}
+              title="查看详情"
+              type="button"
+            >
+              <Eye className="h-3 w-3 flex-shrink-0" />
+              <span>详情</span>
             </Button>
           </div>
         </CardContent>

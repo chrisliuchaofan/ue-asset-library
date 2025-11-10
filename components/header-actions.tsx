@@ -1,65 +1,72 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings, ShoppingCart } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { ShoppingCart, Home } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { AdminPasswordDialog } from '@/components/admin-password-dialog';
 import { CartDialog } from '@/components/cart-dialog';
+import { OfficeSelector } from '@/components/office-selector';
 import type { Asset } from '@/data/manifest.schema';
+import type { OfficeLocation } from '@/lib/nas-utils';
 
 interface HeaderActionsProps {
   selectedAssets?: Asset[];
   onRemoveAsset?: (assetId: string) => void;
   onClearAssets?: () => void;
+  officeLocation: OfficeLocation;
+  onOfficeChange: (office: OfficeLocation) => void;
 }
 
-export function HeaderActions({ 
-  selectedAssets = [], 
-  onRemoveAsset, 
+const navButtonBase =
+  'relative inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-transparent bg-transparent text-slate-600 transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:text-slate-100 dark:focus-visible:ring-primary/40';
+
+export function HeaderActions({
+  selectedAssets = [],
+  onRemoveAsset,
   onClearAssets,
+  officeLocation,
+  onOfficeChange,
 }: HeaderActionsProps) {
-  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showCartDialog, setShowCartDialog] = useState(false);
+
+  const hasCart = onRemoveAsset && onClearAssets;
+  const cartCount = selectedAssets.length;
 
   return (
     <>
-      <div className="flex items-center gap-1 sm:gap-2">
-        {/* 我的清单图标 - 仅在提供 onRemoveAsset 和 onClearAssets 时显示 */}
-        {onRemoveAsset && onClearAssets && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 sm:h-9 sm:w-9 relative"
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        <OfficeSelector value={officeLocation} onChange={onOfficeChange} />
+
+        {hasCart && (
+          <button
+            type="button"
+            className={`${navButtonBase} hover:bg-slate-100 dark:hover:bg-white/[0.08]`}
             onClick={() => setShowCartDialog(true)}
-            title={selectedAssets.length > 0 ? `我的清单 (${selectedAssets.length})` : "我的清单"}
+            title={cartCount > 0 ? `我的清单 (${cartCount})` : '我的清单'}
+            aria-label="我的清单"
           >
             <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            {selectedAssets.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-primary text-primary-foreground text-[10px] sm:text-xs flex items-center justify-center font-medium">
-                {selectedAssets.length}
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground sm:text-xs">
+                {cartCount}
               </span>
             )}
-            <span className="sr-only">我的清单</span>
-          </Button>
+          </button>
         )}
-        <ThemeToggle />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 sm:h-9 sm:w-9"
-          onClick={() => setShowPasswordDialog(true)}
-          title="管理后台"
+
+        <ThemeToggle className={navButtonBase} />
+
+        <Link
+          href="/"
+          className={`${navButtonBase} hover:bg-slate-100 dark:hover:bg-white/[0.08]`}
+          title="返回首页"
+          aria-label="返回首页"
         >
-          <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-          <span className="sr-only">管理后台</span>
-        </Button>
+          <Home className="h-4 w-4" />
+        </Link>
       </div>
-      <AdminPasswordDialog
-        open={showPasswordDialog}
-        onOpenChange={setShowPasswordDialog}
-      />
-      {onRemoveAsset && onClearAssets && (
+
+      {hasCart && (
         <CartDialog
           open={showCartDialog}
           onOpenChange={setShowCartDialog}
