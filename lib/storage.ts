@@ -39,7 +39,7 @@ function generateUUID(): string {
 // 初始化 OSS 客户端（仅在 OSS 模式下使用）
 let ossClient: OSS | null = null;
 
-function getOSSClient(): OSS {
+export function getOSSClient(): OSS {
   if (ossClient) {
     return ossClient;
   }
