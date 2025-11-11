@@ -116,6 +116,45 @@ export function invalidateAssetManifestCache(): void {
   store.entry = undefined;
 }
 
+export interface AssetsSummary {
+  total: number;
+  types: Record<string, number>;
+  tags: Record<string, number>;
+  styles: Record<string, number>;
+  sources: Record<string, number>;
+  versions: Record<string, number>;
+}
+
+export function getAssetsSummary(assets: Asset[]): AssetsSummary {
+  const summary: AssetsSummary = {
+    total: assets.length,
+    types: {},
+    tags: {},
+    styles: {},
+    sources: {},
+    versions: {},
+  };
+
+  for (const asset of assets) {
+    summary.types[asset.type] = (summary.types[asset.type] ?? 0) + 1;
+    asset.tags.forEach((tag) => {
+      summary.tags[tag] = (summary.tags[tag] ?? 0) + 1;
+    });
+    const styleValues = Array.isArray(asset.style) ? asset.style : asset.style ? [asset.style] : [];
+    styleValues.forEach((style) => {
+      summary.styles[style] = (summary.styles[style] ?? 0) + 1;
+    });
+    if (asset.source) {
+      summary.sources[asset.source] = (summary.sources[asset.source] ?? 0) + 1;
+    }
+    if (asset.engineVersion) {
+      summary.versions[asset.engineVersion] = (summary.versions[asset.engineVersion] ?? 0) + 1;
+    }
+  }
+
+  return summary;
+}
+
 // 生成 UUID v4（兼容所有 Node.js 版本）
 function generateUUID(): string {
   const bytes = randomBytes(16);

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { MaterialCreateSchema } from '@/data/material.schema';
-import { createMaterial, getAllMaterials } from '@/lib/materials-data';
+import { createMaterial, getAllMaterials, getMaterialsSummary } from '@/lib/materials-data';
 import { z } from 'zod';
 
 export async function GET() {
@@ -8,7 +8,10 @@ export async function GET() {
   try {
     const materials = await getAllMaterials();
     const duration = Date.now() - start;
-    const response = NextResponse.json({ materials });
+    const response = NextResponse.json({
+      materials,
+      summary: getMaterialsSummary(materials),
+    });
     response.headers.set('X-Materials-Total', duration.toString());
     return response;
   } catch (error) {
