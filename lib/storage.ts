@@ -14,10 +14,27 @@ import {
 
 export type StorageMode = 'local' | 'oss';
 
-const STORAGE_MODE: StorageMode =
-  (process.env.STORAGE_MODE as StorageMode | undefined) ??
-  (process.env.NEXT_PUBLIC_STORAGE_MODE as StorageMode | undefined) ??
-  'local';
+const inferDefaultStorageMode = (): StorageMode => {
+  const envMode =
+    (process.env.STORAGE_MODE as StorageMode | undefined) ??
+    (process.env.NEXT_PUBLIC_STORAGE_MODE as StorageMode | undefined);
+
+  if (envMode === 'local' || envMode === 'oss') {
+    return envMode;
+  }
+
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL === '1' ||
+    process.env.NEXT_RUNTIME === 'edge'
+  ) {
+    return 'oss';
+  }
+
+  return 'local';
+};
+
+const STORAGE_MODE: StorageMode = inferDefaultStorageMode();
 
 const manifestPath = join(process.cwd(), 'data', 'manifest.json');
 const MANIFEST_FILE_NAME = 'manifest.json';
