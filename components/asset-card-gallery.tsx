@@ -101,12 +101,27 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
       : firstImageIndexForDisplay >= 0
       ? firstImageIndexForDisplay
       : validIndex;
+  const optimizedImageWidth = useMemo(() => {
+    switch (viewMode) {
+      case 'thumbnail':
+        return 540;
+      case 'grid':
+        return 480;
+      case 'classic':
+      default:
+        return 640;
+    }
+  }, [viewMode]);
+
   const currentSource = galleryUrls[displayIndex];
   const currentIsVideo = currentSource ? isVideoUrl(currentSource) : false;
+  const optimizedImageUrl = currentSource && !currentIsVideo
+    ? getOptimizedImageUrl(currentSource, optimizedImageWidth)
+    : '';
   const currentUrl = currentSource
     ? currentIsVideo
       ? getClientAssetUrl(currentSource)
-      : getOptimizedImageUrl(currentSource)
+      : optimizedImageUrl
     : '';
   const previewAspectClass =
     viewMode === 'thumbnail' ? 'aspect-video' : viewMode === 'grid' ? 'aspect-square' : 'aspect-[4/3]';
@@ -625,11 +640,12 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                     >
                       {imageUrl ? (
                         <Image
-                          src={getOptimizedImageUrl(imageUrl, 640)}
+                          src={getOptimizedImageUrl(imageUrl, 480)}
                           alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
                           fill
                           className="object-cover"
                           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          loading="lazy"
                           unoptimized={imageUrl.startsWith('http') || imageUrl.startsWith('/assets/')}
                         />
                       ) : null}
@@ -741,7 +757,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               </div>
             ) : (
               <Image
-                src={currentUrl}
+                src={currentSource ? getOptimizedImageUrl(currentSource, 1280) : ''}
                 alt={`${asset.name} - ${displayIndex + 1}`}
                 fill
                 className="object-contain"

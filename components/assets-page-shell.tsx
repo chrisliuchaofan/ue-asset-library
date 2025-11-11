@@ -164,13 +164,13 @@ export function AssetsPageShell({
 
         {/* Content */}
         <main
-          className="relative flex-1 transform-gpu transition-all duration-300 ease-out"
+          className="relative flex-1 overflow-hidden transform-gpu transition-all duration-300 ease-out"
           style={{
             minHeight: 'calc(100vh - 3.5rem)',
             marginLeft: `${effectiveSidebarWidth}px`,
           }}
         >
-          <div className="p-3 sm:p-5 lg:p-6">
+          <div className="flex h-full flex-col">
             <Suspense fallback={<AssetsListSkeleton />}>
               <AssetsListWithSelection assets={assets} optimisticFilters={optimisticFilters ?? undefined} />
             </Suspense>
