@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback } from 'react';
+import { useState, useTransition, useCallback, useEffect } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,16 @@ import { Button } from '@/components/ui/button';
 const MATERIAL_TYPES = ['UE视频', 'AE视频', '混剪', 'AI视频', '图片'] as const;
 const MATERIAL_TAGS = ['爆款', '优质', '达标'] as const;
 const MATERIAL_QUALITIES = ['高品质', '常规', '迭代'] as const;
+
+export interface MaterialFilterSnapshot {
+  type: string | null;
+  tag: string | null;
+  qualities: string[];
+}
+
+interface MaterialFilterSidebarProps {
+  onOptimisticFiltersChange?: (snapshot: MaterialFilterSnapshot | null) => void;
+}
 
 interface FilterSectionProps {
   title: string;
@@ -79,7 +89,7 @@ function FilterSection({ title, items, selectedItems, mode, isPending, onChange 
   );
 }
 
-export function MaterialFilterSidebar() {
+export function MaterialFilterSidebar({ onOptimisticFiltersChange }: MaterialFilterSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -88,6 +98,22 @@ export function MaterialFilterSidebar() {
   const selectedType = searchParams.get('type') || '';
   const selectedTag = searchParams.get('tag') || '';
   const selectedQualities = searchParams.get('qualities')?.split(',').filter(Boolean) || [];
+
+  const syncedFilters: MaterialFilterSnapshot = {
+    type: selectedType || null,
+    tag: selectedTag || null,
+    qualities: selectedQualities,
+  };
+
+  const [localFilters, setLocalFilters] = useState<MaterialFilterSnapshot>(syncedFilters);
+
+  useEffect(() => {
+    if (isPending) {
+      return;
+    }
+    setLocalFilters(syncedFilters);
+    onOptimisticFiltersChange?.(null);
+  }, [selectedType, selectedTag, selectedQualities.join('|'), isPending, onOptimisticFiltersChange]);
 
   const updateParams = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -109,21 +135,46 @@ export function MaterialFilterSidebar() {
 
   const handleTypeChange = useCallback((values: string[]) => {
     const next = values[0] ?? null;
+    const snapshot: MaterialFilterSnapshot = {
+      ...localFilters,
+      type: next,
+    };
+    setLocalFilters(snapshot);
+    onOptimisticFiltersChange?.(snapshot);
     updateParams({ type: next });
-  }, [updateParams]);
+  }, [localFilters, onOptimisticFiltersChange, updateParams]);
 
   const handleTagChange = useCallback((values: string[]) => {
     const next = values[0] ?? null;
+    const snapshot: MaterialFilterSnapshot = {
+      ...localFilters,
+      tag: next,
+    };
+    setLocalFilters(snapshot);
+    onOptimisticFiltersChange?.(snapshot);
     updateParams({ tag: next });
-  }, [updateParams]);
+  }, [localFilters, onOptimisticFiltersChange, updateParams]);
 
   const handleQualityChange = useCallback((values: string[]) => {
+    const snapshot: MaterialFilterSnapshot = {
+      ...localFilters,
+      qualities: values,
+    };
+    setLocalFilters(snapshot);
+    onOptimisticFiltersChange?.(snapshot);
     updateParams({ qualities: values.length > 0 ? values.join(',') : null });
-  }, [updateParams]);
+  }, [localFilters, onOptimisticFiltersChange, updateParams]);
 
   const handleClearFilters = useCallback(() => {
+    const snapshot: MaterialFilterSnapshot = {
+      type: null,
+      tag: null,
+      qualities: [],
+    };
+    setLocalFilters(snapshot);
+    onOptimisticFiltersChange?.(snapshot);
     updateParams({ type: null, tag: null, qualities: null });
-  }, [updateParams]);
+  }, [onOptimisticFiltersChange, updateParams]);
 
   const hasActiveFilters = Boolean(selectedType || selectedTag || selectedQualities.length > 0);
 

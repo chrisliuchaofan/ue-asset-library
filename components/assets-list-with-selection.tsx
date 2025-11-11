@@ -123,13 +123,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   useEffect(() => {
     if (!hasHydratedSelection) return;
     saveSelectedAssetIds(selectedAssetIds);
-    // 调试：监控选中资产变化
-    console.log('清单状态更新', { 
-      selectedCount: selectedAssetIds.size, 
-      assetIds: Array.from(selectedAssetIds),
-      allSelectedAssets: allSelectedAssets.map(a => ({ id: a.id, name: a.name }))
-    });
-  }, [selectedAssetIds, allSelectedAssets, hasHydratedSelection]);
+  }, [selectedAssetIds, hasHydratedSelection]);
 
   const handleToggleSelection = useCallback((assetId: string) => {
     console.log('handleToggleSelection 被调用', { assetId });

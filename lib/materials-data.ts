@@ -2,6 +2,7 @@
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { randomBytes } from 'crypto';
+import { createLRUCache } from '@/lib/lru-cache';
 import {
   MaterialSchema,
   MaterialsManifestSchema,
@@ -14,7 +15,8 @@ type StorageMode = 'local' | 'oss';
 const materialsPath = join(process.cwd(), 'data', 'materials.json');
 const MATERIALS_MANIFEST_FILE = 'materials.json';
 const STORAGE_MODE: StorageMode = getStorageMode();
-
+const MATERIALS_CACHE_KEY = 'all';
+const MATERIALS_CACHE = createLRUCache<string, { timestamp: number; materials: Material[] }>(8);
 const MATERIALS_CACHE_TTL_MS = (() => {
   const rawTTL =
     process.env.MATERIALS_CACHE_TTL ??
@@ -27,53 +29,24 @@ const MATERIALS_CACHE_TTL_MS = (() => {
   return Math.max(0, parsed);
 })();
 
-interface MaterialsCacheEntry {
-  materials: Material[];
-  expires: number;
-}
-
-interface MaterialsCacheStore {
-  entry?: MaterialsCacheEntry;
-}
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __materialsManifestCache: MaterialsCacheStore | undefined;
-}
-
-function getMaterialsCacheStore(): MaterialsCacheStore {
-  if (!globalThis.__materialsManifestCache) {
-    globalThis.__materialsManifestCache = {};
-  }
-  return globalThis.__materialsManifestCache;
-}
-
-function readMaterialsCache(): Material[] | null {
-  if (MATERIALS_CACHE_TTL_MS <= 0) {
+function readMaterialsCache(key: string): Material[] | null {
+  const cached = MATERIALS_CACHE.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.timestamp > MATERIALS_CACHE_TTL_MS) {
     return null;
   }
-  const store = getMaterialsCacheStore();
-  if (store.entry && store.entry.expires > Date.now()) {
-    return JSON.parse(JSON.stringify(store.entry.materials)) as Material[];
-  }
-  return null;
+  return cached.materials;
 }
 
-function writeMaterialsCache(materials: Material[]): void {
-  if (MATERIALS_CACHE_TTL_MS <= 0) {
-    invalidateMaterialsCache();
-    return;
-  }
-  const cloned = JSON.parse(JSON.stringify(materials)) as Material[];
-  getMaterialsCacheStore().entry = {
-    materials: cloned,
-    expires: Date.now() + MATERIALS_CACHE_TTL_MS,
-  };
+function writeMaterialsCache(key: string, materials: Material[]): void {
+  MATERIALS_CACHE.set(key, {
+    timestamp: Date.now(),
+    materials,
+  });
 }
 
 export function invalidateMaterialsCache(): void {
-  const store = getMaterialsCacheStore();
-  store.entry = undefined;
+  MATERIALS_CACHE.clear();
 }
 
 // 生成 UUID v4（兼容所有 Node.js 版本）
@@ -141,7 +114,8 @@ async function writeLocalMaterials(materials: Material[]): Promise<void> {
 
 // OSS 模式：读取素材清单
 async function readOssMaterials(): Promise<Material[]> {
-  const cached = readMaterialsCache();
+  const cacheKey = MATERIALS_CACHE_KEY;
+  const cached = readMaterialsCache(cacheKey);
   if (cached) {
     return cached;
   }
@@ -152,7 +126,7 @@ async function readOssMaterials(): Promise<Material[]> {
       client = getOSSClient();
     } catch (configError: any) {
       console.warn('OSS 配置不完整，返回空数组:', configError?.message || configError);
-      writeMaterialsCache([]);
+      writeMaterialsCache(cacheKey, []);
       return [];
     }
 
@@ -161,7 +135,7 @@ async function readOssMaterials(): Promise<Material[]> {
 
     try {
       const validated = MaterialsManifestSchema.parse(data);
-      writeMaterialsCache(validated.materials);
+      writeMaterialsCache(cacheKey, validated.materials);
       return validated.materials;
     } catch (parseError) {
       console.error('素材数据格式验证失败:', parseError);
@@ -174,17 +148,17 @@ async function readOssMaterials(): Promise<Material[]> {
             return false;
           }
         });
-        writeMaterialsCache(validMaterials as Material[]);
+        writeMaterialsCache(cacheKey, validMaterials as Material[]);
         return validMaterials as Material[];
       }
-      writeMaterialsCache([]);
+      writeMaterialsCache(cacheKey, []);
       return [];
     }
   } catch (error) {
     const err = error as any;
     if (err?.code === 'NoSuchKey' || err?.status === 404) {
       console.warn('OSS 未找到 materials.json，返回空数组');
-      writeMaterialsCache([]);
+      writeMaterialsCache(cacheKey, []);
       return [];
     }
     if (
@@ -195,7 +169,7 @@ async function readOssMaterials(): Promise<Material[]> {
       err?.message?.includes?.('UserDisable')
     ) {
       console.warn('连接 OSS 失败，返回空数组:', err?.message);
-      writeMaterialsCache([]);
+      writeMaterialsCache(cacheKey, []);
       return [];
     }
     console.error('读取 OSS 素材清单失败:', error);
@@ -210,7 +184,7 @@ async function writeOssMaterials(materials: Material[]): Promise<void> {
   await client.put(MATERIALS_MANIFEST_FILE, Buffer.from(payload, 'utf-8'), {
     contentType: 'application/json',
   });
-  writeMaterialsCache(materials);
+  writeMaterialsCache(MATERIALS_CACHE_KEY, materials);
 }
 
 async function readMaterials(): Promise<Material[]> {
@@ -234,6 +208,32 @@ export async function getAllMaterials(): Promise<Material[]> {
   const duration = Date.now() - start;
   console.info('[MaterialsManifest]', { mode: STORAGE_MODE, count: materials.length, durationMs: duration });
   return materials;
+}
+
+export interface MaterialsSummary {
+  total: number;
+  types: Record<string, number>;
+  tags: Record<string, number>;
+  qualities: Record<string, number>;
+}
+
+export function getMaterialsSummary(materials: Material[]): MaterialsSummary {
+  const summary: MaterialsSummary = {
+    total: materials.length,
+    types: {},
+    tags: {},
+    qualities: {},
+  };
+
+  for (const material of materials) {
+    summary.types[material.type] = (summary.types[material.type] ?? 0) + 1;
+    summary.tags[material.tag] = (summary.tags[material.tag] ?? 0) + 1;
+    material.quality.forEach((quality) => {
+      summary.qualities[quality] = (summary.qualities[quality] ?? 0) + 1;
+    });
+  }
+
+  return summary;
 }
 
 export async function getMaterialById(id: string): Promise<Material | null> {
