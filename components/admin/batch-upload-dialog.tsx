@@ -115,6 +115,7 @@ interface PendingAsset extends AssetCreateInput {
 export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }: BatchUploadDialogProps) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<string>('');
+  const [uploadProgressPercent, setUploadProgressPercent] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Array<{ success: boolean; message: string; assetTempId?: string }>>([]);
   const [pendingAssets, setPendingAssets] = useState<PendingAsset[]>([]); // 待确认的资产
@@ -170,6 +171,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
     setUploading(true);
     setError(null);
     setProgress('正在读取ZIP文件...');
+    setUploadProgressPercent(0);
     setResults([]);
 
     try {
@@ -407,6 +409,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
               
               if (zipFile && !zipFile.dir) {
                 setProgress(`正在上传文件: ${fileName}...`);
+                setUploadProgressPercent(0);
                 try {
                   // 将ZIP中的文件转换为Blob
                   const fileBlob = await zipFile.async('blob');
@@ -435,17 +438,49 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                     type: mimeType
                   });
                   
-                  // 上传文件
+                  // 使用XMLHttpRequest来跟踪上传进度
                   const formData = new FormData();
                   formData.append('file', file);
                   
-                  const uploadResponse = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData,
+                  const uploadData = await new Promise<any>((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    
+                    xhr.upload.addEventListener('progress', (e) => {
+                      if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        setUploadProgressPercent(percent);
+                        setProgress(`正在上传文件: ${fileName}... ${percent}%`);
+                      }
+                    });
+                    
+                    xhr.addEventListener('load', () => {
+                      if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                          const responseData = JSON.parse(xhr.responseText);
+                          resolve(responseData);
+                        } catch (err) {
+                          reject(new Error('服务器响应格式错误'));
+                        }
+                      } else {
+                        try {
+                          const errorData = JSON.parse(xhr.responseText);
+                          reject(new Error(errorData.message || `上传失败: HTTP ${xhr.status}`));
+                        } catch {
+                          reject(new Error(`上传失败: HTTP ${xhr.status}`));
+                        }
+                      }
+                    });
+                    
+                    xhr.addEventListener('error', () => {
+                      reject(new Error('网络错误'));
+                    });
+                    
+                    xhr.open('POST', '/api/upload');
+                    xhr.send(formData);
                   });
 
-                  if (uploadResponse.ok) {
-                    const uploadData = await uploadResponse.json();
+                  if (uploadData && uploadData.url) {
+                    setUploadProgressPercent(100);
                     const uploadedUrl = uploadData.url;
                     
                     // 调试信息：检查上传返回的URL
@@ -598,9 +633,11 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
       setPendingAssets(pendingAssetsList);
       setShowPreview(true);
       setProgress(`处理完成！共 ${pendingAssetsList.length} 条记录，请确认后创建资产`);
+      setUploadProgressPercent(100);
     } catch (err) {
       setError(err instanceof Error ? err.message : '批量上传失败');
       console.error('批量上传错误:', err);
+      setUploadProgressPercent(0);
     } finally {
       setUploading(false);
     }
@@ -631,6 +668,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
     setCreating(true);
     setError(null);
     setResults([]);
+    setUploadProgressPercent(0);
 
     const uploadResults: Array<{ success: boolean; message: string; assetTempId?: string }> = [];
     let successCount = 0;
@@ -641,6 +679,8 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
 
     for (let i = 0; i < validAssets.length; i++) {
       const asset = validAssets[i];
+      const progressPercent = Math.round(((i + 1) / validAssets.length) * 100);
+      setUploadProgressPercent(progressPercent);
       setProgress(`正在创建第 ${i + 1}/${validAssets.length} 个资产: ${asset.name}...`);
 
       try {
@@ -780,6 +820,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
 
     setResults(uploadResults);
     setProgress(`创建完成！成功: ${successCount}, 失败: ${failCount}`);
+    setUploadProgressPercent(100);
 
     // 如果全部成功或部分成功，刷新资产列表
     if (successCount > 0) {
@@ -821,6 +862,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
     setResults([]);
     setError(null);
     setProgress('');
+    setUploadProgressPercent(0);
     setEditingAsset(null);
   }, []);
 
@@ -1085,11 +1127,15 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
               <Button 
                 onClick={handleConfirmCreate} 
                 disabled={creating || pendingAssets.length === 0 || pendingAssets.every(a => !!(a as any)._error)}
+                className="relative"
               >
                 {creating ? (
                   <>
                     <Upload className="h-4 w-4 mr-2 animate-spin" />
-                    {progress || '创建中...'}
+                    <span className="mr-2">{progress || '创建中...'}</span>
+                    {uploadProgressPercent > 0 && (
+                      <span className="text-xs opacity-75">{uploadProgressPercent}%</span>
+                    )}
                   </>
                 ) : (
                   <>
@@ -1134,9 +1180,19 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
               className="cursor-pointer flex flex-col items-center gap-2"
             >
               <FileArchive className="h-8 w-8 text-muted-foreground" />
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground w-full">
                 {uploading ? (
-                  <span>{progress || '上传中...'}</span>
+                  <div className="space-y-2 w-full">
+                    <div className="text-center">{progress || '上传中...'}</div>
+                    {uploadProgressPercent > 0 && (
+                      <div className="w-full rounded-full h-2 bg-muted">
+                        <div
+                          className="bg-primary h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgressPercent}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <>
                     点击或拖拽ZIP文件到此处上传
