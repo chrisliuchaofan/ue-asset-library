@@ -22,6 +22,83 @@ const STORAGE_MODE: StorageMode =
 const manifestPath = join(process.cwd(), 'data', 'manifest.json');
 const MANIFEST_FILE_NAME = 'manifest.json';
 
+const MANIFEST_CACHE_TTL_MS = (() => {
+  const rawTTL =
+    process.env.ASSET_MANIFEST_CACHE_TTL ??
+    process.env.MANIFEST_CACHE_TTL ??
+    '60000';
+  const parsed = Number.parseInt(rawTTL, 10);
+  if (Number.isNaN(parsed) || !Number.isFinite(parsed)) {
+    return 60000;
+  }
+  return Math.max(0, parsed);
+})();
+
+interface AssetManifestCacheEntry {
+  data: {
+    assets: Asset[];
+    allowedTypes: string[];
+    manifest: Manifest;
+  };
+  expires: number;
+}
+
+interface AssetManifestCacheStore {
+  entry?: AssetManifestCacheEntry;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __assetManifestCache: AssetManifestCacheStore | undefined;
+}
+
+function getAssetManifestCacheStore(): AssetManifestCacheStore {
+  if (!globalThis.__assetManifestCache) {
+    globalThis.__assetManifestCache = {};
+  }
+  return globalThis.__assetManifestCache;
+}
+
+function readAssetManifestCache(): AssetManifestCacheEntry['data'] | null {
+  if (MANIFEST_CACHE_TTL_MS <= 0) {
+    return null;
+  }
+  const store = getAssetManifestCacheStore();
+  if (store.entry && store.entry.expires > Date.now()) {
+    return store.entry.data;
+  }
+  return null;
+}
+
+function writeAssetManifestCache(manifest: Manifest): void {
+  if (MANIFEST_CACHE_TTL_MS <= 0) {
+    invalidateAssetManifestCache();
+    return;
+  }
+
+  const manifestForCache = JSON.parse(
+    JSON.stringify({
+      assets: manifest.assets,
+      allowedTypes: manifest.allowedTypes,
+    })
+  ) as Manifest;
+  const allowedTypes = manifestForCache.allowedTypes ?? [...DEFAULT_ASSET_TYPES];
+
+  getAssetManifestCacheStore().entry = {
+    data: {
+      assets: manifestForCache.assets,
+      allowedTypes,
+      manifest: manifestForCache,
+    },
+    expires: Date.now() + MANIFEST_CACHE_TTL_MS,
+  };
+}
+
+export function invalidateAssetManifestCache(): void {
+  const store = getAssetManifestCacheStore();
+  store.entry = undefined;
+}
+
 // 生成 UUID v4（兼容所有 Node.js 版本）
 function generateUUID(): string {
   const bytes = randomBytes(16);
@@ -274,9 +351,18 @@ async function writeLocalManifest(assets: Asset[], allowedTypes?: string[]): Pro
     };
   }
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  writeAssetManifestCache(manifest);
 }
 
 async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: string[] }> {
+  const cached = readAssetManifestCache();
+  if (cached) {
+    return {
+      assets: cached.assets,
+      allowedTypes: [...cached.allowedTypes],
+    };
+  }
+
   try {
     // 尝试获取OSS客户端，如果配置不完整则返回空数组
     let client: OSS;
@@ -284,6 +370,11 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
       client = getOSSClient();
     } catch (configError: any) {
       console.warn('OSS 配置不完整，返回空数组:', configError.message);
+      const manifest: Manifest = {
+        assets: [],
+        allowedTypes: [...DEFAULT_ASSET_TYPES],
+      };
+      writeAssetManifestCache(manifest);
       return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
     
@@ -347,8 +438,14 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
         }
         return asset;
       });
-      
-      return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
+
+      const manifestForCache: Manifest = {
+        assets: finalAssets,
+        allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES],
+      };
+      writeAssetManifestCache(manifestForCache);
+
+      return { assets: finalAssets, allowedTypes: manifestForCache.allowedTypes || [...DEFAULT_ASSET_TYPES] };
     } catch (parseError: any) {
       // 如果解析失败，可能是类型不在允许列表中，尝试更宽松的处理
       console.warn('Manifest解析失败，尝试修复类型:', parseError);
@@ -366,24 +463,25 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
         }
         
         // 再次尝试解析
-        try {
-          const manifest = ManifestSchema.parse(data);
-          const parsedAssets = manifest.assets;
-          
-          // 恢复原始类型（如果之前临时替换了）
-          const finalAssets = parsedAssets.map((asset: any, index: number) => {
-            const originalAsset = originalAssets[index];
-            if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
-              return { ...asset, type: originalAsset.type };
-            }
-            return asset;
-          });
-          
-          return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
-        } catch (retryError) {
-          console.error('重试解析仍然失败，返回空数组:', retryError);
-          return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
-        }
+        const manifest = ManifestSchema.parse(data);
+        const parsedAssets = manifest.assets;
+        
+        // 恢复原始类型（如果之前临时替换了）
+        const finalAssets = parsedAssets.map((asset: any, index: number) => {
+          const originalAsset = originalAssets[index];
+          if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
+            return { ...asset, type: originalAsset.type };
+          }
+          return asset;
+        });
+
+        const manifestForCache: Manifest = {
+          assets: finalAssets,
+          allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES],
+        };
+        writeAssetManifestCache(manifestForCache);
+
+        return { assets: finalAssets, allowedTypes: manifestForCache.allowedTypes || [...DEFAULT_ASSET_TYPES] };
       }
       
       // 如果验证失败，尝试返回空数组或过滤有效数据
@@ -398,16 +496,31 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
             return false;
           }
         });
-        return { assets: validAssets, allowedTypes: allowedTypes };
+        const manifestForCache: Manifest = {
+          assets: validAssets,
+          allowedTypes,
+        };
+        writeAssetManifestCache(manifestForCache);
+        return { assets: validAssets, allowedTypes };
       }
       
       // 如果完全无法解析，返回空数组
+      const manifestForCache: Manifest = {
+        assets: [],
+        allowedTypes: [...DEFAULT_ASSET_TYPES],
+      };
+      writeAssetManifestCache(manifestForCache);
       return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
   } catch (error: any) {
     // 如果文件不存在，返回空数组和默认类型
     if (error.code === 'NoSuchKey' || error.status === 404) {
       console.warn('OSS manifest 文件不存在，返回空数组');
+      const manifest: Manifest = {
+        assets: [],
+        allowedTypes: [...DEFAULT_ASSET_TYPES],
+      };
+      writeAssetManifestCache(manifest);
       return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
     // DNS 解析失败或网络连接问题，或 OSS 服务被禁用
@@ -417,15 +530,32 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
         error.message?.includes('UserDisable') ||
         error.code === 'UserDisable') {
       console.warn('OSS 连接失败或服务被禁用，返回空数组:', error.message);
+      const manifest: Manifest = {
+        assets: [],
+        allowedTypes: [...DEFAULT_ASSET_TYPES],
+      };
+      writeAssetManifestCache(manifest);
       return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
     // 其他错误也返回空数组，避免服务器崩溃
     console.error('读取 OSS manifest 失败，返回空数组:', error.message);
+    const manifest: Manifest = {
+      assets: [],
+      allowedTypes: [...DEFAULT_ASSET_TYPES],
+    };
+    writeAssetManifestCache(manifest);
     return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
   }
 }
 
 async function readOSSManifestFull(): Promise<Manifest> {
+  const cached = readAssetManifestCache();
+  if (cached) {
+    return JSON.parse(
+      JSON.stringify(cached.manifest)
+    ) as Manifest;
+  }
+
   try {
     // 尝试获取OSS客户端，如果配置不完整则返回空manifest
     let client: OSS;
@@ -433,7 +563,9 @@ async function readOSSManifestFull(): Promise<Manifest> {
       client = getOSSClient();
     } catch (configError: any) {
       console.warn('OSS 配置不完整，返回空manifest:', configError.message);
-      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] } as Manifest;
+      const manifest: Manifest = { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
+      writeAssetManifestCache(manifest);
+      return manifest;
     }
     
     const result = await client.get(MANIFEST_FILE_NAME);
@@ -487,7 +619,7 @@ async function readOSSManifestFull(): Promise<Manifest> {
     const manifest = ManifestSchema.parse(data);
     const parsedAssets = manifest.assets;
     
-    // 恢复原始类型（如果之前临时替换了）
+    // 保存原始资产数据（用于恢复类型）
     const finalAssets = parsedAssets.map((asset: any, index: number) => {
       const originalAsset = originalAssets[index];
       if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
@@ -495,13 +627,21 @@ async function readOSSManifestFull(): Promise<Manifest> {
       }
       return asset;
     });
-    
-    return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] } as Manifest;
+
+    const manifestForCache: Manifest = {
+      assets: finalAssets,
+      allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES],
+    };
+    writeAssetManifestCache(manifestForCache);
+
+    return manifestForCache as Manifest;
   } catch (error: any) {
     // 如果文件不存在，返回空manifest和默认类型
     if (error.code === 'NoSuchKey' || error.status === 404) {
       console.warn('OSS manifest 文件不存在，返回空数组');
-      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] } as Manifest;
+      const manifest: Manifest = { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
+      writeAssetManifestCache(manifest);
+      return manifest;
     }
     // DNS 解析失败或网络连接问题，或 OSS 服务被禁用
     if (error.code === 'ENOTFOUND' || 
@@ -510,11 +650,15 @@ async function readOSSManifestFull(): Promise<Manifest> {
         error.message?.includes('UserDisable') ||
         error.code === 'UserDisable') {
       console.warn('OSS 连接失败或服务被禁用，返回空数组:', error.message);
-      return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] } as Manifest;
+      const manifest: Manifest = { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
+      writeAssetManifestCache(manifest);
+      return manifest;
     }
     // 其他错误也返回空数组，避免服务器崩溃
     console.error('读取 OSS manifest 失败，返回空数组:', error.message);
-    return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] } as Manifest;
+    const manifest: Manifest = { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
+    writeAssetManifestCache(manifest);
+    return manifest;
   }
 }
 
@@ -539,6 +683,7 @@ async function writeOSSManifest(assets: Asset[], allowedTypes?: string[]): Promi
   await client.put(MANIFEST_FILE_NAME, Buffer.from(content, 'utf-8'), {
     contentType: 'application/json',
   });
+  writeAssetManifestCache(manifest);
 }
 
 

@@ -5,47 +5,10 @@ import Image from 'next/image';
 import { type Asset } from '@/data/manifest.schema';
 import { X, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
 
 interface MediaGalleryProps {
   asset: Asset;
-}
-
-// 客户端获取 CDN base
-function getClientCdnBase(): string {
-  if (typeof window === 'undefined') return '/';
-  return window.__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
-}
-
-// 客户端处理资产 URL
-function getClientAssetUrl(path: string): string {
-  if (!path) return '';
-  
-  // 如果已经是完整 URL，直接返回
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
-  }
-  
-  const base = getClientCdnBase();
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  
-  // 如果 base 是 /，直接返回路径（本地模式）
-  if (base === '/' || !base || base.trim() === '') {
-    // 如果路径是 OSS 路径，尝试构建完整 URL
-    if (normalizedPath.startsWith('/assets/')) {
-      if (typeof window !== 'undefined') {
-        const ossConfig = window.__OSS_CONFIG__;
-        if (ossConfig && ossConfig.bucket && ossConfig.region) {
-          const ossPath = normalizedPath.substring(1);
-          const region = ossConfig.region.replace(/^oss-/, '');
-          return `https://${ossConfig.bucket}.oss-${region}.aliyuncs.com/${ossPath}`;
-        }
-      }
-    }
-    return normalizedPath;
-  }
-  
-  // 拼接 CDN base
-  return `${base.replace(/\/+$/, '')}${normalizedPath}`;
 }
 
 // 判断 URL 是否为视频
@@ -71,7 +34,8 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
     ? asset.gallery 
     : [asset.src];
   
-  const currentUrl = getClientAssetUrl(galleryUrls[currentIndex]);
+  const currentSource = galleryUrls[currentIndex];
+  const currentUrl = currentSource ? getClientAssetUrl(currentSource) : '';
   const isVideo = isVideoUrl(currentUrl);
 
   // 自动播放视频（静音）
@@ -160,7 +124,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
         ) : (
           <>
             <Image
-              src={currentUrl}
+              src={getOptimizedImageUrl(currentSource)}
               alt={`${asset.name} - ${currentIndex + 1}`}
               fill
               className="object-contain"
@@ -230,7 +194,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
           </Button>
           <div className="relative h-full w-full max-w-7xl" onClick={(e) => e.stopPropagation()}>
             <Image
-              src={currentUrl}
+              src={getOptimizedImageUrl(currentSource)}
               alt={`${asset.name} - ${currentIndex + 1}`}
               fill
               className="object-contain"

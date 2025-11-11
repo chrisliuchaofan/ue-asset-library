@@ -5,11 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { type Asset } from '@/data/manifest.schema';
-import { formatFileSize, formatDuration, highlightText } from '@/lib/utils';
+import { highlightText, cn, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check } from 'lucide-react';
 import { type OfficeLocation } from '@/lib/nas-utils';
 
@@ -20,79 +18,15 @@ interface AssetCardGalleryProps {
   onToggleSelection?: () => void;
   priority?: boolean; // 是否为优先加载的图片（首屏图片）
   officeLocation?: OfficeLocation; // 办公地点，用于选择对应的 NAS 路径
+  viewMode: 'classic' | 'thumbnail' | 'grid';
 }
 
-// 客户端获取 CDN base
-function getClientCdnBase(): string {
-  if (typeof window === 'undefined') return '/';
-  return window.__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
-}
-
-// 客户端处理资产 URL
-function getClientAssetUrl(path: string): string {
-  if (!path) return '';
-  
-  // 如果已经是完整 URL，直接返回
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
-  }
-  
-  const base = getClientCdnBase();
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  
-  // 如果 base 是 /，直接返回路径（本地模式）
-  if (base === '/' || !base || base.trim() === '') {
-    return normalizedPath;
-  }
-  
-  // 如果路径以 /assets/ 开头（OSS 模式），需要特殊处理
-  // 因为 OSS 上传的路径可能是 assets/xxx 或 /assets/xxx
-  if (normalizedPath.startsWith('/assets/')) {
-    // 如果 base 是 / 或空，说明是本地模式，但路径是 OSS 路径
-    // 这种情况下，尝试从 window 获取 OSS 配置来构建完整 URL
-    if (base === '/' || !base || base.trim() === '') {
-      // 尝试从 window 获取 OSS 配置（如果可用）
-      if (typeof window !== 'undefined') {
-        const ossConfig = window.__OSS_CONFIG__;
-        if (ossConfig && ossConfig.bucket && ossConfig.region) {
-          const ossPath = normalizedPath.substring(1); // 移除开头的 /
-          const region = ossConfig.region.replace(/^oss-/, ''); // 移除开头的 oss-（如果有）
-          return `https://${ossConfig.bucket}.oss-${region}.aliyuncs.com/${ossPath}`;
-        }
-      }
-      // 如果无法获取 OSS 配置，返回原路径（会显示错误，但至少不会崩溃）
-      console.warn('检测到 OSS 路径但 CDN base 和 OSS 配置未设置，无法构建完整 URL:', normalizedPath);
-      return normalizedPath;
-    }
-    // 移除开头的 /，因为 CDN base 通常已经包含路径分隔符
-    const ossPath = normalizedPath.substring(1);
-    return `${base.replace(/\/+$/, '')}/${ossPath}`;
-  }
-  
-  // 其他情况：拼接 CDN base
-  return `${base.replace(/\/+$/, '')}${normalizedPath}`;
-}
-
-export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou' }: AssetCardGalleryProps) {
+export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou', viewMode }: AssetCardGalleryProps) {
   const router = useRouter();
-  const selectionMarkup = useMemo(() => {
-    if (isSelected) {
-      return (
-        <>
-          <Check className="h-3 w-3 flex-shrink-0" />
-          <span>已选</span>
-        </>
-      );
-    }
-    return (
-      <>
-        <Plus className="h-3 w-3 flex-shrink-0" />
-        <span>清单</span>
-      </>
-    );
-  }, [isSelected]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEnlarged, setIsEnlarged] = useState(false);
+  const [isHoveringPreview, setIsHoveringPreview] = useState(false);
+  const [thumbnailPage, setThumbnailPage] = useState(0);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const nameRef = useRef<HTMLHeadingElement>(null);
   const scrollAnimationRef = useRef<number | null>(null);
@@ -100,15 +34,9 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
   // 获取所有预览图/视频 URL
   // 优先使用 gallery，如果没有则使用 thumbnail 和 src
   // 注意：如果 thumbnail 和 src 相同，只使用一个
-  const galleryUrls = asset.gallery && asset.gallery.length > 0 
-    ? asset.gallery.filter(Boolean) // 过滤空值
-    : asset.thumbnail && asset.thumbnail !== asset.src
-    ? [asset.thumbnail, asset.src].filter(Boolean)
-    : asset.thumbnail
-    ? [asset.thumbnail]
-    : asset.src
-    ? [asset.src]
-    : [];
+  const rawGallery = asset.gallery && asset.gallery.length > 0 ? asset.gallery.filter(Boolean) : [];
+  const fallbackImages = [asset.thumbnail, asset.src].filter(Boolean);
+  const galleryUrls = rawGallery.length > 0 ? rawGallery : fallbackImages;
   
   const highlightedName = highlightText(asset.name, keyword || '');
 
@@ -125,25 +53,228 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     );
   }, []);
 
-  // 自动播放视频（静音）- 当切换到视频时自动播放
+  const imageUrls = useMemo(
+    () => galleryUrls.filter((url) => !isVideoUrl(url)),
+    [galleryUrls, isVideoUrl]
+  );
+
+  // 根据视图模式调整当前索引（缩略图优先展示视频）
   useEffect(() => {
+    if (galleryUrls.length === 0) {
+      if (currentIndex !== 0) {
+        setCurrentIndex(0);
+      }
+      return;
+    }
+
+    const maxIndex = galleryUrls.length - 1;
+    if (currentIndex > maxIndex) {
+      setCurrentIndex(0);
+      return;
+    }
+
+    if (viewMode === 'thumbnail') {
+      const firstVideoIndex = galleryUrls.findIndex((url) => isVideoUrl(url));
+      const targetIndex = firstVideoIndex >= 0 ? firstVideoIndex : 0;
+      if (currentIndex !== targetIndex) {
+        setCurrentIndex(targetIndex);
+      }
+      return;
+    }
+
+    if (viewMode === 'grid') {
+      const firstImageIndex = galleryUrls.findIndex((url) => !isVideoUrl(url));
+      if (firstImageIndex >= 0 && currentIndex !== firstImageIndex) {
+        setCurrentIndex(firstImageIndex);
+      }
+    }
+  }, [currentIndex, galleryUrls, isVideoUrl, viewMode]);
+
+  const validIndex = galleryUrls.length > 0 ? Math.min(currentIndex, galleryUrls.length - 1) : 0;
+  const firstVideoIndexForDisplay = galleryUrls.findIndex((url) => isVideoUrl(url));
+  const firstImageIndexForDisplay = galleryUrls.findIndex((url) => !isVideoUrl(url));
+  const isClassic = viewMode === 'classic';
+  const isOverlayMode = !isClassic;
+  const displayIndex =
+    viewMode === 'grid' && isHoveringPreview && firstVideoIndexForDisplay >= 0
+      ? firstVideoIndexForDisplay
+      : firstImageIndexForDisplay >= 0
+      ? firstImageIndexForDisplay
+      : validIndex;
+  const currentSource = galleryUrls[displayIndex];
+  const currentIsVideo = currentSource ? isVideoUrl(currentSource) : false;
+  const currentUrl = currentSource
+    ? currentIsVideo
+      ? getClientAssetUrl(currentSource)
+      : getOptimizedImageUrl(currentSource)
+    : '';
+  const previewAspectClass =
+    viewMode === 'thumbnail' ? 'aspect-video' : viewMode === 'grid' ? 'aspect-square' : 'aspect-[4/3]';
+  const previewBackgroundClass = viewMode === 'thumbnail' ? 'bg-black' : 'bg-muted';
+  const mediaObjectClass = viewMode === 'grid' ? 'object-cover' : 'object-contain';
+  const showNavigation = isClassic && galleryUrls.length > 1;
+  const showIndicators = showNavigation;
+  const rawTags = Array.isArray(asset.tags)
+    ? asset.tags
+    : typeof (asset as any).tags === 'string'
+    ? (asset as any).tags
+        .split(',')
+        .map((t: string) => t.trim())
+        .filter(Boolean)
+    : [];
+  const tagLimit = isClassic ? 3 : 2;
+  const displayTags = rawTags.slice(0, tagLimit);
+  const remainingTagCount = Math.max(0, rawTags.length - displayTags.length);
+  const secondaryText = [asset.type, ...displayTags].filter(Boolean).join(' · ');
+  const overlayActionButtonClass =
+    'h-8 w-8 rounded-full bg-black/60 text-white transition hover:bg-black/80';
+  const selectionButtonTitle = isSelected ? '从清单移除' : '加入清单';
+
+  const handleSelectionButtonClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onToggleSelection?.();
+    },
+    [onToggleSelection]
+  );
+
+  const handleCopyNasClick = useCallback(
+    async (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const locationName = officeLocation === 'guangzhou' ? '广州' : '深圳';
+      const nasPath = officeLocation === 'guangzhou' ? asset.guangzhouNas : asset.shenzhenNas;
+      const nasPathTrimmed = nasPath ? nasPath.trim() : '';
+      if (!nasPathTrimmed) {
+        alert(`该资产未填写${locationName}NAS路径`);
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(nasPathTrimmed);
+        alert(`已复制 NAS 路径到剪贴板：\n${nasPathTrimmed}`);
+      } catch (err) {
+        try {
+          const textArea = document.createElement('textarea');
+          textArea.value = nasPathTrimmed;
+          textArea.style.position = 'fixed';
+          textArea.style.opacity = '0';
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          alert(`已复制 NAS 路径到剪贴板：\n${nasPathTrimmed}`);
+        } catch (fallbackErr) {
+          console.error('复制失败:', fallbackErr);
+          alert('复制失败，请手动复制');
+        }
+      }
+    },
+    [asset.guangzhouNas, asset.shenzhenNas, officeLocation]
+  );
+
+  const handleDetailButtonClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      router.push(`/assets/${asset.id}`);
+    },
+    [asset.id, router]
+  );
+
+  const renderActionButtons = () => {
+    return (
+      <>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          title={selectionButtonTitle}
+          aria-pressed={isSelected}
+          onClick={handleSelectionButtonClick}
+          className={cn(overlayActionButtonClass, isSelected && 'bg-primary text-primary-foreground hover:bg-primary/90')}
+        >
+          {isSelected ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          <span className="sr-only">{selectionButtonTitle}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          title="复制 NAS 路径"
+          onClick={handleCopyNasClick}
+          className={overlayActionButtonClass}
+        >
+          <FolderOpen className="h-4 w-4" />
+          <span className="sr-only">复制 NAS 路径</span>
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          title="查看详情"
+          onClick={handleDetailButtonClick}
+          className={overlayActionButtonClass}
+        >
+          <Eye className="h-4 w-4" />
+          <span className="sr-only">查看详情</span>
+        </Button>
+      </>
+    );
+  };
+
+  const gridConfig = useMemo(() => {
+    const length = imageUrls.length;
+    if (length <= 1) {
+      return { rows: 1, cols: 1, cells: 1 };
+    }
+    if (length === 2) {
+      return { rows: 1, cols: 2, cells: 2 };
+    }
+    if (length <= 4) {
+      return { rows: 2, cols: 2, cells: 4 };
+    }
+    return { rows: 3, cols: 3, cells: 9 };
+  }, [imageUrls.length]);
+
+  const maxCells = gridConfig.cells;
+  const thumbnailsPerPage = maxCells;
+  const totalPages = imageUrls.length <= thumbnailsPerPage ? 1 : Math.ceil(imageUrls.length / thumbnailsPerPage);
+  const pagedThumbnails = useMemo(() => {
+    if (totalPages <= 1) {
+      return imageUrls.slice(0, maxCells);
+    }
+    const start = thumbnailPage * thumbnailsPerPage;
+    return imageUrls.slice(start, start + thumbnailsPerPage);
+  }, [imageUrls, maxCells, thumbnailPage, thumbnailsPerPage, totalPages]);
+
+  useEffect(() => {
+    if (thumbnailPage > totalPages - 1) {
+      setThumbnailPage(totalPages - 1);
+    }
+  }, [thumbnailPage, totalPages]);
+
+  // 悬停时才播放视频，离开后暂停
+  useEffect(() => {
+    const activeIndex = displayIndex;
+
     galleryUrls.forEach((url, index) => {
       const video = videoRefs.current[index];
-      const urlIsVideo = isVideoUrl(url);
-      
-      if (video && urlIsVideo && index === currentIndex) {
-        // 当前显示的是视频，自动播放
+      if (!video) return;
+
+      if (index === activeIndex && isHoveringPreview && isVideoUrl(url)) {
         video.muted = true;
         video.play().catch((err) => {
-          console.warn('视频自动播放失败:', err);
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('视频播放失败:', err);
+          }
         });
-      } else if (video) {
-        // 暂停其他视频
+      } else {
         video.pause();
         video.currentTime = 0;
       }
     });
-  }, [currentIndex, galleryUrls, isVideoUrl]);
+  }, [displayIndex, galleryUrls, isHoveringPreview, isVideoUrl]);
 
   // 清理定时器
   useEffect(() => {
@@ -269,26 +400,42 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
     }
+    setIsHoveringPreview(false);
     setIsEnlarged(true);
   };
 
-  // 确保 currentIndex 在有效范围内
-  const validIndex = galleryUrls.length > 0 ? Math.min(currentIndex, galleryUrls.length - 1) : 0;
-  const currentUrl = galleryUrls[validIndex] ? getClientAssetUrl(galleryUrls[validIndex]) : '';
-  const currentIsVideo = currentUrl ? isVideoUrl(currentUrl) : false;
+  const cardWidth = 320;
+  const classicHeight = 360;
+  const compactHeight = 180;
+  const primaryTags = Array.isArray(asset.tags) ? asset.tags : [];
+  const combinedTags = primaryTags;
+  const secondaryRowText = [asset.type, ...combinedTags].filter(Boolean).join(' · ');
+  const secondaryRowHtml = highlightText(secondaryRowText, keyword || '');
 
   return (
     <>
-      <Card className="group overflow-hidden transition-shadow hover:shadow-lg h-full flex flex-col relative border">
-        {/* 固定大小的预览区域 */}
-        <div 
-          className="relative aspect-video w-full overflow-hidden bg-muted flex items-center justify-center cursor-pointer"
-          onDoubleClick={handleDoubleClick}
+      <div
+        className={isClassic ? 'space-y-2' : undefined}
+        style={{ width: cardWidth }}
+      >
+        <Card
+          className="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition hover:shadow-lg dark:border-white/[0.08] dark:bg-white/[0.04]"
+          style={{ width: '100%', height: isClassic ? classicHeight : compactHeight }}
         >
-          {/* 渲染所有视频（用于自动播放） */}
-          {galleryUrls.map((url, index) => {
-            const urlIsVideo = isVideoUrl(url);
-            if (urlIsVideo) {
+          <div
+            className={cn(
+              'relative flex w-full items-center justify-center overflow-hidden cursor-pointer',
+              previewBackgroundClass,
+              isClassic ? 'h-[180px]' : previewAspectClass
+            )}
+            onDoubleClick={handleDoubleClick}
+            onMouseEnter={() => setIsHoveringPreview(true)}
+            onMouseLeave={() => setIsHoveringPreview(false)}
+          >
+            {galleryUrls.map((url, index) => {
+              if (!isVideoUrl(url)) {
+                return null;
+              }
               return (
                 <video
                   key={`video-${index}`}
@@ -296,314 +443,275 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                     videoRefs.current[index] = el;
                   }}
                   src={getClientAssetUrl(url)}
-                  className={`absolute inset-0 w-full h-full object-contain ${
-                    index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'
+                  preload="metadata"
+                  className={`absolute inset-0 h-full w-full ${mediaObjectClass} transition-opacity duration-200 ${
+                    index === displayIndex ? 'z-10 opacity-100' : 'pointer-events-none opacity-0'
                   }`}
                   muted
                   loop
                   playsInline
                 />
               );
-            }
-            return null;
-          })}
-          
-          {/* 渲染当前图片（如果当前项是图片） */}
-          {!currentIsVideo && currentUrl && (
-            <Image
-              src={currentUrl}
-              alt={`${asset.name} - ${currentIndex + 1}`}
-              fill
-              className="object-contain transition-opacity z-10"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              loading={priority ? 'eager' : 'lazy'}
-              priority={priority}
-              unoptimized={currentUrl.startsWith('http') || currentUrl.startsWith('/assets/')}
-              onError={(e) => {
-                console.error('图片加载失败:', currentUrl);
-                // 如果是 OSS 路径但加载失败，尝试重新构建 URL
-                if ((currentUrl.startsWith('/assets/') || galleryUrls[validIndex]?.startsWith('/assets/')) && galleryUrls[validIndex]) {
-                  const ossConfig = typeof window !== 'undefined' ? window.__OSS_CONFIG__ : null;
-                  if (ossConfig && ossConfig.bucket && ossConfig.region) {
-                    const ossPath = galleryUrls[validIndex].startsWith('/') 
-                      ? galleryUrls[validIndex].substring(1) 
-                      : galleryUrls[validIndex];
-                    const region = ossConfig.region.replace(/^oss-/, '');
-                    const fullUrl = `https://${ossConfig.bucket}.oss-${region}.aliyuncs.com/${ossPath}`;
-                    console.warn('尝试使用完整 OSS URL:', fullUrl);
-                    // 强制重新加载
-                    (e.target as HTMLImageElement).src = fullUrl;
-                  } else {
-                    console.warn('OSS 路径加载失败，请检查配置');
+            })}
+
+            {!currentIsVideo && currentUrl && (
+              <Image
+                src={currentUrl}
+                alt={`${asset.name} - ${displayIndex + 1}`}
+                fill
+                className="z-10 object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                loading={priority ? 'eager' : 'lazy'}
+                priority={priority}
+                unoptimized={currentUrl.startsWith('http')}
+                onError={(e) => {
+                  console.error('图片加载失败:', currentUrl);
+                  if ((currentUrl.startsWith('/assets/') || galleryUrls[displayIndex]?.startsWith('/assets/')) && galleryUrls[displayIndex]) {
+                    const ossConfig = typeof window !== 'undefined' ? window.__OSS_CONFIG__ : null;
+                    if (ossConfig && ossConfig.bucket && ossConfig.region) {
+                      const ossPath = galleryUrls[displayIndex].startsWith('/')
+                        ? galleryUrls[displayIndex].substring(1)
+                        : galleryUrls[displayIndex];
+                      const region = ossConfig.region.replace(/^oss-/, '');
+                      const fullUrl = `https://${ossConfig.bucket}.oss-${region}.aliyuncs.com/${ossPath}`;
+                      console.warn('尝试使用完整 OSS URL:', fullUrl);
+                      (e.target as HTMLImageElement).src = fullUrl;
+                    } else {
+                      console.warn('OSS 路径加载失败，请检查配置');
+                    }
                   }
-                }
-              }}
-            />
-          )}
-          
-          {/* 如果既没有图片也没有视频 */}
-          {!currentUrl && (
-            <div className="flex items-center justify-center h-full bg-muted text-muted-foreground z-10">
-              <span className="text-sm">无预览图</span>
-            </div>
-          )}
-          
-          {/* 左右切换区域（悬停显示，点击范围扩展到左右两边） */}
-          {galleryUrls.length > 1 && (
-            <>
-              {/* 左侧点击区域 */}
-              <div
-                className="absolute left-0 top-0 bottom-0 w-1/3 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center justify-start pl-2"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handlePrev(e);
                 }}
-              >
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 bg-background/90 hover:bg-background"
+              />
+            )}
+
+            {!currentUrl && (
+              <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                无预览
+              </div>
+            )}
+
+            {isOverlayMode && (
+              <>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent p-3">
+                  <div className="truncate text-sm font-semibold text-white">{asset.name}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-white/80">
+                    <span className="font-medium text-white/90">{asset.type}</span>
+                    {displayTags.map((tag: string) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] leading-none text-white"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                    {remainingTagCount > 0 && (
+                      <span className="text-[10px] text-white/70">+{remainingTagCount}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="pointer-events-auto absolute right-2 top-2 flex gap-1">
+                  {renderActionButtons()}
+                </div>
+              </>
+            )}
+
+            {currentIsVideo && (
+              <div className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                视频
+              </div>
+            )}
+
+            {showNavigation && (
+              <>
+                <div
+                  className="absolute left-0 top-0 bottom-0 z-20 flex w-1/3 cursor-pointer items-center justify-start pl-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     handlePrev(e);
                   }}
-                  aria-label="上一张图片"
                 >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              {/* 右侧点击区域 */}
-              <div
-                className="absolute right-0 top-0 bottom-0 w-1/3 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center justify-end pr-2"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleNext(e);
-                }}
-              >
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 bg-background/90 hover:bg-background"
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-full border-white/60 bg-background/80 hover:bg-background"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handlePrev(e);
+                    }}
+                    aria-label="上一张预览"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div
+                  className="absolute right-0 top-0 bottom-0 z-20 flex w-1/3 cursor-pointer items-center justify-end pr-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     handleNext(e);
                   }}
-                  aria-label="下一张图片"
                 >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 rounded-full border-white/60 bg-background/80 hover:bg-background"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleNext(e);
+                    }}
+                    aria-label="下一张预览"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {showIndicators && (
+              <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1">
+                {galleryUrls.map((_, index) => (
+                  <div
+                    key={index}
+                    className={`h-1.5 rounded-full transition-all ${
+                      index === validIndex ? 'w-4 bg-primary' : 'w-1.5 bg-background/50'
+                    }`}
+                  />
+                ))}
               </div>
-            </>
-          )}
-          
-          {/* 指示器（多图/视频时显示） */}
-          {galleryUrls.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-              {galleryUrls.map((_, index) => (
-                <div
-                  key={index}
-                  className={`h-1.5 rounded-full transition-all ${
-                    index === currentIndex
-                      ? 'w-4 bg-primary'
-                      : 'w-1.5 bg-background/50'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
-          
-          {/* 点击预览区域跳转到详情页 */}
-          <Link 
-            href={`/assets/${asset.id}`}
-            className="absolute inset-0 z-0"
-            onClick={(e) => {
-              // 如果点击的是按钮区域，不跳转
-              const target = e.target as HTMLElement;
-              if (target.closest('button') || target.closest('[role="button"]')) {
-                e.preventDefault();
-                e.stopPropagation();
-                return;
-              }
-              
-              // 延迟执行跳转，等待可能的双击事件
-              e.preventDefault();
-              if (clickTimeoutRef.current) {
-                clearTimeout(clickTimeoutRef.current);
-              }
-              clickTimeoutRef.current = setTimeout(() => {
-                router.push(`/assets/${asset.id}`);
-                clickTimeoutRef.current = null;
-              }, 300); // 300ms 延迟，如果在这期间发生双击，会被清除
-            }}
-          />
-        </div>
-        
-        <CardContent className="p-2 sm:p-2.5 sm:p-3 flex-1 flex flex-col relative">
-          <Link href={`/assets/${asset.id}`} className="block">
-            <h3
-              ref={nameRef}
-              className="mb-1 sm:mb-1.5 text-[12px] sm:text-[13px] md:text-[14px] font-medium leading-tight hover:text-primary transition-colors cursor-pointer whitespace-nowrap overflow-x-auto scrollbar-hide"
-              style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
-              dangerouslySetInnerHTML={{ __html: highlightedName }}
-            />
-          </Link>
-          {/* 类型：资产名下方小灰字 */}
-          <div className="mb-1.5 sm:mb-2 text-[10px] sm:text-[11px] md:text-xs text-muted-foreground font-normal">
-            {asset.type}
-          </div>
-          {/* 标签：圆角标签，超出用+N */}
-          <div className="mb-1.5 sm:mb-2 flex flex-wrap gap-0.5 sm:gap-1">
-            {(() => {
-              // 确保 tags 是数组，如果是字符串则拆分（兼容旧数据）
-              const tagsArray = Array.isArray(asset.tags)
-                ? asset.tags
-                : typeof (asset as any).tags === 'string'
-                ? (asset as any).tags.split(',').map((t: string) => t.trim()).filter(Boolean)
-                : [];
-              const displayTags = tagsArray.slice(0, 3);
-              return (
-                <>
-                  {displayTags.map((tag: string) => (
-                    <Badge key={tag} variant="secondary" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full font-normal">
-                      {tag}
-                    </Badge>
-                  ))}
-                  {tagsArray.length > 3 && (
-                    <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full font-normal">
-                      +{tagsArray.length - 3}
-                    </Badge>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-          {/* 添加清单 / 详情 / NAS 按钮 */}
-          <div className="mt-2 pt-2 border-t flex gap-1.5 relative z-20 items-center">
-            {/* 添加清单按钮 - 在前 */}
-            <Button
-              variant={isSelected ? 'default' : 'outline'}
-              size="sm"
-              className="h-7 text-xs gap-1 px-2 sm:px-2.5 flex-1 min-w-0 whitespace-nowrap"
+            )}
+
+            <Link
+              href={`/assets/${asset.id}`}
+              className="absolute inset-0 z-0"
               onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('清单按钮被点击', { assetId: asset.id, isSelected, onToggleSelection: !!onToggleSelection });
-                if (onToggleSelection) {
-                  onToggleSelection();
-                } else {
-                  console.warn('onToggleSelection 未定义，无法添加到清单');
-                }
-              }}
-              title={isSelected ? "已添加，点击移出清单" : "添加到清单"}
-              type="button"
-            >
-              {selectionMarkup}
-            </Button>
-            {/* NAS 按钮 */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1 px-2 sm:px-2.5 flex-1 min-w-0 whitespace-nowrap"
-              onClick={async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                // 使用资产创建时填写的真实 NAS 路径
-                // 根据办公地选择对应的 NAS 路径字段
-                const locationName = officeLocation === 'guangzhou' ? '广州' : '深圳';
-                const nasPath = officeLocation === 'guangzhou' 
-                  ? asset.guangzhouNas 
-                  : asset.shenzhenNas;
-                
-                // 调试信息（开发环境）
-                if (process.env.NODE_ENV === 'development') {
-                  console.log('NAS路径提取调试:', {
-                    officeLocation,
-                    locationName,
-                    guangzhouNas: asset.guangzhouNas,
-                    shenzhenNas: asset.shenzhenNas,
-                    selectedNasPath: nasPath,
-                    assetId: asset.id,
-                    assetName: asset.name,
-                  });
-                }
-                
-                // 严格判断：空字符串、null、undefined 都视为未填写
-                const nasPathTrimmed = nasPath ? nasPath.trim() : '';
-                if (!nasPathTrimmed) {
-                  alert(`该资产未填写${locationName}NAS路径`);
+                const target = e.target as HTMLElement;
+                if (target.closest('button') || target.closest('[role="button"]')) {
+                  e.preventDefault();
+                  e.stopPropagation();
                   return;
                 }
-                
-                try {
-                  await navigator.clipboard.writeText(nasPathTrimmed);
-                  alert(`已复制 NAS 路径到剪贴板：\n${nasPathTrimmed}`);
-                } catch (err) {
-                  // 降级方案：使用传统方法
-                  try {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = nasPathTrimmed;
-                    textArea.style.position = 'fixed';
-                    textArea.style.opacity = '0';
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                    alert(`已复制 NAS 路径到剪贴板：\n${nasPathTrimmed}`);
-                  } catch (fallbackErr) {
-                    console.error('复制失败:', fallbackErr);
-                    alert('复制失败，请手动复制');
-                  }
-                }
-              }}
-              title="复制 NAS 路径"
-              type="button"
-            >
-              <FolderOpen className="h-3 w-3 flex-shrink-0" />
-              <span>NAS</span>
-            </Button>
-            {/* 详情按钮 */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1 px-2 sm:px-2.5 flex-1 min-w-0 whitespace-nowrap"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                router.push(`/assets/${asset.id}`);
-              }}
-              title="查看详情"
-              type="button"
-            >
-              <Eye className="h-3 w-3 flex-shrink-0" />
-              <span>详情</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* 放大预览模态框 */}
+                e.preventDefault();
+                if (clickTimeoutRef.current) {
+                  clearTimeout(clickTimeoutRef.current);
+                }
+                clickTimeoutRef.current = setTimeout(() => {
+                  router.push(`/assets/${asset.id}`);
+                  clickTimeoutRef.current = null;
+                }, 300);
+              }}
+            />
+          </div>
+
+          {isClassic && (
+            <div style={{ height: compactHeight }}>
+              <div
+                className="grid h-full"
+                style={{
+                  gridTemplateColumns: `repeat(${gridConfig.cols}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${gridConfig.rows}, minmax(0, 1fr))`,
+                  gap: 0,
+                }}
+              >
+                {Array.from({ length: gridConfig.cells }).map((_, idx) => {
+                  const imageUrl = pagedThumbnails[idx];
+                  return (
+                    <div
+                      key={`thumb-${thumbnailPage}-${idx}`}
+                      className="relative h-full w-full overflow-hidden"
+                    >
+                      {imageUrl ? (
+                        <Image
+                          src={getOptimizedImageUrl(imageUrl, 640)}
+                          alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          unoptimized={imageUrl.startsWith('http') || imageUrl.startsWith('/assets/')}
+                        />
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="pointer-events-auto absolute bottom-4 right-4 z-30 flex gap-1">
+                {renderActionButtons()}
+              </div>
+              {totalPages > 1 && (
+                <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full border border-transparent bg-muted/50 text-muted-foreground hover:bg-muted"
+                    onClick={() => setThumbnailPage((prev) => Math.max(prev - 1, 0))}
+                    disabled={thumbnailPage === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span>{thumbnailPage + 1} / {totalPages}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full border border-transparent bg-muted/50 text-muted-foreground hover:bg-muted"
+                    onClick={() => setThumbnailPage((prev) => Math.min(prev + 1, totalPages - 1))}
+                    disabled={thumbnailPage === totalPages - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isClassic && (
+            <div className="pointer-events-none absolute bottom-2 left-3 flex items-center gap-3 text-[10px] text-white/90">
+              {asset.style && (
+                <span>{Array.isArray(asset.style) ? asset.style.join('、') : asset.style}</span>
+              )}
+              {asset.engineVersion && <span>{asset.engineVersion}</span>}
+              {asset.source && <span>{asset.source}</span>}
+            </div>
+          )}
+        </Card>
+
+        {isClassic && (
+          <div className="space-y-1 px-1">
+            <Link href={`/assets/${asset.id}`} className="block">
+              <h3
+                ref={nameRef}
+                className="text-sm font-semibold leading-tight text-foreground transition-colors hover:text-primary truncate"
+                style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+                dangerouslySetInnerHTML={{ __html: highlightedName }}
+              />
+            </Link>
+            <p
+              className="text-xs text-muted-foreground truncate"
+              dangerouslySetInnerHTML={{ __html: secondaryRowHtml }}
+            />
+          </div>
+        )}
+      </div>
+
       {isEnlarged && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
           onClick={() => setIsEnlarged(false)}
           onDoubleClick={(e) => {
-            // 双击关闭（仅对图片有效，视频使用关闭按钮）
             if (!currentIsVideo) {
               e.stopPropagation();
               setIsEnlarged(false);
             }
           }}
         >
-          {/* 关闭按钮 - 视频时显示，图片时也显示但双击也可以关闭 */}
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-4 top-4 text-white hover:bg-white/20 z-50"
+            className="absolute right-4 top-4 z-50 text-white hover:bg-white/20"
             onClick={(e) => {
               e.stopPropagation();
               setIsEnlarged(false);
@@ -611,11 +719,10 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
           >
             <X className="h-6 w-6" />
           </Button>
-          <div 
-            className="relative h-full w-full max-w-7xl" 
+          <div
+            className="relative h-full w-full max-w-7xl"
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => {
-              // 双击关闭（仅对图片有效）
               if (!currentIsVideo) {
                 e.stopPropagation();
                 setIsEnlarged(false);
@@ -623,32 +730,31 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             }}
           >
             {currentIsVideo ? (
-              <div className="relative w-full h-full">
+              <div className="relative h-full w-full">
                 <video
                   src={currentUrl}
                   controls
                   autoPlay
-                  className="w-full h-full object-contain"
+                  className="h-full w-full object-contain"
                   muted={false}
                 />
               </div>
             ) : (
               <Image
                 src={currentUrl}
-                alt={`${asset.name} - ${currentIndex + 1}`}
+                alt={`${asset.name} - ${displayIndex + 1}`}
                 fill
                 className="object-contain"
                 sizes="100vw"
                 unoptimized={currentUrl.startsWith('http')}
               />
             )}
-            {/* 大图模式下的切换按钮 */}
             {galleryUrls.length > 1 && (
               <>
                 <Button
                   variant="outline"
                   size="icon"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border-white/30 z-40"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full border-white/30 bg-white/20 text-white hover:bg-white/30"
                   onClick={(e) => {
                     e.stopPropagation();
                     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1));
@@ -659,7 +765,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                 <Button
                   variant="outline"
                   size="icon"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border-white/30 z-40"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full border-white/30 bg-white/20 text-white hover:bg-white/30"
                   onClick={(e) => {
                     e.stopPropagation();
                     setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0));
@@ -667,15 +773,12 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                 >
                   <ChevronRight className="h-6 w-6" />
                 </Button>
-                {/* 指示器 */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-40">
+                <div className="absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 gap-2">
                   {galleryUrls.map((_, index) => (
                     <button
                       key={index}
                       className={`h-2 rounded-full transition-all ${
-                        index === currentIndex
-                          ? 'w-6 bg-white'
-                          : 'w-2 bg-white/50 hover:bg-white/70'
+                        index === validIndex ? 'w-6 bg-white' : 'w-2 bg-white/50 hover:bg-white/70'
                       }`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -692,4 +795,3 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     </>
   );
 }
-

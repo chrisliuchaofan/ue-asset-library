@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { type Material } from '@/data/material.schema';
-import { highlightText, cn } from '@/lib/utils';
+import { cn, highlightText, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 interface MaterialCardGalleryProps {
@@ -15,96 +16,44 @@ interface MaterialCardGalleryProps {
   priority?: boolean;
 }
 
-// 客户端获取 CDN base
-function getClientCdnBase(): string {
-  if (typeof window === 'undefined') return '/';
-  return window.__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
-}
-
-// 客户端处理素材 URL
-function getClientMaterialUrl(path: string): string {
-  if (!path) return '';
-  
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
-  }
-  
-  const base = getClientCdnBase();
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  
-  if (base === '/' || !base || base.trim() === '') {
-    return normalizedPath;
-  }
-  
-  if (normalizedPath.startsWith('/assets/')) {
-    if (base === '/' || !base || base.trim() === '') {
-      if (typeof window !== 'undefined') {
-        const ossConfig = window.__OSS_CONFIG__;
-        if (ossConfig && ossConfig.bucket && ossConfig.region) {
-          const ossPath = normalizedPath.substring(1);
-          const region = ossConfig.region.replace(/^oss-/, '');
-          return `https://${ossConfig.bucket}.oss-${region}.aliyuncs.com/${ossPath}`;
-        }
-      }
-      return normalizedPath;
-    }
-    const ossPath = normalizedPath.substring(1);
-    return `${base.replace(/\/+$/, '')}/${ossPath}`;
-  }
-  
-  return `${base.replace(/\/+$/, '')}${normalizedPath}`;
-}
-
 export function MaterialCardGallery({ material, keyword, priority = false }: MaterialCardGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isEnlarged, setIsEnlarged] = useState(false);
+  const [enlarged, setEnlarged] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const router = useRouter();
   const nameRef = useRef<HTMLHeadingElement>(null);
   const scrollAnimationRef = useRef<number | null>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // 获取所有预览图/视频 URL
-  const galleryUrls = material.gallery && material.gallery.length > 0 
-    ? material.gallery.filter(Boolean)
-    : material.thumbnail && material.thumbnail !== material.src
-    ? [material.thumbnail, material.src].filter(Boolean)
-    : material.thumbnail
-    ? [material.thumbnail]
-    : material.src
-    ? [material.src]
-    : [];
-  
-  const highlightedName = highlightText(material.name, keyword || '');
+  const galleryUrls = useMemo(() => {
+    const urls: string[] = [];
+    if (material.gallery?.length) {
+      urls.push(...material.gallery.filter(Boolean));
+    }
+    if (material.thumbnail) {
+      urls.push(material.thumbnail);
+    }
+    if (material.src && !urls.includes(material.src)) {
+      urls.push(material.src);
+    }
+    return urls.length ? urls : [''];
+  }, [material.gallery, material.src, material.thumbnail]);
 
   const isVideoUrl = useCallback((url: string): boolean => {
     if (!url) return false;
-    const lowerUrl = url.toLowerCase();
-    return (
-      lowerUrl.includes('.mp4') ||
-      lowerUrl.includes('.webm') ||
-      lowerUrl.includes('.mov') ||
-      lowerUrl.includes('.avi') ||
-      lowerUrl.includes('.mkv')
-    );
+    const lower = url.toLowerCase();
+    return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
   }, []);
 
-  // 自动播放视频
-  useEffect(() => {
-    galleryUrls.forEach((url, index) => {
-      const video = videoRefs.current[index];
-      const urlIsVideo = isVideoUrl(url);
-      
-      if (video && urlIsVideo && index === currentIndex) {
-        video.muted = true;
-        video.play().catch((err) => {
-          console.warn('视频自动播放失败:', err);
-        });
-      } else if (video) {
-        video.pause();
-        video.currentTime = 0;
-      }
-    });
-  }, [currentIndex, galleryUrls, isVideoUrl]);
+  const imageUrls = galleryUrls.filter((url) => url && !isVideoUrl(url));
+  const videoUrls = galleryUrls.filter((url) => url && isVideoUrl(url));
+  const currentSource = galleryUrls[currentIndex] || '';
+  const currentIsVideo = isVideoUrl(currentSource);
+  const currentUrl = currentSource ? (currentIsVideo ? getClientAssetUrl(currentSource) : getOptimizedImageUrl(currentSource)) : '';
+  
+  const highlightedName = highlightText(material.name, keyword || '');
 
   // 自动滚动播放超长名称
   useEffect(() => {
@@ -198,17 +147,19 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
     };
   }, []);
 
-  const handlePrev = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1));
-  };
-
-  const handleNext = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0));
-  };
+  useEffect(() => {
+    galleryUrls.forEach((url, index) => {
+      const video = videoRefs.current[index];
+      if (!video) return;
+      if (index === currentIndex && isHovering && isVideoUrl(url)) {
+        video.muted = true;
+        video.play().catch(() => {});
+      } else {
+        video.pause();
+        video.currentTime = 0;
+      }
+    });
+  }, [currentIndex, galleryUrls, isHovering, isVideoUrl]);
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -217,12 +168,10 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
     }
-    setIsEnlarged(true);
+    setEnlarged(true);
   };
 
   const validIndex = galleryUrls.length > 0 ? Math.min(currentIndex, galleryUrls.length - 1) : 0;
-  const currentUrl = galleryUrls[validIndex] ? getClientMaterialUrl(galleryUrls[validIndex]) : '';
-  const currentIsVideo = currentUrl ? isVideoUrl(currentUrl) : false;
   const previewWrapperClass = cn(
     'relative w-full overflow-hidden bg-muted flex items-center justify-center cursor-pointer',
     'h-[300px] sm:h-[360px] lg:h-[420px]'
@@ -230,7 +179,11 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
 
   return (
     <>
-      <Card className="group overflow-hidden transition-shadow hover:shadow-lg h-full flex flex-col relative border">
+      <Card
+        className="group overflow-hidden transition-shadow hover:shadow-lg h-full flex flex-col relative border"
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      >
         <div
           className={previewWrapperClass}
           onDoubleClick={handleDoubleClick}
@@ -244,13 +197,14 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
                   ref={(el) => {
                     videoRefs.current[index] = el;
                   }}
-                  src={getClientMaterialUrl(url)}
+                  src={getClientAssetUrl(url)}
                   className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-200 ${
                     index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none z-0'
                   }`}
                   muted
                   loop
                   playsInline
+                  preload="metadata"
                 />
               );
             }
@@ -260,80 +214,16 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
           {!currentIsVideo && currentUrl && (
             <Image
               src={currentUrl}
-              alt={`${material.name} - ${currentIndex + 1}`}
-              fill
-              className="object-contain transition-opacity duration-200 z-10"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              loading={priority ? 'eager' : 'lazy'}
-              priority={priority}
-              unoptimized={currentUrl.startsWith('http') || currentUrl.startsWith('/assets/')}
+              alt={material.name}
+              width={640}
+              height={360}
+              className="h-full w-full object-contain"
             />
           )}
           
           {!currentUrl && (
             <div className="flex items-center justify-center h-full bg-muted text-muted-foreground z-10">
               <span className="text-sm">无预览图</span>
-            </div>
-          )}
-          
-          {galleryUrls.length > 1 && (
-            <>
-              <div
-                className="absolute left-0 top-0 bottom-0 w-1/3 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center justify-start pl-2"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handlePrev(e);
-                }}
-              >
-                <button
-                  className="h-8 w-8 bg-background/90 hover:bg-background rounded border flex items-center justify-center"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handlePrev(e);
-                  }}
-                  aria-label="上一张"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-              </div>
-              
-              <div
-                className="absolute right-0 top-0 bottom-0 w-1/3 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center justify-end pr-2"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleNext(e);
-                }}
-              >
-                <button
-                  className="h-8 w-8 bg-background/90 hover:bg-background rounded border flex items-center justify-center"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleNext(e);
-                  }}
-                  aria-label="下一张"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </>
-          )}
-          
-          {galleryUrls.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-              {galleryUrls.map((_, index) => (
-                <div
-                  key={index}
-                  className={`h-1.5 rounded-full transition-all ${
-                    index === currentIndex
-                      ? 'w-4 bg-primary'
-                      : 'w-1.5 bg-background/50'
-                  }`}
-                />
-              ))}
             </div>
           )}
           
@@ -395,14 +285,14 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
       </Card>
 
       {/* 放大预览模态框 */}
-      {isEnlarged && (
+      {enlarged && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
-          onClick={() => setIsEnlarged(false)}
+          onClick={() => setEnlarged(false)}
           onDoubleClick={(e) => {
             if (!currentIsVideo) {
               e.stopPropagation();
-              setIsEnlarged(false);
+              setEnlarged(false);
             }
           }}
         >
@@ -410,7 +300,7 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
             className="absolute right-4 top-4 text-white hover:bg-white/20 z-50 h-10 w-10 rounded-full flex items-center justify-center"
             onClick={(e) => {
               e.stopPropagation();
-              setIsEnlarged(false);
+              setEnlarged(false);
             }}
           >
             <X className="h-6 w-6" />
@@ -421,29 +311,14 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
             onDoubleClick={(e) => {
               if (!currentIsVideo) {
                 e.stopPropagation();
-                setIsEnlarged(false);
+                setEnlarged(false);
               }
             }}
           >
             {currentIsVideo ? (
-              <div className="relative w-full h-full">
-                <video
-                  src={currentUrl}
-                  controls
-                  autoPlay
-                  className="w-full h-full object-contain"
-                  muted={false}
-                />
-              </div>
+              <video src={currentUrl} controls autoPlay className="h-full w-full object-contain" muted />
             ) : (
-              <Image
-                src={currentUrl}
-                alt={`${material.name} - ${currentIndex + 1}`}
-                fill
-                className="object-contain"
-                sizes="100vw"
-                unoptimized={currentUrl.startsWith('http')}
-              />
+              <Image src={currentUrl} alt={material.name} fill className="object-contain" />
             )}
             {galleryUrls.length > 1 && (
               <>

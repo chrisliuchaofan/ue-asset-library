@@ -1,12 +1,21 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AssetsList } from './assets-list';
 import { HeaderActions } from './header-actions';
 import { useOfficeLocation } from './office-selector';
 import type { Asset } from '@/data/manifest.schema';
 import type { FilterSnapshot } from '@/components/filter-sidebar';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '@/components/ui/dropdown-menu';
+import { LayoutPanelTop, Film, Grid3x3, ChevronDown } from 'lucide-react';
 
 interface AssetsListWithSelectionProps {
   assets: Asset[];
@@ -14,6 +23,9 @@ interface AssetsListWithSelectionProps {
 }
 
 const SELECTED_ASSETS_STORAGE_KEY = 'selected-asset-ids';
+const VIEW_MODE_STORAGE_KEY = 'asset-view-mode';
+
+type ViewMode = 'classic' | 'thumbnail' | 'grid';
 
 // 从 localStorage 读取已选择的资产 ID
 function loadSelectedAssetIds(): Set<string> {
@@ -47,10 +59,24 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const [hasHydratedSelection, setHasHydratedSelection] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [officeLocation, setOfficeLocation] = useOfficeLocation();
+  const [viewMode, setViewMode] = useState<ViewMode>('classic');
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedMode = localStorage.getItem(VIEW_MODE_STORAGE_KEY) as ViewMode | null;
+    if (storedMode === 'classic' || storedMode === 'thumbnail' || storedMode === 'grid') {
+      setViewMode(storedMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
+  }, [viewMode]);
 
   useEffect(() => {
     if (hasHydratedSelection) return;
@@ -130,20 +156,60 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     }
   }, []);
 
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+  }, []);
+
   const headerPortal = mounted ? document.getElementById('header-actions-portal') : null;
+
+  const viewModeOptions: Array<{ value: ViewMode; label: string; icon: ReactNode }> = [
+    { value: 'classic', label: '经典预览', icon: <LayoutPanelTop className="h-4 w-4" /> },
+    { value: 'thumbnail', label: '缩略图预览', icon: <Film className="h-4 w-4" /> },
+    { value: 'grid', label: '宫格预览', icon: <Grid3x3 className="h-4 w-4" /> },
+  ];
+
+  const currentViewOption = viewModeOptions.find((option) => option.value === viewMode) ?? viewModeOptions[0];
 
   return (
     <>
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
           找到 {assets.length} 个资产
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="inline-flex items-center gap-2 rounded-full border border-muted-foreground/20 bg-background/80 px-3 py-2 text-xs font-medium text-foreground shadow-sm transition hover:bg-muted/80 dark:bg-white/10"
+            >
+              {currentViewOption.icon}
+              <span className="hidden md:inline">{currentViewOption.label}</span>
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuRadioGroup
+              value={viewMode}
+              onValueChange={(value) => handleViewModeChange(value as ViewMode)}
+            >
+              {viewModeOptions.map((option) => (
+                <DropdownMenuRadioItem key={option.value} value={option.value} className="flex items-center gap-2">
+                  {option.icon}
+                  <span>{option.label}</span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <AssetsList
         assets={assets}
         selectedAssetIds={selectedAssetIds}
         onToggleSelection={handleToggleSelection}
         officeLocation={officeLocation}
+        viewMode={viewMode}
         optimisticFilters={optimisticFilters ?? undefined}
       />
       {headerPortal && createPortal(

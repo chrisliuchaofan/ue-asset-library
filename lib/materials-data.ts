@@ -1,3 +1,4 @@
+
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { randomBytes } from 'crypto';
@@ -13,6 +14,67 @@ type StorageMode = 'local' | 'oss';
 const materialsPath = join(process.cwd(), 'data', 'materials.json');
 const MATERIALS_MANIFEST_FILE = 'materials.json';
 const STORAGE_MODE: StorageMode = getStorageMode();
+
+const MATERIALS_CACHE_TTL_MS = (() => {
+  const rawTTL =
+    process.env.MATERIALS_CACHE_TTL ??
+    process.env.MANIFEST_CACHE_TTL ??
+    '60000';
+  const parsed = Number.parseInt(rawTTL, 10);
+  if (Number.isNaN(parsed) || !Number.isFinite(parsed)) {
+    return 60000;
+  }
+  return Math.max(0, parsed);
+})();
+
+interface MaterialsCacheEntry {
+  materials: Material[];
+  expires: number;
+}
+
+interface MaterialsCacheStore {
+  entry?: MaterialsCacheEntry;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __materialsManifestCache: MaterialsCacheStore | undefined;
+}
+
+function getMaterialsCacheStore(): MaterialsCacheStore {
+  if (!globalThis.__materialsManifestCache) {
+    globalThis.__materialsManifestCache = {};
+  }
+  return globalThis.__materialsManifestCache;
+}
+
+function readMaterialsCache(): Material[] | null {
+  if (MATERIALS_CACHE_TTL_MS <= 0) {
+    return null;
+  }
+  const store = getMaterialsCacheStore();
+  if (store.entry && store.entry.expires > Date.now()) {
+    return JSON.parse(JSON.stringify(store.entry.materials)) as Material[];
+  }
+  return null;
+}
+
+function writeMaterialsCache(materials: Material[]): void {
+  if (MATERIALS_CACHE_TTL_MS <= 0) {
+    invalidateMaterialsCache();
+    return;
+  }
+  const cloned = JSON.parse(JSON.stringify(materials)) as Material[];
+  getMaterialsCacheStore().entry = {
+    materials: cloned,
+    expires: Date.now() + MATERIALS_CACHE_TTL_MS,
+  };
+}
+
+export function invalidateMaterialsCache(): void {
+  const store = getMaterialsCacheStore();
+  store.entry = undefined;
+}
 
 // 生成 UUID v4（兼容所有 Node.js 版本）
 function generateUUID(): string {
@@ -74,17 +136,32 @@ async function writeLocalMaterials(materials: Material[]): Promise<void> {
   await ensureLocalDir();
   const payload = { materials };
   await fs.writeFile(materialsPath, JSON.stringify(payload, null, 2), 'utf-8');
+  invalidateMaterialsCache();
 }
 
 // OSS 模式：读取素材清单
 async function readOssMaterials(): Promise<Material[]> {
+  const cached = readMaterialsCache();
+  if (cached) {
+    return cached;
+  }
+
   try {
-    const client = getOSSClient();
+    let client: ReturnType<typeof getOSSClient>;
+    try {
+      client = getOSSClient();
+    } catch (configError: any) {
+      console.warn('OSS 配置不完整，返回空数组:', configError?.message || configError);
+      writeMaterialsCache([]);
+      return [];
+    }
+
     const result = await client.get(MATERIALS_MANIFEST_FILE);
     const data = JSON.parse(result.content.toString('utf-8'));
 
     try {
       const validated = MaterialsManifestSchema.parse(data);
+      writeMaterialsCache(validated.materials);
       return validated.materials;
     } catch (parseError) {
       console.error('素材数据格式验证失败:', parseError);
@@ -97,14 +174,17 @@ async function readOssMaterials(): Promise<Material[]> {
             return false;
           }
         });
-        return validMaterials;
+        writeMaterialsCache(validMaterials as Material[]);
+        return validMaterials as Material[];
       }
+      writeMaterialsCache([]);
       return [];
     }
   } catch (error) {
     const err = error as any;
     if (err?.code === 'NoSuchKey' || err?.status === 404) {
       console.warn('OSS 未找到 materials.json，返回空数组');
+      writeMaterialsCache([]);
       return [];
     }
     if (
@@ -115,6 +195,7 @@ async function readOssMaterials(): Promise<Material[]> {
       err?.message?.includes?.('UserDisable')
     ) {
       console.warn('连接 OSS 失败，返回空数组:', err?.message);
+      writeMaterialsCache([]);
       return [];
     }
     console.error('读取 OSS 素材清单失败:', error);
@@ -129,6 +210,7 @@ async function writeOssMaterials(materials: Material[]): Promise<void> {
   await client.put(MATERIALS_MANIFEST_FILE, Buffer.from(payload, 'utf-8'), {
     contentType: 'application/json',
   });
+  writeMaterialsCache(materials);
 }
 
 async function readMaterials(): Promise<Material[]> {
