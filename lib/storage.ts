@@ -705,12 +705,17 @@ async function writeOSSManifest(assets: Asset[], allowedTypes?: string[]): Promi
 
 
 export async function listAssets(): Promise<Asset[]> {
+  const start = Date.now();
   if (STORAGE_MODE === 'local') {
     const result = await readLocalManifest();
+    const duration = Date.now() - start;
+    console.info('[AssetsManifest]', { mode: 'local', count: result.assets.length, durationMs: duration });
     return result.assets;
   }
 
   const result = await readOSSManifest();
+  const duration = Date.now() - start;
+  console.info('[AssetsManifest]', { mode: 'oss', count: result.assets.length, durationMs: duration });
   return result.assets;
 }
 
