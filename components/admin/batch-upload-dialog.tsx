@@ -556,8 +556,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                       }
                     }
                   } else {
-                    const errorData = await uploadResponse.json();
-                    console.warn(`文件 ${fileName} 上传失败:`, errorData.message);
+                    console.warn(`文件 ${fileName} 上传失败: 未返回 URL`);
                   }
                 } catch (err) {
                   console.warn(`处理文件 ${fileName} 时出错:`, err);
