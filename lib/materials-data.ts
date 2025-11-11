@@ -229,7 +229,11 @@ async function writeMaterials(materials: Material[]): Promise<void> {
 }
 
 export async function getAllMaterials(): Promise<Material[]> {
-  return readMaterials();
+  const start = Date.now();
+  const materials = await readMaterials();
+  const duration = Date.now() - start;
+  console.info('[MaterialsManifest]', { mode: STORAGE_MODE, count: materials.length, durationMs: duration });
+  return materials;
 }
 
 export async function getMaterialById(id: string): Promise<Material | null> {

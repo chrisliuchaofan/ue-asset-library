@@ -4,13 +4,19 @@ import { createMaterial, getAllMaterials } from '@/lib/materials-data';
 import { z } from 'zod';
 
 export async function GET() {
+  const start = Date.now();
   try {
     const materials = await getAllMaterials();
-    return NextResponse.json({ materials });
+    const duration = Date.now() - start;
+    const response = NextResponse.json({ materials });
+    response.headers.set('X-Materials-Total', duration.toString());
+    return response;
   } catch (error) {
     console.error('获取素材列表失败', error);
     const message = error instanceof Error ? error.message : '获取素材列表失败';
-    return NextResponse.json({ message, materials: [] }, { status: 500 });
+    const response = NextResponse.json({ message, materials: [] }, { status: 500 });
+    response.headers.set('X-Materials-Error', Date.now().toString());
+    return response;
   }
 }
 
