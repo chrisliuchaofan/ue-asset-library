@@ -127,9 +127,24 @@ function AssetsListContent({
     };
   }, [optimisticFilters, selectedTags, selectedTypes, selectedStyles, selectedSources, selectedVersions]);
 
-  const filteredAssets = useMemo(
-    () =>
-      filterAssets(
+  const { filteredAssets, filterDurationMs } = useMemo(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      const start = performance.now();
+      const result = filterAssets(
+        assets,
+        keyword,
+        effectiveFilters.tags.length ? effectiveFilters.tags : undefined,
+        effectiveFilters.types.length ? effectiveFilters.types : undefined,
+        effectiveFilters.styles.length ? effectiveFilters.styles : undefined,
+        effectiveFilters.sources.length ? effectiveFilters.sources : undefined,
+        effectiveFilters.versions.length ? effectiveFilters.versions : undefined
+      );
+      const duration = performance.now() - start;
+      return { filteredAssets: result, filterDurationMs: duration };
+    }
+
+    return {
+      filteredAssets: filterAssets(
         assets,
         keyword,
         effectiveFilters.tags.length ? effectiveFilters.tags : undefined,
@@ -138,8 +153,9 @@ function AssetsListContent({
         effectiveFilters.sources.length ? effectiveFilters.sources : undefined,
         effectiveFilters.versions.length ? effectiveFilters.versions : undefined
       ),
-    [assets, keyword, effectiveFilters]
-  );
+      filterDurationMs: null,
+    };
+  }, [assets, keyword, effectiveFilters]);
 
   const filteredForViewMode = filteredAssets;
 
@@ -151,6 +167,14 @@ function AssetsListContent({
 
   if (paginatedAssets.length === 0) {
     return <EmptyState />;
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.info('[AssetsList] render start', {
+      totalAssets: assets.length,
+      filteredCount: filteredAssets.length,
+      filterDurationMs,
+    });
   }
 
   const createPageUrl = (pageNum: number) => {
@@ -175,7 +199,21 @@ function AssetsListContent({
   return (
     <>
       {/* ✅ 响应式多列网格布局，按视图模式调整 */}
-      <div className={gridClassName}>
+      <div
+        className={gridClassName}
+        ref={(node) => {
+          if (process.env.NODE_ENV !== 'production' && node) {
+            requestAnimationFrame(() => {
+              const duration = filterDurationMs ?? 0;
+              console.info('[AssetsList] render complete', {
+                filteredCount: filteredAssets.length,
+                filterDurationMs: duration,
+                childCount: node.childElementCount,
+              });
+            });
+          }
+        }}
+      >
         {paginatedAssets.map((asset, index) => (
             <AssetCardGallery 
               key={asset.id} 
