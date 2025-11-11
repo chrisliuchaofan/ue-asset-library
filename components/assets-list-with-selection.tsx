@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { AssetsList } from './assets-list';
 import { HeaderActions } from './header-actions';
@@ -16,6 +17,7 @@ import {
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
 import { LayoutPanelTop, Film, Grid3x3, ChevronDown } from 'lucide-react';
+import { filterAssetsByOptions } from '@/lib/asset-filters';
 
 interface AssetsListWithSelectionProps {
   assets: Asset[];
@@ -60,6 +62,11 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const [mounted, setMounted] = useState(false);
   const [officeLocation, setOfficeLocation] = useOfficeLocation();
   const [viewMode, setViewMode] = useState<ViewMode>('classic');
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchParams = useSearchParams();
+  const [displayAssets, setDisplayAssets] = useState<Asset[]>(assets);
+  const [filterDurationMs, setFilterDurationMs] = useState<number | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -160,6 +167,145 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     setViewMode(mode);
   }, []);
 
+  const keyword = searchParams.get('q') ?? '';
+  const selectedTypes = useMemo(
+    () => (searchParams.get('types')?.split(',').filter(Boolean) ?? []).sort(),
+    [searchParams]
+  );
+  const selectedStyles = useMemo(
+    () => (searchParams.get('styles')?.split(',').filter(Boolean) ?? []).sort(),
+    [searchParams]
+  );
+  const selectedTags = useMemo(
+    () => (searchParams.get('tags')?.split(',').filter(Boolean) ?? []).sort(),
+    [searchParams]
+  );
+  const selectedSources = useMemo(
+    () => (searchParams.get('sources')?.split(',').filter(Boolean) ?? []).sort(),
+    [searchParams]
+  );
+  const selectedVersions = useMemo(
+    () => (searchParams.get('versions')?.split(',').filter(Boolean) ?? []).sort(),
+    [searchParams]
+  );
+
+  const filtersKey = useMemo(() => {
+    return [
+      keyword,
+      selectedTypes.join('|'),
+      selectedStyles.join('|'),
+      selectedTags.join('|'),
+      selectedSources.join('|'),
+      selectedVersions.join('|'),
+    ].join('::');
+  }, [keyword, selectedTypes, selectedStyles, selectedTags, selectedSources, selectedVersions]);
+
+  const hasServerFilters =
+    keyword.trim() !== '' ||
+    selectedTypes.length > 0 ||
+    selectedStyles.length > 0 ||
+    selectedTags.length > 0 ||
+    selectedSources.length > 0 ||
+    selectedVersions.length > 0;
+
+  // 乐观本地过滤，确保交互即时响应
+  useEffect(() => {
+    if (!optimisticFilters) {
+      return;
+    }
+    const start = performance.now();
+    const preview = filterAssetsByOptions(assets, {
+      keyword,
+      types: optimisticFilters.types,
+      styles: optimisticFilters.styles,
+      tags: optimisticFilters.tags,
+      sources: optimisticFilters.sources,
+      versions: optimisticFilters.versions,
+    });
+    const duration = performance.now() - start;
+    setDisplayAssets(preview);
+    setFilterDurationMs(duration);
+    setIsFetching(true);
+  }, [assets, keyword, optimisticFilters]);
+
+  // 没有筛选条件时使用初始数据
+  useEffect(() => {
+    if (optimisticFilters) {
+      return;
+    }
+    if (!hasServerFilters) {
+      setDisplayAssets(assets);
+      setFilterDurationMs(null);
+      setIsFetching(false);
+    }
+  }, [assets, hasServerFilters, optimisticFilters]);
+
+  // 服务端筛选
+  useEffect(() => {
+    if (optimisticFilters) {
+      return;
+    }
+    if (!hasServerFilters) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const payload = {
+      keyword: keyword.trim() || undefined,
+      types: selectedTypes,
+      styles: selectedStyles,
+      tags: selectedTags,
+      sources: selectedSources,
+      versions: selectedVersions,
+    };
+
+    const start = performance.now();
+    setIsFetching(true);
+
+    fetch('/api/assets/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const message = await res.text();
+          throw new Error(message || '筛选请求失败');
+        }
+        return res.json() as Promise<{ assets: Asset[] }>;
+      })
+      .then(({ assets: nextAssets }) => {
+        const duration = performance.now() - start;
+        setDisplayAssets(nextAssets);
+        setFilterDurationMs(duration);
+      })
+      .catch((error) => {
+        if (error.name === 'AbortError') return;
+        console.error('筛选接口错误:', error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsFetching(false);
+        }
+      });
+
+  return () => {
+      controller.abort();
+    };
+  }, [
+    assets,
+    filtersKey,
+    hasServerFilters,
+    keyword,
+    optimisticFilters,
+    selectedSources,
+    selectedStyles,
+    selectedTags,
+    selectedTypes,
+    selectedVersions,
+  ]);
+
   const headerPortal = mounted ? document.getElementById('header-actions-portal') : null;
 
   const viewModeOptions: Array<{ value: ViewMode; label: string; icon: ReactNode }> = [
@@ -171,47 +317,54 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const currentViewOption = viewModeOptions.find((option) => option.value === viewMode) ?? viewModeOptions[0];
 
   return (
-    <>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-muted-foreground">
-          找到 {assets.length} 个资产
+    <div className="flex h-full flex-col">
+      <div className="px-3 pt-3 sm:px-5 sm:pt-5 lg:px-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            找到 {displayAssets.length} 个资产
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="inline-flex items-center gap-2 rounded-full border border-muted-foreground/20 bg-background/80 px-3 py-2 text-xs font-medium text-foreground shadow-sm transition hover:bg-muted/80 dark:bg-white/10"
+              >
+                {currentViewOption.icon}
+                <span className="hidden md:inline">{currentViewOption.label}</span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuRadioGroup
+                value={viewMode}
+                onValueChange={(value) => handleViewModeChange(value as ViewMode)}
+              >
+                {viewModeOptions.map((option) => (
+                  <DropdownMenuRadioItem key={option.value} value={option.value} className="flex items-center gap-2">
+                    {option.icon}
+                    <span>{option.label}</span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="inline-flex items-center gap-2 rounded-full border border-muted-foreground/20 bg-background/80 px-3 py-2 text-xs font-medium text-foreground shadow-sm transition hover:bg-muted/80 dark:bg-white/10"
-            >
-              {currentViewOption.icon}
-              <span className="hidden md:inline">{currentViewOption.label}</span>
-              <ChevronDown className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuRadioGroup
-              value={viewMode}
-              onValueChange={(value) => handleViewModeChange(value as ViewMode)}
-            >
-              {viewModeOptions.map((option) => (
-                <DropdownMenuRadioItem key={option.value} value={option.value} className="flex items-center gap-2">
-                  {option.icon}
-                  <span>{option.label}</span>
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
-      <AssetsList
-        assets={assets}
-        selectedAssetIds={selectedAssetIds}
-        onToggleSelection={handleToggleSelection}
-        officeLocation={officeLocation}
-        viewMode={viewMode}
-        optimisticFilters={optimisticFilters ?? undefined}
-      />
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto px-3 pb-6 sm:px-5 lg:px-6">
+        <AssetsList
+          assets={displayAssets}
+          selectedAssetIds={selectedAssetIds}
+          onToggleSelection={handleToggleSelection}
+          officeLocation={officeLocation}
+          viewMode={viewMode}
+          scrollContainerRef={scrollContainerRef}
+          keyword={keyword}
+          filterDurationMs={filterDurationMs}
+          isFetching={isFetching}
+        />
+      </div>
       {headerPortal && createPortal(
         <HeaderActions
           selectedAssets={allSelectedAssets}
@@ -222,7 +375,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
         />,
         headerPortal
       )}
-    </>
+    </div>
   );
 }
 
