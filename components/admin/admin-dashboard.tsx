@@ -158,8 +158,8 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
       }
       setAllowedTypes([...DEFAULT_ASSET_TYPES]);
     } catch (err) {
-      console.error('获取类型列表失败:', err);
-      setAllowedTypes([...DEFAULT_ASSET_TYPES]);
+        console.error('获取类型列表失败:', err);
+        setAllowedTypes([...DEFAULT_ASSET_TYPES]);
     }
   }, []);
 
@@ -402,8 +402,8 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
   // 处理类型管理保存
   const handleTypesSave = useCallback(async () => {
     await fetchAllowedTypes();
-    await refreshAssets();
-    setMessage('类型已更新');
+        await refreshAssets();
+        setMessage('类型已更新');
   }, [fetchAllowedTypes, refreshAssets]);
 
   const handleCreate = async () => {
@@ -881,48 +881,48 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
           height: undefined,
         };
       } else {
-        const formData = new FormData();
-        formData.append('file', file);
+      const formData = new FormData();
+      formData.append('file', file);
 
-        const xhr = new XMLHttpRequest();
-        const uploadPromise = new Promise<any>((resolve, reject) => {
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const percent = Math.round((e.loaded / e.total) * 100);
-              setUploadProgressPercent(percent);
-              setUploadProgress(`正在上传... ${percent}%`);
-            }
-          });
+      const xhr = new XMLHttpRequest();
+      const uploadPromise = new Promise<any>((resolve, reject) => {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setUploadProgressPercent(percent);
+            setUploadProgress(`正在上传... ${percent}%`);
+          }
+        });
 
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
                 const responseData = JSON.parse(xhr.responseText);
                 resolve(responseData);
-              } catch (err) {
-                reject(new Error('服务器响应格式错误'));
-              }
-            } else {
-              try {
-                const error = JSON.parse(xhr.responseText);
-                reject(new Error(error.message || '上传失败'));
-              } catch {
-                reject(new Error(`上传失败: HTTP ${xhr.status}`));
-              }
+            } catch (err) {
+              reject(new Error('服务器响应格式错误'));
             }
-          });
-
-          xhr.addEventListener('error', () => {
-            reject(new Error('网络错误，请检查网络连接'));
-          });
-
-          xhr.addEventListener('abort', () => {
-            reject(new Error('上传已取消'));
-          });
-
-          xhr.open('POST', '/api/upload');
-          xhr.send(formData);
+          } else {
+            try {
+              const error = JSON.parse(xhr.responseText);
+              reject(new Error(error.message || '上传失败'));
+            } catch {
+              reject(new Error(`上传失败: HTTP ${xhr.status}`));
+            }
+          }
         });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('网络错误，请检查网络连接'));
+        });
+
+        xhr.addEventListener('abort', () => {
+          reject(new Error('上传已取消'));
+        });
+
+        xhr.open('POST', '/api/upload');
+        xhr.send(formData);
+      });
 
         const responseData = await uploadPromise;
         data = {
@@ -1062,7 +1062,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
           const fileIndex = files.indexOf(file) + 1;
           setUploadProgress(`正在上传 ${fileIndex}/${files.length}: ${file.name}...`);
           setUploadProgressPercent(0);
-
+          
           let data: {
             url: string;
             originalName: string;
@@ -1088,49 +1088,49 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
               size: file.size,
             };
           } else {
-            const formData = new FormData();
-            formData.append('file', file);
+          const formData = new FormData();
+          formData.append('file', file);
 
-            const xhr = new XMLHttpRequest();
+          const xhr = new XMLHttpRequest();
+          
+          const uploadPromise = new Promise<any>((resolve, reject) => {
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                setUploadProgressPercent(percent);
+                setUploadProgress(`正在上传 ${fileIndex}/${files.length}: ${file.name}... ${percent}%`);
+              }
+            });
 
-            const uploadPromise = new Promise<any>((resolve, reject) => {
-              xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                  const percent = Math.round((e.loaded / e.total) * 100);
-                  setUploadProgressPercent(percent);
-                  setUploadProgress(`正在上传 ${fileIndex}/${files.length}: ${file.name}... ${percent}%`);
-                }
-              });
-
-              xhr.addEventListener('load', () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  try {
+            xhr.addEventListener('load', () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
                     const responseData = JSON.parse(xhr.responseText);
                     resolve(responseData);
-                  } catch (err) {
-                    reject(new Error(`解析 ${file.name} 的响应失败`));
-                  }
-                } else {
-                  try {
-                    const error = JSON.parse(xhr.responseText);
-                    reject(new Error(error.message || `上传 ${file.name} 失败`));
-                  } catch {
-                    reject(new Error(`上传 ${file.name} 失败: HTTP ${xhr.status}`));
-                  }
+                } catch (err) {
+                  reject(new Error(`解析 ${file.name} 的响应失败`));
                 }
-              });
-
-              xhr.addEventListener('error', () => {
-                reject(new Error(`上传 ${file.name} 时发生网络错误`));
-              });
-
-              xhr.addEventListener('abort', () => {
-                reject(new Error(`上传 ${file.name} 已取消`));
-              });
-
-              xhr.open('POST', '/api/upload');
-              xhr.send(formData);
+              } else {
+                try {
+                  const error = JSON.parse(xhr.responseText);
+                  reject(new Error(error.message || `上传 ${file.name} 失败`));
+                } catch {
+                  reject(new Error(`上传 ${file.name} 失败: HTTP ${xhr.status}`));
+                }
+              }
             });
+
+            xhr.addEventListener('error', () => {
+              reject(new Error(`上传 ${file.name} 时发生网络错误`));
+            });
+
+            xhr.addEventListener('abort', () => {
+              reject(new Error(`上传 ${file.name} 已取消`));
+            });
+
+            xhr.open('POST', '/api/upload');
+            xhr.send(formData);
+          });
 
             const responseData = await uploadPromise;
             data = {
@@ -1145,7 +1145,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
           }
 
           const fileHash = await calculateFileHash(file);
-
+          
           newFiles.push({
             url: data.url,
             originalName: data.originalName,
@@ -1325,208 +1325,208 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
     switch (columnId) {
       case 'preview': {
         const allMediaFiles: Array<{ url: string; label: string; type: 'image' | 'video' }> = [];
-        const isVideoUrl = (url: string) => {
-          if (!url) return false;
-          const lower = url.toLowerCase();
-          return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
-        };
+                  const isVideoUrl = (url: string) => {
+                    if (!url) return false;
+                    const lower = url.toLowerCase();
+                    return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
+                  };
 
-        if (asset.thumbnail) {
-          allMediaFiles.push({
-            url: asset.thumbnail,
-            label: '封面图',
-            type: isVideoUrl(asset.thumbnail) ? 'video' : 'image',
-          });
-        }
-
-        if (asset.src && asset.src !== asset.thumbnail) {
-          allMediaFiles.push({
-            url: asset.src,
-            label: '资源文件',
-            type: isVideoUrl(asset.src) ? 'video' : 'image',
-          });
-        }
-
-        if (asset.gallery && asset.gallery.length > 0) {
-          asset.gallery.forEach((url, index) => {
-            if (url && url !== asset.thumbnail && url !== asset.src) {
-              allMediaFiles.push({
+                          if (asset.thumbnail) {
+                            allMediaFiles.push({
+                              url: asset.thumbnail,
+                              label: '封面图',
+                              type: isVideoUrl(asset.thumbnail) ? 'video' : 'image',
+                            });
+                          }
+                          
+                          if (asset.src && asset.src !== asset.thumbnail) {
+                            allMediaFiles.push({
+                              url: asset.src,
+                              label: '资源文件',
+                              type: isVideoUrl(asset.src) ? 'video' : 'image',
+                            });
+                          }
+                          
+                          if (asset.gallery && asset.gallery.length > 0) {
+                            asset.gallery.forEach((url, index) => {
+                              if (url && url !== asset.thumbnail && url !== asset.src) {
+                                allMediaFiles.push({
                 url,
-                label: `画廊 ${index + 1}`,
-                type: isVideoUrl(url) ? 'video' : 'image',
-              });
-            }
-          });
-        }
-
-        if (allMediaFiles.length === 0 && asset.src) {
-          allMediaFiles.push({
-            url: asset.src,
-            label: '资源文件',
-            type: isVideoUrl(asset.src) ? 'video' : 'image',
-          });
-        }
-
-        const currentThumbnail = asset.thumbnail || '';
-        const currentPreviewUrl = getPreviewUrl(currentThumbnail);
-
-        const handleSelectThumbnail = async (selectedUrl: string | null) => {
-          try {
-            setLoading(true);
-            const response = await fetch(`/api/assets/${asset.id}`, {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                id: asset.id,
+                                  label: `画廊 ${index + 1}`,
+                                  type: isVideoUrl(url) ? 'video' : 'image',
+                                });
+                              }
+                            });
+                          }
+                          
+                          if (allMediaFiles.length === 0 && asset.src) {
+                            allMediaFiles.push({
+                              url: asset.src,
+                              label: '资源文件',
+                              type: isVideoUrl(asset.src) ? 'video' : 'image',
+                            });
+                          }
+                          
+                          const currentThumbnail = asset.thumbnail || '';
+                          const currentPreviewUrl = getPreviewUrl(currentThumbnail);
+                          
+                          const handleSelectThumbnail = async (selectedUrl: string | null) => {
+                            try {
+                              setLoading(true);
+                              const response = await fetch(`/api/assets/${asset.id}`, {
+                                method: 'PUT',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                  id: asset.id,
                 thumbnail: selectedUrl || undefined,
-              }),
-            });
-
-            if (!response.ok) {
-              const error = await response.json();
-              throw new Error(error.message || '更新预览图失败');
-            }
-
-            await refreshAssets();
-            setMessage('预览图已更新');
-          } catch (error) {
-            console.error(error);
-            setMessage(error instanceof Error ? error.message : '更新预览图失败');
-          } finally {
-            setLoading(false);
-          }
-        };
-
-        return (
+                                }),
+                              });
+                              
+                              if (!response.ok) {
+                                const error = await response.json();
+                                throw new Error(error.message || '更新预览图失败');
+                              }
+                              
+                              await refreshAssets();
+                              setMessage('预览图已更新');
+                            } catch (error) {
+                              console.error(error);
+                              setMessage(error instanceof Error ? error.message : '更新预览图失败');
+                            } finally {
+                              setLoading(false);
+                            }
+                          };
+                          
+                          return (
           <div className="flex h-[72px] items-center">
-            <div className="relative group">
-              {currentPreviewUrl ? (
+                            <div className="relative group">
+                              {currentPreviewUrl ? (
                 <div className="relative h-[64px] w-[64px] overflow-hidden rounded-md border border-white/15 bg-[#111a2d]">
-                  {isVideoUrl(currentThumbnail) ? (
+                                  {isVideoUrl(currentThumbnail) ? (
                     <video src={currentPreviewUrl} className="h-full w-full object-cover" muted playsInline />
-                  ) : (
-                    <img
-                      src={currentPreviewUrl}
-                      alt={asset.name}
+                                  ) : (
+                                    <img
+                                      src={currentPreviewUrl}
+                                      alt={asset.name}
                       className="h-full w-full object-cover"
-                      onError={(e) => {
-                        const img = e.target as HTMLImageElement;
-                        console.warn(`[预览图加载失败] 资产 "${asset.name}" (ID: ${asset.id}):`, {
-                          previewUrl: currentPreviewUrl,
-                          thumbnail: asset.thumbnail,
-                          src: asset.src,
-                          '尝试的URL': img.src,
-                        });
+                                      onError={(e) => {
+                                        const img = e.target as HTMLImageElement;
+                                        console.warn(`[预览图加载失败] 资产 "${asset.name}" (ID: ${asset.id}):`, {
+                                          previewUrl: currentPreviewUrl,
+                                          thumbnail: asset.thumbnail,
+                                          src: asset.src,
+                                          '尝试的URL': img.src,
+                                        });
                         img.src =
                           'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="56" height="56"%3E%3Crect fill="%23ccc" width="56" height="56"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999" font-size="10"%3E无预览%3C/text%3E%3C/svg%3E';
-                      }}
-                    />
-                  )}
-                  {allMediaFiles.length > 0 && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
+                                      }}
+                                    />
+                                  )}
+                                  {allMediaFiles.length > 0 && (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
                           className="absolute right-1 top-1 h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
-                        >
-                          <MoreVertical className="h-3 w-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
+                                        >
+                                          <MoreVertical className="h-3 w-3" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="w-48">
                         <div className="px-2 py-1.5 text-xs font-medium text-slate-300">选择预览图</div>
-                        <DropdownMenuSeparator />
-                        {allMediaFiles.map((file, index) => {
-                          const filePreviewUrl = getPreviewUrl(file.url);
+                                        <DropdownMenuSeparator />
+                                        {allMediaFiles.map((file, index) => {
+                                          const filePreviewUrl = getPreviewUrl(file.url);
                           const active = currentThumbnail === file.url;
-                          return (
-                            <DropdownMenuItem
-                              key={index}
-                              onClick={() => handleSelectThumbnail(file.url)}
+                                          return (
+                                            <DropdownMenuItem
+                                              key={index}
+                                              onClick={() => handleSelectThumbnail(file.url)}
                               className="flex items-center gap-2"
-                            >
+                                            >
                               <div className="h-8 w-8 overflow-hidden rounded bg-[#0f172a]">
-                                {file.type === 'video' ? (
+                                                {file.type === 'video' ? (
                                   <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
-                                ) : (
-                                  <img
-                                    src={filePreviewUrl}
-                                    alt={file.label}
+                                                ) : (
+                                                  <img
+                                                    src={filePreviewUrl}
+                                                    alt={file.label}
                                     className="h-full w-full object-cover"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                    }}
-                                  />
-                                )}
-                              </div>
+                                                    onError={(e) => {
+                                                      (e.target as HTMLImageElement).style.display = 'none';
+                                                    }}
+                                                  />
+                                                )}
+                                              </div>
                               <span className="flex-1 truncate text-xs">{file.label}</span>
                               {active && <Star className="h-3 w-3 text-primary" />}
-                            </DropdownMenuItem>
-                          );
-                        })}
-                        <DropdownMenuSeparator />
+                                            </DropdownMenuItem>
+                                          );
+                                        })}
+                                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => handleSelectThumbnail(null)} className="text-destructive">
-                          取消预览图
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              ) : (
+                                          取消预览图
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  )}
+                                </div>
+                              ) : (
                 <div className="relative group">
                   <div className="flex h-[64px] w-[64px] items-center justify-center rounded-md border border-dashed border-white/15 bg-white/5 text-[11px] text-slate-400">
-                    无预览
-                  </div>
-                  {allMediaFiles.length > 0 && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
+                                    无预览
+                                  </div>
+                                  {allMediaFiles.length > 0 && (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
                           className="absolute right-1 top-1 h-6 w-6 opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100"
-                        >
-                          <ImageIcon className="h-3 w-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
+                                        >
+                                          <ImageIcon className="h-3 w-3" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="w-48">
                         <div className="px-2 py-1.5 text-xs font-medium text-slate-300">选择预览图</div>
-                        <DropdownMenuSeparator />
-                        {allMediaFiles.map((file, index) => {
-                          const filePreviewUrl = getPreviewUrl(file.url);
-                          return (
-                            <DropdownMenuItem
-                              key={index}
-                              onClick={() => handleSelectThumbnail(file.url)}
+                                        <DropdownMenuSeparator />
+                                        {allMediaFiles.map((file, index) => {
+                                          const filePreviewUrl = getPreviewUrl(file.url);
+                                          return (
+                                            <DropdownMenuItem
+                                              key={index}
+                                              onClick={() => handleSelectThumbnail(file.url)}
                               className="flex items-center gap-2"
-                            >
+                                            >
                               <div className="h-8 w-8 overflow-hidden rounded bg-[#0f172a]">
-                                {file.type === 'video' ? (
+                                                {file.type === 'video' ? (
                                   <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
-                                ) : (
-                                  <img
-                                    src={filePreviewUrl}
-                                    alt={file.label}
+                                                ) : (
+                                                  <img
+                                                    src={filePreviewUrl}
+                                                    alt={file.label}
                                     className="h-full w-full object-cover"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                    }}
-                                  />
-                                )}
-                              </div>
+                                                    onError={(e) => {
+                                                      (e.target as HTMLImageElement).style.display = 'none';
+                                                    }}
+                                                  />
+                                                )}
+                                              </div>
                               <span className="flex-1 truncate text-xs">{file.label}</span>
-                            </DropdownMenuItem>
-                          );
-                        })}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              )}
+                                            </DropdownMenuItem>
+                                          );
+                                        })}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  )}
+                                </div>
+                              )}
             </div>
-          </div>
-        );
+                            </div>
+                          );
       }
       case 'name':
         return (
@@ -1537,46 +1537,46 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
       case 'type':
         return (
           <div className="flex h-[72px] items-center whitespace-nowrap text-xs sm:text-sm">
-            {asset.type}
+                        {asset.type}
           </div>
         );
       case 'tags': {
-        const tagsArray = Array.isArray(asset.tags)
-          ? asset.tags
-          : typeof (asset as any).tags === 'string'
+                            const tagsArray = Array.isArray(asset.tags)
+                              ? asset.tags
+                              : typeof (asset as any).tags === 'string'
             ? (asset as any).tags
                 .split(',')
                 .map((t: string) => t.trim())
                 .filter(Boolean)
-            : [];
+                              : [];
         return (
           <div className="flex h-[72px] flex-wrap items-center gap-1">
             {tagsArray.map((tag: string) => (
               <Badge key={tag} variant="secondary" className="text-[11px] font-medium">
-                {tag}
-              </Badge>
+                                {tag}
+                              </Badge>
             ))}
-          </div>
+                        </div>
         );
       }
       case 'paths':
         return (
           <div className="flex h-[72px] items-center">
             <div className="space-y-1 break-all text-[11px] leading-relaxed text-muted-foreground">
-              {asset.thumbnail && <div>封面：{asset.thumbnail}</div>}
-              <div>资源：{asset.src}</div>
-            </div>
+                          {asset.thumbnail && <div>封面：{asset.thumbnail}</div>}
+                          <div>资源：{asset.src}</div>
+                        </div>
           </div>
         );
       case 'updatedAt': {
-        const updateTime = asset.updatedAt || asset.createdAt;
+                          const updateTime = asset.updatedAt || asset.createdAt;
         const display = updateTime
           ? new Date(updateTime).toLocaleString('zh-CN', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
             })
           : '-';
         return <div className="flex h-[72px] items-center text-[11px] text-slate-400 whitespace-nowrap">{display}</div>;
@@ -1584,35 +1584,35 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
       case 'actions':
         return (
           <div className="flex h-[72px] items-center gap-1.5">
-            <Button
+                          <Button
               size="icon"
-              variant="outline"
+                            variant="outline"
               className="h-8 w-8 rounded-lg border-white/20 text-sm font-semibold"
               onClick={() => window.open(`/assets/${asset.id}`, '_blank', 'noopener,noreferrer')}
-            >
+                          >
               预
               <span className="sr-only">预览</span>
-            </Button>
-            <Button
+                          </Button>
+                          <Button
               size="icon"
-              variant="default"
+                            variant="default"
               className="h-8 w-8 rounded-lg text-sm font-semibold"
-              onClick={() => handleEdit(asset)}
-              disabled={loading}
-            >
+                            onClick={() => handleEdit(asset)}
+                            disabled={loading}
+                          >
               改
               <span className="sr-only">修改</span>
-            </Button>
-            <Button
+                          </Button>
+                          <Button
               size="icon"
-              variant="destructive"
+                            variant="destructive"
               className="h-8 w-8 rounded-lg text-sm font-semibold"
-              onClick={() => handleDelete(asset.id)}
-              disabled={loading}
-            >
+                            onClick={() => handleDelete(asset.id)}
+                            disabled={loading}
+                          >
               删
               <span className="sr-only">删除</span>
-            </Button>
+                          </Button>
           </div>
         );
       default:
@@ -1942,18 +1942,18 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                                 setSelectedAssetIds(nextSelection);
                               }}
                             />
-                          </div>
-                        </td>
+                        </div>
+                      </td>
                         {visibleAssetColumns.map((column) => (
                           <td key={column.id} className="px-2 py-2">
                             {renderAssetCell(column.id, asset)}
                           </td>
                         ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
             </div>
           </div>
 

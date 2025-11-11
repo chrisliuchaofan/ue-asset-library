@@ -5,6 +5,8 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export type FilterSnapshot = {
   types: string[];
@@ -69,10 +71,15 @@ function FilterSection({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 rounded-md border border-slate-300 px-3 text-xs text-slate-700 hover:bg-slate-100 dark:border-white/18 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08]"
+              className="h-7 w-14 rounded-md border border-transparent bg-transparent text-slate-700 hover:bg-slate-100 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08]"
               onClick={() => setExpanded((v) => !v)}
             >
-              {expanded ? '收起' : '更多'}
+              <ChevronDown
+                className={cn('h-3.5 w-3.5 transition-transform duration-200', {
+                  'rotate-180': expanded,
+                })}
+              />
+              <span className="sr-only">{expanded ? '收起' : '更多'}</span>
             </Button>
           </div>
         )}
@@ -100,6 +107,27 @@ export function FilterSidebar({
   const selectedSources = searchParams.get('sources')?.split(',').filter(Boolean) || [];
   const selectedVersions = searchParams.get('versions')?.split(',').filter(Boolean) || [];
 
+  const selectedTypesKey = selectedTypes.join('|');
+  const selectedStylesKey = selectedStyles.join('|');
+  const selectedTagsKey = selectedTags.join('|');
+  const selectedSourcesKey = selectedSources.join('|');
+  const selectedVersionsKey = selectedVersions.join('|');
+
+  const areSnapshotsEqual = useCallback((a: FilterSnapshot, b: FilterSnapshot) => {
+    return (
+      a.types.length === b.types.length &&
+      a.styles.length === b.styles.length &&
+      a.tags.length === b.tags.length &&
+      a.sources.length === b.sources.length &&
+      a.versions.length === b.versions.length &&
+      a.types.every((value, index) => value === b.types[index]) &&
+      a.styles.every((value, index) => value === b.styles[index]) &&
+      a.tags.every((value, index) => value === b.tags[index]) &&
+      a.sources.every((value, index) => value === b.sources[index]) &&
+      a.versions.every((value, index) => value === b.versions[index])
+    );
+  }, []);
+
   const [localFilters, setLocalFilters] = useState<FilterSnapshot>({
     types: selectedTypes,
     styles: selectedStyles,
@@ -109,19 +137,45 @@ export function FilterSidebar({
   });
 
   useEffect(() => {
-    if (!isPending) {
-      const synced: FilterSnapshot = {
-        types: selectedTypes,
-        styles: selectedStyles,
-        tags: selectedTags,
-        sources: selectedSources,
-        versions: selectedVersions,
-      };
-      setLocalFilters(synced);
+    if (isPending) {
+      return;
+    }
+
+    const synced: FilterSnapshot = {
+      types: selectedTypes,
+      styles: selectedStyles,
+      tags: selectedTags,
+      sources: selectedSources,
+      versions: selectedVersions,
+    };
+
+    let didUpdate = false;
+    setLocalFilters((prev) => {
+      if (areSnapshotsEqual(prev, synced)) {
+        return prev;
+      }
+      didUpdate = true;
+      return synced;
+    });
+
+    if (didUpdate) {
       onOptimisticFiltersChange?.(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTypes, selectedStyles, selectedTags, selectedSources, selectedVersions, isPending]);
+  }, [
+    areSnapshotsEqual,
+    isPending,
+    selectedSources,
+    selectedSourcesKey,
+    selectedStyles,
+    selectedStylesKey,
+    selectedTags,
+    selectedTagsKey,
+    selectedTypes,
+    selectedTypesKey,
+    selectedVersions,
+    selectedVersionsKey,
+    onOptimisticFiltersChange,
+  ]);
 
   const updateFilters = useCallback(
     (key: 'types' | 'styles' | 'tags' | 'sources' | 'versions', value: string, checked: boolean) => {
@@ -150,15 +204,15 @@ export function FilterSidebar({
         router.push(`${pathname}?${params.toString()}`);
       });
     },
-    [router, pathname, searchParams, localFilters, onOptimisticFiltersChange]
+    [router, pathname, searchParams, localFilters, onOptimisticFiltersChange, startTransition]
   );
 
   const hasActiveFilters =
-    selectedTypes.length > 0 ||
-    selectedStyles.length > 0 ||
-    selectedTags.length > 0 ||
-    selectedSources.length > 0 ||
-    selectedVersions.length > 0;
+    localFilters.types.length > 0 ||
+    localFilters.styles.length > 0 ||
+    localFilters.tags.length > 0 ||
+    localFilters.sources.length > 0 ||
+    localFilters.versions.length > 0;
 
   const clearAllFilters = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -168,15 +222,19 @@ export function FilterSidebar({
     params.delete('sources');
     params.delete('versions');
     params.delete('page');
-    onOptimisticFiltersChange?.({
+    const emptySnapshot: FilterSnapshot = {
       types: [],
       styles: [],
       tags: [],
       sources: [],
       versions: [],
+    };
+    setLocalFilters(emptySnapshot);
+    onOptimisticFiltersChange?.(emptySnapshot);
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`);
     });
-    router.push(`${pathname}?${params.toString()}`);
-  }, [router, pathname, searchParams, onOptimisticFiltersChange]);
+  }, [onOptimisticFiltersChange, pathname, router, searchParams, startTransition]);
 
   return (
     <div className="flex h-full flex-col gap-4 text-sm text-slate-700 dark:text-slate-200">
@@ -224,7 +282,7 @@ export function FilterSidebar({
         variant="outline"
         size="sm"
         onClick={clearAllFilters}
-        className="inline-flex h-7 gap-1 rounded-md border border-slate-300 px-3 text-xs text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-primary/30 dark:border-white/18 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08] dark:focus-visible:ring-primary/40 self-center"
+        className="self-center inline-flex h-7 gap-1 rounded-md border border-transparent px-3 text-xs text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-primary/30 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08] dark:focus-visible:ring-primary/40"
         disabled={!hasActiveFilters || isPending}
       >
         清空筛选

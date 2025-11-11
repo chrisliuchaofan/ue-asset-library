@@ -39,6 +39,51 @@ export function getAssetUrl(path: string): string {
   }
 }
 
+// 客户端处理 CDN/OSS 资源地址（适用于浏览器环境）
+export function getClientAssetUrl(path: string): string {
+  if (!path) return '';
+
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+
+  const base = getCdnBase();
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+
+  if (base === '/' || !base || base.trim() === '') {
+    if (normalized.startsWith('/assets/')) {
+      if (typeof window !== 'undefined') {
+        const ossConfig = window.__OSS_CONFIG__;
+        if (ossConfig && ossConfig.bucket && ossConfig.region) {
+          const ossPath = normalized.substring(1);
+          const region = ossConfig.region.replace(/^oss-/, '');
+          return `https://${ossConfig.bucket}.oss-${region}.aliyuncs.com/${ossPath}`;
+        }
+      }
+    }
+    return normalized;
+  }
+
+  return `${base.replace(/\/+$/, '')}${normalized}`;
+}
+
+export function getOptimizedImageUrl(path: string, width = 640): string {
+  const resolved = getClientAssetUrl(path);
+  if (!resolved) return resolved;
+
+  const lower = resolved.toLowerCase();
+  const isOssImage = lower.includes('.aliyuncs.com/') && !lower.includes('.mp4') && !lower.includes('.webm');
+  if (!isOssImage) {
+    return resolved;
+  }
+
+  const separator = resolved.includes('?') ? '&' : '?';
+  if (resolved.includes('x-oss-process=image')) {
+    return resolved;
+  }
+  return `${resolved}${separator}x-oss-process=image/resize,w_${width}`;
+}
+
 export function highlightText(text: string, keyword: string): string {
   if (!keyword) return text;
   // 转义 HTML 特殊字符，防止 XSS

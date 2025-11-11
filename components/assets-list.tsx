@@ -25,11 +25,16 @@ function filterAssets(
 
   if (keyword) {
     const lowerKeyword = keyword.toLowerCase();
-    filtered = filtered.filter(
-      (asset) =>
-        asset.name.toLowerCase().includes(lowerKeyword) ||
-        asset.tags.some((tag) => tag.toLowerCase().includes(lowerKeyword))
-    );
+    filtered = filtered.filter((asset) => {
+      const matchesName = asset.name.toLowerCase().includes(lowerKeyword);
+      const matchesTags = asset.tags.some((tag) => tag.toLowerCase().includes(lowerKeyword));
+      const matchesType = asset.type.toLowerCase().includes(lowerKeyword);
+      const styleValues = Array.isArray(asset.style) ? asset.style : asset.style ? [asset.style] : [];
+      const matchesStyle = styleValues.some((style) => style.toLowerCase().includes(lowerKeyword));
+      const matchesSource = asset.source?.toLowerCase().includes(lowerKeyword) ?? false;
+      const matchesVersion = asset.engineVersion?.toLowerCase().includes(lowerKeyword) ?? false;
+      return matchesName || matchesTags || matchesType || matchesStyle || matchesSource || matchesVersion;
+    });
   }
 
   if (tags && tags.length > 0) {
@@ -74,6 +79,21 @@ interface AssetsListProps {
   onToggleSelection?: (assetId: string) => void;
   officeLocation?: OfficeLocation;
   optimisticFilters?: FilterSnapshot;
+  viewMode: 'classic' | 'thumbnail' | 'grid';
+}
+
+const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.avi', '.mkv'];
+
+function isVideoUrl(url: string | undefined | null): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return VIDEO_EXTENSIONS.some((ext) => lower.includes(ext));
+}
+
+function assetHasVideo(asset: Asset): boolean {
+  const gallery = Array.isArray(asset.gallery) ? asset.gallery : [];
+  const sources = [...gallery, asset.src];
+  return sources.some((item) => isVideoUrl(item));
 }
 
 function AssetsListContent({
@@ -82,6 +102,7 @@ function AssetsListContent({
   onToggleSelection,
   officeLocation = 'guangzhou',
   optimisticFilters,
+  viewMode,
 }: AssetsListProps) {
   const searchParams = useSearchParams();
   const keyword = searchParams.get('q') || undefined;
@@ -120,8 +141,10 @@ function AssetsListContent({
     [assets, keyword, effectiveFilters]
   );
 
-  const totalPages = Math.ceil(filteredAssets.length / itemsPerPage);
-  const paginatedAssets = filteredAssets.slice(
+  const filteredForViewMode = filteredAssets;
+
+  const totalPages = Math.ceil(filteredForViewMode.length / itemsPerPage);
+  const paginatedAssets = filteredForViewMode.slice(
     (page - 1) * itemsPerPage,
     page * itemsPerPage
   );
@@ -136,10 +159,23 @@ function AssetsListContent({
     return `?${params.toString()}`;
   };
 
+  const gridClassName = (() => {
+    switch (viewMode) {
+      case 'thumbnail':
+        return 'grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] justify-items-center gap-2 sm:gap-4';
+      case 'grid':
+        return 'grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] justify-items-center gap-2 sm:gap-4';
+      case 'classic':
+        return 'grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] justify-items-center gap-2 sm:gap-4';
+      default:
+        return 'grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7';
+    }
+  })();
+
   return (
     <>
-      {/* ✅ 响应式多列网格布局，铺满屏幕（类似光厂） */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+      {/* ✅ 响应式多列网格布局，按视图模式调整 */}
+      <div className={gridClassName}>
         {paginatedAssets.map((asset, index) => (
             <AssetCardGallery 
               key={asset.id} 
@@ -149,6 +185,7 @@ function AssetsListContent({
               onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
               priority={index < PAGINATION.PRIORITY_IMAGES_COUNT}
               officeLocation={officeLocation}
+              viewMode={viewMode}
             />
         ))}
       </div>
@@ -240,7 +277,7 @@ function AssetsListContent({
   );
 }
 
-export function AssetsList({ assets, selectedAssetIds, onToggleSelection, officeLocation, optimisticFilters }: AssetsListProps) {
+export function AssetsList({ assets, selectedAssetIds, onToggleSelection, officeLocation, optimisticFilters, viewMode }: AssetsListProps) {
   return (
     <Suspense fallback={<AssetsListSkeleton />}>
       <AssetsListContent 
@@ -248,6 +285,7 @@ export function AssetsList({ assets, selectedAssetIds, onToggleSelection, office
         selectedAssetIds={selectedAssetIds}
         onToggleSelection={onToggleSelection}
         officeLocation={officeLocation}
+        viewMode={viewMode}
         optimisticFilters={optimisticFilters}
       />
     </Suspense>

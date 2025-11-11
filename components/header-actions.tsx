@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, Home } from 'lucide-react';
+import { ShoppingCart, Home, Package, LayoutGrid } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { CartDialog } from '@/components/cart-dialog';
 import { OfficeSelector } from '@/components/office-selector';
 import type { Asset } from '@/data/manifest.schema';
 import type { OfficeLocation } from '@/lib/nas-utils';
+import { usePathname } from 'next/navigation';
 
 interface HeaderActionsProps {
   selectedAssets?: Asset[];
@@ -28,6 +29,14 @@ export function HeaderActions({
   onOfficeChange,
 }: HeaderActionsProps) {
   const [showCartDialog, setShowCartDialog] = useState(false);
+  const pathname = usePathname();
+  const onAssetsPage = pathname?.startsWith('/assets');
+  const onMaterialsPage = pathname?.startsWith('/materials');
+  const showSwitchButton = onAssetsPage || onMaterialsPage;
+  const showOfficeSelector = onAssetsPage;
+  const switchTarget = onAssetsPage ? '/materials' : '/assets';
+  const switchLabel = onAssetsPage ? '去素材页' : '去资产页';
+  const SwitchIcon = onAssetsPage ? LayoutGrid : Package;
 
   const hasCart = onRemoveAsset && onClearAssets;
   const cartCount = selectedAssets.length;
@@ -35,7 +44,7 @@ export function HeaderActions({
   return (
     <>
       <div className="flex items-center gap-1.5 sm:gap-2">
-        <OfficeSelector value={officeLocation} onChange={onOfficeChange} />
+        {showOfficeSelector && <OfficeSelector value={officeLocation} onChange={onOfficeChange} />}
 
         {hasCart && (
           <button
@@ -55,6 +64,17 @@ export function HeaderActions({
         )}
 
         <ThemeToggle className={navButtonBase} />
+
+        {showSwitchButton && (
+          <Link
+            href={switchTarget}
+            className={`${navButtonBase} hover:bg-slate-100 dark:hover:bg-white/[0.08]`}
+            title={switchLabel}
+            aria-label={switchLabel}
+          >
+            <SwitchIcon className="h-4 w-4" />
+          </Link>
+        )}
 
         <Link
           href="/"
