@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
@@ -290,7 +289,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
         }
       });
 
-  return () => {
+    return () => {
       controller.abort();
     };
   }, [
