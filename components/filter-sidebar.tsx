@@ -158,9 +158,8 @@ export function FilterSidebar({
       return synced;
     });
 
-    if (didUpdate) {
-      onOptimisticFiltersChange?.(null);
-    }
+    // 无论本地状态是否改变，只要 URL 参数已同步，通知外层清除乐观过滤
+    onOptimisticFiltersChange?.(null);
   }, [
     areSnapshotsEqual,
     isPending,
