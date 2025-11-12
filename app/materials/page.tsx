@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { SearchBox } from '@/components/search-box';
 import { MaterialsPageShell } from '@/components/materials-page-shell';
-import { getAllMaterials } from '@/lib/materials-data';
+import { getAllMaterials, getMaterialsSummary } from '@/lib/materials-data';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -14,6 +14,7 @@ export const revalidate = 0;
 
 export default async function MaterialsPage() {
   const allMaterials = await getAllMaterials();
+  const summary = getMaterialsSummary(allMaterials);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -37,7 +38,7 @@ export default async function MaterialsPage() {
         </div>
       </header>
 
-      <MaterialsPageShell materials={allMaterials} />
+      <MaterialsPageShell materials={allMaterials} summary={summary} />
     </div>
   );
 }

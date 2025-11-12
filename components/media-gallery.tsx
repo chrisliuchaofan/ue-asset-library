@@ -83,6 +83,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                 loop
                 playsInline
                 controls={index === currentIndex}
+                preload={index === currentIndex ? 'metadata' : 'none'}
               />
             ))}
             {/* 切换按钮 */}
@@ -124,13 +125,14 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
         ) : (
           <>
             <Image
-              src={getOptimizedImageUrl(currentSource)}
+              src={getOptimizedImageUrl(currentSource, 1600)}
               alt={`${asset.name} - ${currentIndex + 1}`}
               fill
               className="object-contain"
               sizes="100vw"
               priority={currentIndex === 0}
-              unoptimized={currentUrl.startsWith('http')}
+              loading={currentIndex === 0 ? 'eager' : 'lazy'}
+              unoptimized={getOptimizedImageUrl(currentSource).includes('x-oss-process=image')}
             />
             <Button
               variant="ghost"
@@ -194,12 +196,12 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
           </Button>
           <div className="relative h-full w-full max-w-7xl" onClick={(e) => e.stopPropagation()}>
             <Image
-              src={getOptimizedImageUrl(currentSource)}
+              src={getOptimizedImageUrl(currentSource, 1920)}
               alt={`${asset.name} - ${currentIndex + 1}`}
               fill
               className="object-contain"
               sizes="100vw"
-              unoptimized={currentUrl.startsWith('http')}
+              unoptimized={getOptimizedImageUrl(currentSource).includes('x-oss-process=image')}
             />
             {/* 大图模式下的切换按钮 */}
             {galleryUrls.length > 1 && (

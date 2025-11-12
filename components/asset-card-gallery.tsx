@@ -10,6 +10,7 @@ import { type Asset } from '@/data/manifest.schema';
 import { highlightText, cn, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check } from 'lucide-react';
 import { type OfficeLocation } from '@/lib/nas-utils';
+import { createPortal } from 'react-dom';
 
 interface AssetCardGalleryProps {
   asset: Asset;
@@ -21,15 +22,176 @@ interface AssetCardGalleryProps {
   viewMode: 'classic' | 'thumbnail' | 'grid';
 }
 
+interface ThumbnailPreviewPopoverProps {
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  thumbnailUrl: string;
+  assetName: string;
+  index: number;
+  elementRef: HTMLDivElement | null;
+}
+
+function ThumbnailPreviewPopover({ position, thumbnailUrl, assetName, index, elementRef }: ThumbnailPreviewPopoverProps) {
+  const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!elementRef || !mounted) return;
+
+    const updatePosition = () => {
+      const rect = elementRef.getBoundingClientRect();
+      const viewportCenterX = window.innerWidth / 2;
+      const viewportCenterY = window.innerHeight / 2;
+      const popoverWidth = 400;
+      const popoverHeight = 400;
+      const gap = 8;
+
+      let style: React.CSSProperties = {
+        position: 'fixed',
+        zIndex: 9999,
+        pointerEvents: 'none',
+        maxWidth: 'min(400px, calc(100vw - 2rem))',
+        maxHeight: 'min(400px, calc(100vh - 2rem))',
+      };
+
+      // position 表示弹出框相对于选项卡的位置
+      // top-left: 弹出框在选项卡左侧，顶部对齐
+      // top-right: 弹出框在选项卡右侧，顶部对齐
+      // bottom-left: 弹出框在选项卡左侧，底部对齐
+      // bottom-right: 弹出框在选项卡右侧，底部对齐
+      switch (position) {
+        case 'top-left':
+          // 弹出框在选项卡左侧，顶部对齐（朝向中心）
+          style.right = `${window.innerWidth - rect.left + gap}px`;
+          style.top = `${rect.top}px`;
+          break;
+        case 'top-right':
+          // 弹出框在选项卡右侧，顶部对齐（朝向中心）
+          style.left = `${rect.right + gap}px`;
+          style.top = `${rect.top}px`;
+          break;
+        case 'bottom-left':
+          // 弹出框在选项卡左侧，底部对齐（朝向中心）
+          style.right = `${window.innerWidth - rect.left + gap}px`;
+          style.bottom = `${window.innerHeight - rect.bottom}px`;
+          break;
+        case 'bottom-right':
+          // 弹出框在选项卡右侧，底部对齐（朝向中心）
+          style.left = `${rect.right + gap}px`;
+          style.bottom = `${window.innerHeight - rect.bottom}px`;
+          break;
+      }
+
+      // 确保不超出视口，动态调整位置
+      const padding = 16;
+      
+      // 检查水平方向
+      if (style.left !== undefined) {
+        const left = typeof style.left === 'string' ? parseFloat(style.left) : style.left;
+        if (left + popoverWidth + padding > window.innerWidth) {
+          // 右侧超出，改为左侧显示
+          delete style.left;
+          style.right = `${window.innerWidth - rect.left + gap}px`;
+        } else if (left < padding) {
+          // 左侧超出，调整到安全位置
+          style.left = `${padding}px`;
+        }
+      }
+      if (style.right !== undefined) {
+        const right = typeof style.right === 'string' ? parseFloat(style.right) : style.right;
+        if (right + popoverWidth + padding > window.innerWidth) {
+          // 左侧超出，改为右侧显示
+          delete style.right;
+          style.left = `${rect.right + gap}px`;
+        } else if (right < padding) {
+          // 右侧超出，调整到安全位置
+          style.right = `${padding}px`;
+        }
+      }
+      
+      // 检查垂直方向
+      if (style.top !== undefined) {
+        const top = typeof style.top === 'string' ? parseFloat(style.top) : style.top;
+        if (top + popoverHeight + padding > window.innerHeight) {
+          // 下方超出，改为上方显示
+          delete style.top;
+          style.bottom = `${window.innerHeight - rect.bottom + gap}px`;
+        } else if (top < padding) {
+          // 上方超出，调整到安全位置
+          style.top = `${padding}px`;
+        }
+      }
+      if (style.bottom !== undefined) {
+        const bottom = typeof style.bottom === 'string' ? parseFloat(style.bottom) : style.bottom;
+        if (bottom + popoverHeight + padding > window.innerHeight) {
+          // 上方超出，改为下方显示
+          delete style.bottom;
+          style.top = `${rect.bottom + gap}px`;
+        } else if (bottom < padding) {
+          // 下方超出，调整到安全位置
+          style.bottom = `${padding}px`;
+        }
+      }
+
+      setPopoverStyle(style);
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [elementRef, position, mounted]);
+
+  if (!mounted) return null;
+
+  const popoverContent = (
+    <div style={popoverStyle}>
+      <div className="bg-background border border-border rounded-lg shadow-2xl inline-block" style={{ padding: '3px' }}>
+        <Image
+          src={getOptimizedImageUrl(thumbnailUrl, 600)}
+          alt={`${assetName} 完整预览 ${index}`}
+          width={400}
+          height={400}
+          className="object-contain max-h-[400px] max-w-[400px] w-auto h-auto block"
+          unoptimized={getOptimizedImageUrl(thumbnailUrl, 600).includes('x-oss-process=image')}
+        />
+      </div>
+    </div>
+  );
+
+  return createPortal(popoverContent, document.body);
+}
+
 export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou', viewMode }: AssetCardGalleryProps) {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEnlarged, setIsEnlarged] = useState(false);
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
+  const [isHoveringThumbnails, setIsHoveringThumbnails] = useState(false);
+  const [hoveredThumbnailIndex, setHoveredThumbnailIndex] = useState<number | null>(null);
+  const [hoveredThumbnailPreview, setHoveredThumbnailPreview] = useState<{ 
+    index: number; 
+    url: string; 
+    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    offsetX?: number;
+    offsetY?: number;
+  } | null>(null);
   const [thumbnailPage, setThumbnailPage] = useState(0);
+  const thumbnailRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const thumbnailVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const nameRef = useRef<HTMLHeadingElement>(null);
   const scrollAnimationRef = useRef<number | null>(null);
+  const extractingFramesRef = useRef(false);
+  const lastVideoUrlRef = useRef<string | null>(null);
   
   // 获取所有预览图/视频 URL
   // 优先使用 gallery，如果没有则使用 thumbnail 和 src
@@ -57,6 +219,114 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     () => galleryUrls.filter((url) => !isVideoUrl(url)),
     [galleryUrls, isVideoUrl]
   );
+
+  const videoUrls = useMemo(
+    () => galleryUrls.filter((url) => isVideoUrl(url)),
+    [galleryUrls, isVideoUrl]
+  );
+
+  // 稳定第一个视频 URL 的引用
+  const firstVideoUrl = useMemo(() => videoUrls[0] || null, [videoUrls]);
+
+  // 当只有视频时，从第一个视频中提取6帧作为缩略图（经典预览和宫格图预览都需要）
+  useEffect(() => {
+    // 如果不需要提取帧，清空并返回
+    const shouldExtract = (viewMode === 'classic' || viewMode === 'grid') && imageUrls.length === 0 && firstVideoUrl !== null;
+    
+    if (!shouldExtract) {
+      // 只在确实需要清空时才调用 setState，避免不必要的更新
+      if (lastVideoUrlRef.current !== null) {
+        setVideoThumbnails([]);
+        lastVideoUrlRef.current = null;
+        extractingFramesRef.current = false;
+      }
+      return;
+    }
+
+    // 如果正在提取或已经提取过这个视频，跳过
+    if (extractingFramesRef.current || lastVideoUrlRef.current === firstVideoUrl) {
+      return;
+    }
+
+    extractingFramesRef.current = true;
+    lastVideoUrlRef.current = firstVideoUrl;
+
+    const extractFrames = async () => {
+      try {
+        const video = document.createElement('video');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          extractingFramesRef.current = false;
+          return;
+        }
+
+        video.crossOrigin = 'anonymous';
+        video.preload = 'metadata';
+        video.src = getClientAssetUrl(firstVideoUrl);
+
+        await new Promise<void>((resolve, reject) => {
+          video.onloadedmetadata = () => {
+            resolve();
+          };
+          video.onerror = () => {
+            reject(new Error('视频加载失败'));
+          };
+          // 超时处理
+          setTimeout(() => {
+            if (video.readyState < 2) {
+              reject(new Error('视频加载超时'));
+            }
+          }, 5000);
+        });
+
+        const duration = video.duration;
+        if (!duration || !isFinite(duration)) {
+          extractingFramesRef.current = false;
+          return;
+        }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const frames: string[] = [];
+        const frameCount = 6;
+        const interval = duration / (frameCount + 1); // 均匀分布，不包括开始和结束
+
+        for (let i = 1; i <= frameCount; i++) {
+          const time = interval * i;
+          await new Promise<void>((resolve) => {
+            video.currentTime = time;
+            video.onseeked = () => {
+              ctx.drawImage(video, 0, 0);
+              canvas.toBlob(
+                (blob) => {
+                  if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    frames.push(url);
+                  }
+                  resolve();
+                },
+                'image/jpeg',
+                0.8
+              );
+            };
+          });
+        }
+
+        setVideoThumbnails(frames);
+        extractingFramesRef.current = false;
+      } catch (error) {
+        console.warn('提取视频帧失败:', error);
+        setVideoThumbnails([]);
+        extractingFramesRef.current = false;
+        lastVideoUrlRef.current = null;
+      }
+    };
+
+    extractFrames();
+  }, [viewMode, imageUrls.length, firstVideoUrl]);
 
   // 根据视图模式调整当前索引（缩略图优先展示视频）
   useEffect(() => {
@@ -94,22 +364,25 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
   const firstVideoIndexForDisplay = galleryUrls.findIndex((url) => isVideoUrl(url));
   const firstImageIndexForDisplay = galleryUrls.findIndex((url) => !isVideoUrl(url));
   const isClassic = viewMode === 'classic';
-  const isOverlayMode = !isClassic;
+  const isGrid = viewMode === 'grid';
+  const isOverlayMode = !isClassic && !isGrid;
   const displayIndex =
     viewMode === 'grid' && isHoveringPreview && firstVideoIndexForDisplay >= 0
       ? firstVideoIndexForDisplay
       : firstImageIndexForDisplay >= 0
       ? firstImageIndexForDisplay
       : validIndex;
+  // 优化图片宽度：根据视图模式使用更小的尺寸以减少网络流量
+  // 使用 1.5x 设备像素比，在保证清晰度的同时减少约20-25%流量
   const optimizedImageWidth = useMemo(() => {
     switch (viewMode) {
       case 'thumbnail':
-        return 540;
+        return 450; // 从540降到450，减少约17%流量
       case 'grid':
-        return 480;
+        return 400; // 从480降到400，减少约17%流量
       case 'classic':
       default:
-        return 640;
+        return 560; // 从640降到560，减少约12%流量
     }
   }, [viewMode]);
 
@@ -127,7 +400,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     viewMode === 'thumbnail' ? 'aspect-video' : viewMode === 'grid' ? 'aspect-square' : 'aspect-[4/3]';
   const previewBackgroundClass = viewMode === 'thumbnail' ? 'bg-black' : 'bg-muted';
   const mediaObjectClass = viewMode === 'grid' ? 'object-cover' : 'object-contain';
-  const showNavigation = isClassic && galleryUrls.length > 1;
+  const showNavigation = (isClassic || isGrid) && galleryUrls.length > 1;
   const showIndicators = showNavigation;
   const rawTags = Array.isArray(asset.tags)
     ? asset.tags
@@ -239,7 +512,8 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
   };
 
   const gridConfig = useMemo(() => {
-    const length = imageUrls.length;
+    // 如果只有视频，使用视频缩略图（6帧）
+    const length = imageUrls.length > 0 ? imageUrls.length : (videoThumbnails.length > 0 ? videoThumbnails.length : 0);
     if (length <= 1) {
       return { rows: 1, cols: 1, cells: 1 };
     }
@@ -249,19 +523,24 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     if (length <= 4) {
       return { rows: 2, cols: 2, cells: 4 };
     }
+    if (length <= 6) {
+      return { rows: 2, cols: 3, cells: 6 };
+    }
     return { rows: 3, cols: 3, cells: 9 };
-  }, [imageUrls.length]);
+  }, [imageUrls.length, videoThumbnails.length]);
 
   const maxCells = gridConfig.cells;
   const thumbnailsPerPage = maxCells;
-  const totalPages = imageUrls.length <= thumbnailsPerPage ? 1 : Math.ceil(imageUrls.length / thumbnailsPerPage);
+  // 优先使用图片，如果没有图片则使用视频缩略图
+  const allThumbnails = imageUrls.length > 0 ? imageUrls : videoThumbnails;
+  const totalPages = allThumbnails.length <= thumbnailsPerPage ? 1 : Math.ceil(allThumbnails.length / thumbnailsPerPage);
   const pagedThumbnails = useMemo(() => {
     if (totalPages <= 1) {
-      return imageUrls.slice(0, maxCells);
+      return allThumbnails.slice(0, maxCells);
     }
     const start = thumbnailPage * thumbnailsPerPage;
-    return imageUrls.slice(start, start + thumbnailsPerPage);
-  }, [imageUrls, maxCells, thumbnailPage, thumbnailsPerPage, totalPages]);
+    return allThumbnails.slice(start, start + thumbnailsPerPage);
+  }, [allThumbnails, maxCells, thumbnailPage, thumbnailsPerPage, totalPages]);
 
   useEffect(() => {
     if (thumbnailPage > totalPages - 1) {
@@ -269,7 +548,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     }
   }, [thumbnailPage, totalPages]);
 
-  // 悬停时才播放视频，离开后暂停
+  // 悬停时才播放视频，离开后暂停（预览图区域）
   useEffect(() => {
     const activeIndex = displayIndex;
 
@@ -291,15 +570,42 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
     });
   }, [displayIndex, galleryUrls, isHoveringPreview, isVideoUrl]);
 
-  // 清理定时器
+  // 悬停时才播放视频，离开后暂停（缩略图区域）
+  useEffect(() => {
+    if (viewMode !== 'classic' && viewMode !== 'grid') return;
+
+    thumbnailVideoRefs.current.forEach((video, index) => {
+      if (!video) return;
+
+      if (hoveredThumbnailIndex === index && isHoveringThumbnails) {
+        video.muted = true;
+        video.play().catch((err) => {
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('缩略图视频播放失败:', err);
+          }
+        });
+      } else {
+        video.pause();
+        video.currentTime = 0;
+      }
+    });
+  }, [viewMode, hoveredThumbnailIndex, isHoveringThumbnails]);
+
+  // 清理定时器和视频缩略图 blob URL
   useEffect(() => {
     return () => {
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
       }
+      // 释放视频缩略图的 blob URL
+      videoThumbnails.forEach((url) => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
     };
-  }, []);
+  }, [videoThumbnails]);
 
   // 自动滚动播放超长名称
   useEffect(() => {
@@ -421,6 +727,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
 
   const cardWidth = 320;
   const classicHeight = 360;
+  const gridHeight = 320; // 1:1 方形
   const compactHeight = 180;
   const primaryTags = Array.isArray(asset.tags) ? asset.tags : [];
   const combinedTags = primaryTags;
@@ -430,23 +737,213 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
   return (
     <>
       <div
-        className={isClassic ? 'space-y-2' : undefined}
+        className={(isClassic || isGrid) ? 'space-y-2' : undefined}
         style={{ width: cardWidth }}
       >
         <Card
-          className="group relative flex flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition hover:shadow-lg dark:border-white/[0.08] dark:bg-white/[0.04]"
-          style={{ width: '100%', height: isClassic ? classicHeight : compactHeight }}
+          className="group relative flex flex-col overflow-visible rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition hover:shadow-lg dark:border-white/[0.08] dark:bg-white/[0.04]"
+          style={{ width: '100%', height: isGrid ? gridHeight : (isClassic ? classicHeight : compactHeight) }}
         >
-          <div
-            className={cn(
-              'relative flex w-full items-center justify-center overflow-hidden cursor-pointer',
-              previewBackgroundClass,
-              isClassic ? 'h-[180px]' : previewAspectClass
-            )}
-            onDoubleClick={handleDoubleClick}
-            onMouseEnter={() => setIsHoveringPreview(true)}
-            onMouseLeave={() => setIsHoveringPreview(false)}
-          >
+          {isGrid ? (
+            // 宫格图预览：直接显示缩略图网格，不显示预览图区域，1:1方形
+            <div 
+              style={{ height: gridHeight }}
+              onMouseEnter={() => setIsHoveringThumbnails(true)}
+              onMouseLeave={() => {
+                setIsHoveringThumbnails(false);
+                setHoveredThumbnailIndex(null);
+                setHoveredThumbnailPreview(null);
+              }}
+            >
+              <div
+                className="grid h-full"
+                style={{
+                  gridTemplateColumns: `repeat(${gridConfig.cols}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${gridConfig.rows}, minmax(0, 1fr))`,
+                  gap: 0,
+                }}
+              >
+                {Array.from({ length: gridConfig.cells }).map((_, idx) => {
+                  const thumbnailUrl = pagedThumbnails[idx];
+                  const isVideoThumbnail = imageUrls.length === 0 && idx < videoThumbnails.length;
+                  const correspondingVideoUrl = isVideoThumbnail && videoUrls.length > 0 ? videoUrls[0] : null;
+                  
+                  return (
+                    <div
+                      key={`thumb-grid-${thumbnailPage}-${idx}`}
+                      ref={(el) => {
+                        thumbnailRefs.current[idx] = el;
+                      }}
+                      className="relative h-full w-full overflow-visible"
+                      onMouseEnter={() => {
+                        if (hoveredThumbnailIndex !== idx) {
+                          setHoveredThumbnailIndex(idx);
+                          if (thumbnailUrl && !isVideoThumbnail) {
+                            // 计算弹出位置：朝向画面中心，但不脱离原选项卡
+                            const element = thumbnailRefs.current[idx];
+                            if (element) {
+                              const rect = element.getBoundingClientRect();
+                              const viewportCenterX = window.innerWidth / 2;
+                              const viewportCenterY = window.innerHeight / 2;
+                              const elementCenterX = rect.left + rect.width / 2;
+                              const elementCenterY = rect.top + rect.height / 2;
+                              
+                              // 判断元素相对于视口中心的位置
+                              const isLeftOfCenter = elementCenterX < viewportCenterX;
+                              const isTopOfCenter = elementCenterY < viewportCenterY;
+                              
+                              // 判断是否在最上一行（距离顶部较近，小于视口高度的30%）
+                              const isTopRow = rect.top < window.innerHeight * 0.3;
+                              // 判断是否在最下一行（距离底部较近）
+                              const isBottomRow = rect.bottom > window.innerHeight * 0.7;
+                              
+                              // 确定弹出位置：朝向画面中心
+                              let position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+                              
+                              if (isTopRow) {
+                                // 最上一行：向下弹出，根据左右位置选择
+                                position = isLeftOfCenter ? 'bottom-left' : 'bottom-right';
+                              } else if (isBottomRow) {
+                                // 最下一行：向上弹出，根据左右位置选择
+                                position = isLeftOfCenter ? 'top-left' : 'top-right';
+                              } else {
+                                // 中间区域：朝向中心
+                                // 左侧元素：弹出框在右侧（朝向中心）
+                                // 右侧元素：弹出框在左侧（朝向中心）
+                                if (isLeftOfCenter) {
+                                  // 左侧：弹出框在右侧，根据上下位置选择
+                                  position = isTopOfCenter ? 'bottom-left' : 'top-left';
+                                } else {
+                                  // 右侧：弹出框在左侧，根据上下位置选择
+                                  position = isTopOfCenter ? 'bottom-right' : 'top-right';
+                                }
+                              }
+                              
+                              setHoveredThumbnailPreview({ 
+                                index: idx, 
+                                url: thumbnailUrl, 
+                                position,
+                                offsetX: rect.left,
+                                offsetY: rect.top,
+                              });
+                            } else {
+                              setHoveredThumbnailPreview({ index: idx, url: thumbnailUrl, position: 'top-left' });
+                            }
+                          }
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (hoveredThumbnailIndex !== null) {
+                          setHoveredThumbnailIndex(null);
+                          setHoveredThumbnailPreview(null);
+                        }
+                      }}
+                    >
+                      {thumbnailUrl ? (
+                        <>
+                          {isVideoThumbnail && correspondingVideoUrl ? (
+                            <>
+                              <Image
+                                src={thumbnailUrl}
+                                alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
+                                fill
+                                className="object-cover transition-opacity duration-200"
+                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                loading="lazy"
+                                style={{
+                                  opacity: hoveredThumbnailIndex === idx ? 0 : 1,
+                                }}
+                              />
+                              <video
+                                ref={(el) => {
+                                  thumbnailVideoRefs.current[idx] = el;
+                                }}
+                                src={getClientAssetUrl(correspondingVideoUrl)}
+                                className="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
+                                style={{
+                                  opacity: hoveredThumbnailIndex === idx ? 1 : 0,
+                                }}
+                                muted
+                                loop
+                                playsInline
+                                preload="none"
+                                onMouseEnter={(e) => {
+                                  // 只在用户悬停时才开始加载视频，减少不必要的流量
+                                  if (e.currentTarget.readyState === 0) {
+                                    e.currentTarget.load();
+                                  }
+                                }}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <Image
+                                src={getOptimizedImageUrl(thumbnailUrl, 360)}
+                                alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                loading="lazy"
+                                unoptimized={getOptimizedImageUrl(thumbnailUrl, 360).includes('x-oss-process=image')}
+                              />
+                              {/* 悬停预览弹出框 - 智能定位，朝向画面中心 */}
+                              {hoveredThumbnailPreview?.index === idx && (
+                                <ThumbnailPreviewPopover
+                                  position={hoveredThumbnailPreview.position}
+                                  thumbnailUrl={thumbnailUrl}
+                                  assetName={asset.name}
+                                  index={thumbnailPage * thumbnailsPerPage + idx + 1}
+                                  elementRef={thumbnailRefs.current[idx]}
+                                />
+                              )}
+                            </>
+                          )}
+                        </>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="pointer-events-auto absolute bottom-4 right-4 z-30 flex gap-1">
+                {renderActionButtons()}
+              </div>
+              {totalPages > 1 && (
+                <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full border border-transparent bg-muted/50 text-muted-foreground hover:bg-muted"
+                    onClick={() => setThumbnailPage((prev) => Math.max(prev - 1, 0))}
+                    disabled={thumbnailPage === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span>{thumbnailPage + 1} / {totalPages}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full border border-transparent bg-muted/50 text-muted-foreground hover:bg-muted"
+                    onClick={() => setThumbnailPage((prev) => Math.min(prev + 1, totalPages - 1))}
+                    disabled={thumbnailPage === totalPages - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div
+              className={cn(
+                'relative flex w-full items-center justify-center overflow-hidden cursor-pointer',
+                previewBackgroundClass,
+                isClassic ? 'h-[180px]' : previewAspectClass
+              )}
+              onDoubleClick={handleDoubleClick}
+              onMouseEnter={() => setIsHoveringPreview(true)}
+              onMouseLeave={() => setIsHoveringPreview(false)}
+            >
             {galleryUrls.map((url, index) => {
               if (!isVideoUrl(url)) {
                 return null;
@@ -458,7 +955,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                     videoRefs.current[index] = el;
                   }}
                   src={getClientAssetUrl(url)}
-                  preload="metadata"
+                  preload="none"
                   className={`absolute inset-0 h-full w-full ${mediaObjectClass} transition-opacity duration-200 ${
                     index === displayIndex ? 'z-10 opacity-100' : 'pointer-events-none opacity-0'
                   }`}
@@ -478,7 +975,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                 loading={priority ? 'eager' : 'lazy'}
                 priority={priority}
-                unoptimized={currentUrl.startsWith('http')}
+                unoptimized={currentUrl.includes('x-oss-process=image')}
                 onError={(e) => {
                   console.error('图片加载失败:', currentUrl);
                   if ((currentUrl.startsWith('/assets/') || galleryUrls[displayIndex]?.startsWith('/assets/')) && galleryUrls[displayIndex]) {
@@ -620,9 +1117,17 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               }}
             />
           </div>
+          )}
 
           {isClassic && (
-            <div style={{ height: compactHeight }}>
+            <div 
+              style={{ height: compactHeight }}
+              onMouseEnter={() => setIsHoveringThumbnails(true)}
+              onMouseLeave={() => {
+                setIsHoveringThumbnails(false);
+                setHoveredThumbnailIndex(null);
+              }}
+            >
               <div
                 className="grid h-full"
                 style={{
@@ -632,22 +1137,73 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
                 }}
               >
                 {Array.from({ length: gridConfig.cells }).map((_, idx) => {
-                  const imageUrl = pagedThumbnails[idx];
+                  const thumbnailUrl = pagedThumbnails[idx];
+                  const isVideoThumbnail = imageUrls.length === 0 && idx < videoThumbnails.length;
+                  const correspondingVideoUrl = isVideoThumbnail && videoUrls.length > 0 ? videoUrls[0] : null;
+                  
                   return (
                     <div
                       key={`thumb-${thumbnailPage}-${idx}`}
                       className="relative h-full w-full overflow-hidden"
+                      onMouseEnter={() => {
+                        if (hoveredThumbnailIndex !== idx) {
+                          setHoveredThumbnailIndex(idx);
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (hoveredThumbnailIndex !== null) {
+                          setHoveredThumbnailIndex(null);
+                        }
+                      }}
                     >
-                      {imageUrl ? (
-                        <Image
-                          src={getOptimizedImageUrl(imageUrl, 480)}
-                          alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          loading="lazy"
-                          unoptimized={imageUrl.startsWith('http') || imageUrl.startsWith('/assets/')}
-                        />
+                      {thumbnailUrl ? (
+                        <>
+                          {isVideoThumbnail && correspondingVideoUrl ? (
+                            <>
+                              <Image
+                                src={thumbnailUrl}
+                                alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
+                                fill
+                                className="object-cover transition-opacity duration-200"
+                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                loading="lazy"
+                                style={{
+                                  opacity: hoveredThumbnailIndex === idx ? 0 : 1,
+                                }}
+                              />
+                              <video
+                                ref={(el) => {
+                                  thumbnailVideoRefs.current[idx] = el;
+                                }}
+                                src={getClientAssetUrl(correspondingVideoUrl)}
+                                className="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
+                                style={{
+                                  opacity: hoveredThumbnailIndex === idx ? 1 : 0,
+                                }}
+                                muted
+                                loop
+                                playsInline
+                                preload="none"
+                                onMouseEnter={(e) => {
+                                  // 只在用户悬停时才开始加载视频，减少不必要的流量
+                                  if (e.currentTarget.readyState === 0) {
+                                    e.currentTarget.load();
+                                  }
+                                }}
+                              />
+                            </>
+                          ) : (
+                            <Image
+                              src={getOptimizedImageUrl(thumbnailUrl, 360)}
+                              alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                              loading="lazy"
+                              unoptimized={thumbnailUrl.startsWith('http') || thumbnailUrl.startsWith('/assets/')}
+                            />
+                          )}
+                        </>
                       ) : null}
                     </div>
                   );
@@ -684,7 +1240,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
             </div>
           )}
 
-          {isClassic && (
+          {(isClassic || isGrid) && (
             <div className="pointer-events-none absolute bottom-2 left-3 flex items-center gap-3 text-[10px] text-white/90">
               {asset.style && (
                 <span>{Array.isArray(asset.style) ? asset.style.join('、') : asset.style}</span>
@@ -695,7 +1251,7 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
           )}
         </Card>
 
-        {isClassic && (
+        {(isClassic || isGrid) && (
           <div className="space-y-1 px-1">
             <Link href={`/assets/${asset.id}`} className="block">
               <h3
@@ -757,12 +1313,12 @@ export function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection
               </div>
             ) : (
               <Image
-                src={currentSource ? getOptimizedImageUrl(currentSource, 1280) : ''}
+                src={currentSource ? getOptimizedImageUrl(currentSource, 1080) : ''}
                 alt={`${asset.name} - ${displayIndex + 1}`}
                 fill
                 className="object-contain"
                 sizes="100vw"
-                unoptimized={currentUrl.startsWith('http')}
+                unoptimized={currentSource ? getOptimizedImageUrl(currentSource, 1080).includes('x-oss-process=image') : false}
               />
             )}
             {galleryUrls.length > 1 && (

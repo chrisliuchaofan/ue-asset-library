@@ -236,56 +236,58 @@ export function FilterSidebar({
   }, [onOptimisticFiltersChange, pathname, router, searchParams, startTransition]);
 
   return (
-    <div className="flex h-full flex-col gap-4 text-sm text-slate-700 dark:text-slate-200">
-      <FilterSection
-        title="类型"
-        items={types}
-        selectedItems={localFilters.types}
-        onToggle={(value, checked) => updateFilters('types', value, checked)}
-        isPending={isPending}
-      />
+    <div className="flex h-full flex-col overflow-y-auto overflow-x-hidden pr-2 scrollbar-thin">
+      <div className="flex flex-col gap-4 pb-4 text-sm text-slate-700 dark:text-slate-200">
+        <FilterSection
+          title="类型"
+          items={types}
+          selectedItems={localFilters.types}
+          onToggle={(value, checked) => updateFilters('types', value, checked)}
+          isPending={isPending}
+        />
 
-      <FilterSection
-        title="风格"
-        items={styles}
-        selectedItems={localFilters.styles}
-        onToggle={(value, checked) => updateFilters('styles', value, checked)}
-        isPending={isPending}
-      />
+        <FilterSection
+          title="风格"
+          items={styles}
+          selectedItems={localFilters.styles}
+          onToggle={(value, checked) => updateFilters('styles', value, checked)}
+          isPending={isPending}
+        />
 
-      <FilterSection
-        title="标签"
-        items={tags}
-        selectedItems={localFilters.tags}
-        onToggle={(value, checked) => updateFilters('tags', value, checked)}
-        isPending={isPending}
-      />
+        <FilterSection
+          title="标签"
+          items={tags}
+          selectedItems={localFilters.tags}
+          onToggle={(value, checked) => updateFilters('tags', value, checked)}
+          isPending={isPending}
+        />
 
-      <FilterSection
-        title="来源"
-        items={sources}
-        selectedItems={localFilters.sources}
-        onToggle={(value, checked) => updateFilters('sources', value, checked)}
-        isPending={isPending}
-      />
+        <FilterSection
+          title="来源"
+          items={sources}
+          selectedItems={localFilters.sources}
+          onToggle={(value, checked) => updateFilters('sources', value, checked)}
+          isPending={isPending}
+        />
 
-      <FilterSection
-        title="版本"
-        items={engineVersions}
-        selectedItems={localFilters.versions}
-        onToggle={(value, checked) => updateFilters('versions', value, checked)}
-        isPending={isPending}
-      />
+        <FilterSection
+          title="版本"
+          items={engineVersions}
+          selectedItems={localFilters.versions}
+          onToggle={(value, checked) => updateFilters('versions', value, checked)}
+          isPending={isPending}
+        />
 
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={clearAllFilters}
-        className="self-center inline-flex h-7 gap-1 rounded-md border border-transparent px-3 text-xs text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-primary/30 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08] dark:focus-visible:ring-primary/40"
-        disabled={!hasActiveFilters || isPending}
-      >
-        清空筛选
-      </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={clearAllFilters}
+          className="self-center inline-flex h-7 gap-1 rounded-md border border-transparent px-3 text-xs text-slate-700 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-primary/30 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08] dark:focus-visible:ring-primary/40"
+          disabled={!hasActiveFilters || isPending}
+        >
+          清空筛选
+        </Button>
+      </div>
     </div>
   );
 }

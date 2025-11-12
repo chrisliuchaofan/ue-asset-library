@@ -20,6 +20,7 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
   const [currentIndex, setCurrentIndex] = useState(0);
   const [enlarged, setEnlarged] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
+  const [imageWidth, setImageWidth] = useState(640); // SSR 默认值
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const router = useRouter();
   const nameRef = useRef<HTMLHeadingElement>(null);
@@ -51,7 +52,31 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
   const videoUrls = galleryUrls.filter((url) => url && isVideoUrl(url));
   const currentSource = galleryUrls[currentIndex] || '';
   const currentIsVideo = isVideoUrl(currentSource);
-  const currentUrl = currentSource ? (currentIsVideo ? getClientAssetUrl(currentSource) : getOptimizedImageUrl(currentSource)) : '';
+  
+  // 根据实际显示尺寸优化图片宽度（卡片宽度通常在 200-400px 之间）
+  // 使用 2x 倍率以确保高 DPI 显示清晰，同时控制流量
+  useEffect(() => {
+    const updateImageWidth = () => {
+      if (typeof window === 'undefined') return;
+      const viewportWidth = window.innerWidth;
+      let cardWidth = 400; // 默认值
+      if (viewportWidth >= 1536) cardWidth = 300; // 2xl: 7列
+      else if (viewportWidth >= 1280) cardWidth = 320; // xl: 6列
+      else if (viewportWidth >= 1024) cardWidth = 360; // lg: 5列
+      else if (viewportWidth >= 768) cardWidth = 400; // md: 4列
+      else if (viewportWidth >= 640) cardWidth = 500; // sm: 3列
+      else cardWidth = 600; // 2列
+      // 优化：使用 1.5x 倍率（从2x降低），最大宽度从800降到600
+      // 在保证清晰度的同时减少约25%流量消耗
+      setImageWidth(Math.min(Math.ceil(cardWidth * 1.5), 600));
+    };
+    
+    updateImageWidth();
+    window.addEventListener('resize', updateImageWidth);
+    return () => window.removeEventListener('resize', updateImageWidth);
+  }, []);
+  
+  const currentUrl = currentSource ? (currentIsVideo ? getClientAssetUrl(currentSource) : getOptimizedImageUrl(currentSource, imageWidth)) : '';
   
   const highlightedName = highlightText(material.name, keyword || '');
 
@@ -191,6 +216,8 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
           {galleryUrls.map((url, index) => {
             const urlIsVideo = isVideoUrl(url);
             if (urlIsVideo) {
+              // 只预加载当前可见的视频，其他视频使用懒加载
+              const shouldPreload = index === currentIndex && (priority || isHovering);
               return (
                 <video
                   key={`video-${index}`}
@@ -204,7 +231,7 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
                   muted
                   loop
                   playsInline
-                  preload="metadata"
+                  preload={shouldPreload ? 'metadata' : 'none'}
                 />
               );
             }
@@ -218,6 +245,10 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
               width={640}
               height={360}
               className="h-full w-full object-contain"
+              loading={priority ? 'eager' : 'lazy'}
+              priority={priority}
+              sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, (max-width: 1536px) 16vw, 14vw"
+              unoptimized={currentUrl.includes('x-oss-process=image')}
             />
           )}
           
@@ -238,12 +269,12 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
                 return;
               }
               
-              e.preventDefault();
+              // 使用 Next.js router 进行导航，避免整页刷新导致的闪烁
               if (clickTimeoutRef.current) {
                 clearTimeout(clickTimeoutRef.current);
               }
               clickTimeoutRef.current = setTimeout(() => {
-                window.location.href = `/materials/${material.id}`;
+                router.push(`/materials/${material.id}`);
                 clickTimeoutRef.current = null;
               }, 300);
             }}
@@ -318,7 +349,15 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
             {currentIsVideo ? (
               <video src={currentUrl} controls autoPlay className="h-full w-full object-contain" muted />
             ) : (
-              <Image src={currentUrl} alt={material.name} fill className="object-contain" />
+              <Image 
+                src={currentUrl} 
+                alt={material.name} 
+                fill 
+                className="object-contain"
+                sizes="100vw"
+                priority
+                unoptimized={currentUrl.includes('x-oss-process=image')}
+              />
             )}
             {galleryUrls.length > 1 && (
               <>

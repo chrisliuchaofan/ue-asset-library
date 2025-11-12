@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useCallback } from 'react';
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import type { RefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { AssetCardGallery } from '@/components/asset-card-gallery';
@@ -36,6 +36,13 @@ function AssetsListContent({
 }: AssetsListProps) {
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const scrollElement = scrollContainerRef?.current ?? null;
+  
+  // 框选相关状态
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     if (!scrollElement) return;
@@ -104,6 +111,172 @@ function AssetsListContent({
   const virtualRows = rowVirtualizer.getVirtualItems();
   const totalHeight = rowVirtualizer.getTotalSize();
 
+  // 计算选择框的样式
+  const getSelectionBoxStyle = useCallback((): React.CSSProperties | undefined => {
+    if (!isSelecting || !selectionStart || !selectionEnd || !containerRef.current) {
+      return undefined;
+    }
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const startX = selectionStart.x - containerRect.left;
+    const startY = selectionStart.y - containerRect.top;
+    const endX = selectionEnd.x - containerRect.left;
+    const endY = selectionEnd.y - containerRect.top;
+
+    const left = Math.min(startX, endX);
+    const top = Math.min(startY, endY);
+    const width = Math.abs(endX - startX);
+    const height = Math.abs(endY - startY);
+
+    return {
+      position: 'absolute' as const,
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${width}px`,
+      height: `${height}px`,
+      border: '2px solid hsl(var(--primary))',
+      backgroundColor: 'hsl(var(--primary) / 0.1)',
+      pointerEvents: 'none' as const,
+      zIndex: 1000,
+    };
+  }, [isSelecting, selectionStart, selectionEnd]);
+
+  // 检测资产卡片是否与选择框相交
+  const checkIntersection = useCallback(
+    (assetId: string): boolean => {
+      if (!isSelecting || !selectionStart || !selectionEnd) {
+        return false;
+      }
+
+      const cardElement = cardRefs.current.get(assetId);
+      if (!cardElement) return false;
+
+      // 使用 scrollElement 或 containerRef 作为参考
+      const referenceElement = scrollElement || containerRef.current;
+      if (!referenceElement) return false;
+
+      const containerRect = referenceElement.getBoundingClientRect();
+      const cardRect = cardElement.getBoundingClientRect();
+
+      // 将选择框坐标转换为相对于容器的坐标
+      const selectionLeft = Math.min(selectionStart.x, selectionEnd.x) - containerRect.left;
+      const selectionTop = Math.min(selectionStart.y, selectionEnd.y) - containerRect.top;
+      const selectionRight = Math.max(selectionStart.x, selectionEnd.x) - containerRect.left;
+      const selectionBottom = Math.max(selectionStart.y, selectionEnd.y) - containerRect.top;
+
+      // 将卡片坐标转换为相对于容器的坐标
+      const cardLeft = cardRect.left - containerRect.left;
+      const cardTop = cardRect.top - containerRect.top;
+      const cardRight = cardRect.right - containerRect.left;
+      const cardBottom = cardRect.bottom - containerRect.top;
+
+      // 检查是否相交
+      return !(
+        selectionRight < cardLeft ||
+        selectionLeft > cardRight ||
+        selectionBottom < cardTop ||
+        selectionTop > cardBottom
+      );
+    },
+    [isSelecting, selectionStart, selectionEnd, scrollElement]
+  );
+
+  // 处理框选结束，批量选中/取消选中
+  const handleSelectionEnd = useCallback(() => {
+    if (!isSelecting || !onToggleSelection) {
+      return;
+    }
+
+    const intersectedAssets: string[] = [];
+    assets.forEach((asset) => {
+      if (checkIntersection(asset.id)) {
+        intersectedAssets.push(asset.id);
+      }
+    });
+
+    // 批量切换选中状态
+    intersectedAssets.forEach((assetId) => {
+      onToggleSelection(assetId);
+    });
+
+    setIsSelecting(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  }, [isSelecting, assets, checkIntersection, onToggleSelection]);
+
+  // 鼠标事件处理
+  useEffect(() => {
+    if (!scrollElement || !onToggleSelection) return;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // 只处理左键点击，且不在按钮或其他交互元素上
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('[role="button"]') ||
+        target.closest('input') ||
+        target.closest('select') ||
+        target.closest('textarea')
+      ) {
+        return;
+      }
+
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      if (!containerRect) return;
+
+      const x = e.clientX;
+      const y = e.clientY;
+
+      // 检查点击是否在容器内
+      if (
+        x >= containerRect.left &&
+        x <= containerRect.right &&
+        y >= containerRect.top &&
+        y <= containerRect.bottom
+      ) {
+        setIsSelecting(true);
+        setSelectionStart({ x, y });
+        setSelectionEnd({ x, y });
+        // 防止框选时触发文本选择
+        e.preventDefault();
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isSelecting) return;
+      // 防止框选时触发文本选择
+      e.preventDefault();
+      setSelectionEnd({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (isSelecting) {
+        e.preventDefault();
+        handleSelectionEnd();
+      }
+    };
+
+    const handleSelectStart = (e: Event) => {
+      if (isSelecting) {
+        e.preventDefault();
+      }
+    };
+
+    scrollElement.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('selectstart', handleSelectStart);
+
+    return () => {
+      scrollElement.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('selectstart', handleSelectStart);
+    };
+  }, [scrollElement, isSelecting, handleSelectionEnd, onToggleSelection]);
+
   const renderGridRow = (rowIndex: number) => {
     const startIndex = rowIndex * columns;
     const rowItems = assets.slice(startIndex, startIndex + columns);
@@ -118,17 +291,29 @@ function AssetsListContent({
       >
         {rowItems.map((asset, columnIndex) => {
           const absoluteIndex = startIndex + columnIndex;
+          const isIntersected = isSelecting ? checkIntersection(asset.id) : false;
           return (
-            <AssetCardGallery
+            <div
               key={asset.id}
-              asset={asset}
-              keyword={keyword}
-              isSelected={selectedAssetIds?.has(asset.id)}
-              onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
-              priority={absoluteIndex < PAGINATION.PRIORITY_IMAGES_COUNT}
-              officeLocation={officeLocation}
-              viewMode={viewMode}
-            />
+              ref={(el) => {
+                if (el) {
+                  cardRefs.current.set(asset.id, el);
+                } else {
+                  cardRefs.current.delete(asset.id);
+                }
+              }}
+              className={isIntersected ? 'ring-2 ring-primary ring-offset-2' : ''}
+            >
+              <AssetCardGallery
+                asset={asset}
+                keyword={keyword}
+                isSelected={selectedAssetIds?.has(asset.id)}
+                onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
+                priority={absoluteIndex < PAGINATION.PRIORITY_IMAGES_COUNT}
+                officeLocation={officeLocation}
+                viewMode={viewMode}
+              />
+            </div>
           );
         })}
       </div>
@@ -155,30 +340,48 @@ function AssetsListContent({
   if (!shouldRenderVirtual) {
     return (
       <div
-        className="grid justify-items-center"
+        ref={containerRef}
+        className="relative grid justify-items-center"
         style={{
           gridTemplateColumns: `repeat(auto-fit, minmax(${cardWidth}px, 1fr))`,
           gap: `${verticalGap}px ${horizontalGap}px`,
         }}
       >
-        {assets.map((asset, index) => (
-          <AssetCardGallery
-            key={asset.id}
-            asset={asset}
-            keyword={keyword}
-            isSelected={selectedAssetIds?.has(asset.id)}
-            onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
-            priority={index < PAGINATION.PRIORITY_IMAGES_COUNT}
-            officeLocation={officeLocation}
-            viewMode={viewMode}
-          />
-        ))}
+        {assets.map((asset, index) => {
+          const isIntersected = isSelecting ? checkIntersection(asset.id) : false;
+          return (
+            <div
+              key={asset.id}
+              ref={(el) => {
+                if (el) {
+                  cardRefs.current.set(asset.id, el);
+                } else {
+                  cardRefs.current.delete(asset.id);
+                }
+              }}
+              className={isIntersected ? 'ring-2 ring-primary ring-offset-2' : ''}
+            >
+              <AssetCardGallery
+                asset={asset}
+                keyword={keyword}
+                isSelected={selectedAssetIds?.has(asset.id)}
+                onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
+                priority={index < PAGINATION.PRIORITY_IMAGES_COUNT}
+                officeLocation={officeLocation}
+                viewMode={viewMode}
+              />
+            </div>
+          );
+        })}
+        {isSelecting && getSelectionBoxStyle() && (
+          <div style={getSelectionBoxStyle()} />
+        )}
       </div>
     );
   }
 
   return (
-    <div className="relative" style={{ minHeight: '60vh' }}>
+    <div ref={containerRef} className="relative" style={{ minHeight: '60vh' }}>
       {isFetching && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/70 backdrop-blur-sm">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -209,6 +412,9 @@ function AssetsListContent({
           </div>
         ))}
       </div>
+      {isSelecting && getSelectionBoxStyle() && (
+        <div style={getSelectionBoxStyle()} />
+      )}
     </div>
   );
 }

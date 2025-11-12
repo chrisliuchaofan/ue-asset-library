@@ -26,7 +26,22 @@ const MaterialQuerySchema = z.object({
 export async function POST(request: Request) {
   const requestStart = Date.now();
   try {
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        return NextResponse.json({
+          materials: [],
+          total: 0,
+          returned: 0,
+          summary: { total: 0, types: {}, tags: {}, qualities: {} },
+          cache: 'aborted',
+        });
+      }
+      throw error;
+    }
+
     const parsed = MaterialQuerySchema.safeParse(body);
 
     if (!parsed.success) {

@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
-import { AdminDashboard } from '@/components/admin/admin-dashboard';
-import { AdminMaterialsDashboard } from '@/components/admin/admin-materials-dashboard';
+import { AssetsNew } from '@/components/admin/assets-new';
+import { AssetsManage } from '@/components/admin/assets-manage';
+import { MaterialsNew } from '@/components/admin/materials-new';
+import { MaterialsManage } from '@/components/admin/materials-manage';
 import { getAllAssets } from '@/lib/data';
 import { getAllMaterials } from '@/lib/materials-data';
 import { getStorageMode } from '@/lib/storage';
 import { getCdnBase } from '@/lib/utils';
-import { AdminTabs } from '@/components/admin/admin-tabs';
+import { AdminLayout } from '@/components/admin/admin-layout';
 
 export const metadata: Metadata = {
   title: '后台管理 - UE 资产库',
@@ -21,21 +23,12 @@ export default async function AdminPage() {
   const cdnBase = getCdnBase();
 
   return (
-    <div className="min-h-screen w-full bg-[#04050f] pb-16 pt-8 text-slate-100">
-      <div className="admin-surface mx-auto w-full max-w-7xl px-4 sm:px-8">
-        <div className="mb-8 space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">后台管理</h1>
-          <p className="text-sm text-slate-400">
-            在本地模式下可以直接操作 manifest.json；部署到 NAS 或云环境后，可根据 STORAGE_MODE 切换到远程存储。
-          </p>
-        </div>
-
-        <AdminTabs>
-          <AdminDashboard initialAssets={assets} storageMode={storageMode} cdnBase={cdnBase} />
-          <AdminMaterialsDashboard initialMaterials={materials} storageMode={storageMode} cdnBase={cdnBase} />
-        </AdminTabs>
-      </div>
-    </div>
+    <AdminLayout storageMode={storageMode} cdnBase={cdnBase}>
+      <AssetsNew initialAssets={assets} storageMode={storageMode} cdnBase={cdnBase} />
+      <AssetsManage initialAssets={assets} storageMode={storageMode} cdnBase={cdnBase} />
+      <MaterialsNew initialMaterials={materials} storageMode={storageMode} cdnBase={cdnBase} />
+      <MaterialsManage initialMaterials={materials} storageMode={storageMode} cdnBase={cdnBase} />
+    </AdminLayout>
   );
 }
 

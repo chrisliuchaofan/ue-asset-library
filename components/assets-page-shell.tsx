@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { Suspense } from "react";
 import { createPortal } from "react-dom";
-import { Menu } from "lucide-react";
+import { Menu, X, ChevronDown } from "lucide-react";
 import { FilterSidebar, type FilterSnapshot } from "@/components/filter-sidebar";
 import { AssetsListWithSelection } from "@/components/assets-list-with-selection";
 import { AssetsListSkeleton } from "@/components/assets-list";
@@ -91,7 +91,11 @@ export function AssetsPageShell({
         aria-label={isSidebarOpen ? "关闭筛选" : "打开筛选"}
         title={isSidebarOpen ? "关闭筛选" : "打开筛选"}
       >
-        <Menu className="h-4 w-4" strokeWidth={2} />
+        {isSidebarOpen ? (
+          <X className="h-4 w-4" strokeWidth={2} />
+        ) : (
+          <Menu className="h-4 w-4" strokeWidth={2} />
+        )}
       </button>
     </div>
   );
@@ -112,7 +116,11 @@ export function AssetsPageShell({
                 aria-label={isSidebarOpen ? "关闭筛选" : "打开筛选"}
                 title={isSidebarOpen ? "关闭筛选" : "打开筛选"}
               >
-                <Menu className="h-4 w-4" strokeWidth={2} />
+                {isSidebarOpen ? (
+                  <ChevronDown className="h-4 w-4" strokeWidth={2} />
+                ) : (
+                  <Menu className="h-4 w-4" strokeWidth={2} />
+                )}
               </button>
             </div>
           </div>

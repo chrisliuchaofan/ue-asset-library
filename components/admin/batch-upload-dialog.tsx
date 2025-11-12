@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import JSZip from 'jszip';
 import Papa from 'papaparse';
 import type { Asset, AssetCreateInput } from '@/data/manifest.schema';
+import { uploadFileDirect } from '@/lib/client/direct-upload';
 
 interface BatchUploadDialogProps {
   open: boolean;
@@ -129,6 +130,62 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
     if (typeof window === 'undefined') return '/';
     const cdnBase = window.__CDN_BASE__ || process.env.NEXT_PUBLIC_CDN_BASE || '/';
     return cdnBase.replace(/\/+$/, '');
+  }, []);
+
+  const storageMode = useMemo<'local' | 'oss'>(() => {
+    if (typeof window === 'undefined') return 'local';
+    return window.__STORAGE_MODE__ ?? 'local';
+  }, []);
+
+  const getLocalMediaMetadata = useCallback(async (file: File) => {
+    const result: { width?: number; height?: number; duration?: number } = {};
+    const cleanup = (url: string) => {
+      if (url.startsWith('blob:')) {
+        URL.revokeObjectURL(url);
+      }
+    };
+
+    try {
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        await new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            result.width = img.naturalWidth;
+            result.height = img.naturalHeight;
+            cleanup(url);
+            resolve();
+          };
+          img.onerror = (err) => {
+            cleanup(url);
+            reject(err);
+          };
+          img.src = url;
+        });
+      } else if (file.type.startsWith('video/')) {
+        const url = URL.createObjectURL(file);
+        await new Promise<void>((resolve, reject) => {
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.onloadedmetadata = () => {
+            result.width = video.videoWidth || undefined;
+            result.height = video.videoHeight || undefined;
+            result.duration = Number.isFinite(video.duration) ? Math.round(video.duration) : undefined;
+            cleanup(url);
+            resolve();
+          };
+          video.onerror = (err) => {
+            cleanup(url);
+            reject(err);
+          };
+          video.src = url;
+        });
+      }
+    } catch (error) {
+      console.warn('批量上传：读取本地媒体元数据失败', error);
+    }
+
+    return result;
   }, []);
 
   // 从API获取允许的类型列表
@@ -381,8 +438,37 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
               });
               
               if (matchedFiles.length > 0) {
-                // 按文件名排序，确保顺序一致
-                matchedFiles.sort();
+                // 自定义排序：确保没有数字后缀的文件排在前面（如 image.jpg 优先于 image2.jpg）
+                matchedFiles.sort((a, b) => {
+                  const nameA = a.replace(/^.*[\\/]/, '').toLowerCase();
+                  const nameB = b.replace(/^.*[\\/]/, '').toLowerCase();
+                  
+                  // 提取基础名称（去除扩展名和数字后缀）
+                  const baseA = nameA.replace(/\.(jpg|jpeg|png|gif|webp|bmp|svg|mp4|webm|mov|avi|mkv)$/i, '');
+                  const baseB = nameB.replace(/\.(jpg|jpeg|png|gif|webp|bmp|svg|mp4|webm|mov|avi|mkv)$/i, '');
+                  
+                  // 检查是否有数字后缀
+                  const matchA = baseA.match(/^(.+?)(\d+)$/);
+                  const matchB = baseB.match(/^(.+?)(\d+)$/);
+                  
+                  const baseNameA = matchA ? matchA[1] : baseA;
+                  const baseNameB = matchB ? matchB[1] : baseB;
+                  
+                  // 如果基础名称相同，没有数字后缀的排在前面
+                  if (baseNameA === baseNameB) {
+                    if (!matchA && matchB) return -1; // A 没有数字后缀，排在前面
+                    if (matchA && !matchB) return 1;  // B 没有数字后缀，排在前面
+                    if (matchA && matchB) {
+                      // 都有数字后缀，按数字大小排序
+                      const numA = parseInt(matchA[2], 10);
+                      const numB = parseInt(matchB[2], 10);
+                      return numA - numB;
+                    }
+                  }
+                  
+                  // 基础名称不同，按字母顺序排序
+                  return nameA.localeCompare(nameB, 'zh-CN');
+                });
                 filesToProcess = matchedFiles;
                 setProgress(`为资产 "${assetName}" 自动找到 ${matchedFiles.length} 个匹配文件: ${matchedFiles.join(', ')}`);
               } else {
@@ -442,42 +528,65 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                   const formData = new FormData();
                   formData.append('file', file);
                   
-                  const uploadData = await new Promise<any>((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    
-                    xhr.upload.addEventListener('progress', (e) => {
-                      if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
+                  let uploadData: any;
+                  
+                  if (storageMode === 'oss') {
+                    const metadata = await getLocalMediaMetadata(file);
+                    const directResult = await uploadFileDirect(file, {
+                      onProgress: (percent) => {
                         setUploadProgressPercent(percent);
                         setProgress(`正在上传文件: ${fileName}... ${percent}%`);
-                      }
+                      },
                     });
-                    
-                    xhr.addEventListener('load', () => {
-                      if (xhr.status >= 200 && xhr.status < 300) {
-                        try {
-                          const responseData = JSON.parse(xhr.responseText);
-                          resolve(responseData);
-                        } catch (err) {
-                          reject(new Error('服务器响应格式错误'));
+                    uploadData = {
+                      url: directResult.fileUrl,
+                      originalName: fileName,
+                      type: isVideo ? 'video' : 'image',
+                      size: file.size,
+                      width: metadata.width,
+                      height: metadata.height,
+                      duration: metadata.duration,
+                    };
+                    setUploadProgressPercent(100);
+                    setProgress(`正在上传文件: ${fileName}... 100%`);
+                  } else {
+                    uploadData = await new Promise<any>((resolve, reject) => {
+                      const xhr = new XMLHttpRequest();
+                      
+                      xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                          const percent = Math.round((e.loaded / e.total) * 100);
+                          setUploadProgressPercent(percent);
+                          setProgress(`正在上传文件: ${fileName}... ${percent}%`);
                         }
-                      } else {
-                        try {
-                          const errorData = JSON.parse(xhr.responseText);
-                          reject(new Error(errorData.message || `上传失败: HTTP ${xhr.status}`));
-                        } catch {
-                          reject(new Error(`上传失败: HTTP ${xhr.status}`));
+                      });
+                      
+                      xhr.addEventListener('load', () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                          try {
+                            const responseData = JSON.parse(xhr.responseText);
+                            resolve(responseData);
+                          } catch (err) {
+                            reject(new Error('服务器响应格式错误'));
+                          }
+                        } else {
+                          try {
+                            const errorData = JSON.parse(xhr.responseText);
+                            reject(new Error(errorData.message || `上传失败: HTTP ${xhr.status}`));
+                          } catch {
+                            reject(new Error(`上传失败: HTTP ${xhr.status}`));
+                          }
                         }
-                      }
+                      });
+                      
+                      xhr.addEventListener('error', () => {
+                        reject(new Error('网络错误'));
+                      });
+                      
+                      xhr.open('POST', '/api/upload');
+                      xhr.send(formData);
                     });
-                    
-                    xhr.addEventListener('error', () => {
-                      reject(new Error('网络错误'));
-                    });
-                    
-                    xhr.open('POST', '/api/upload');
-                    xhr.send(formData);
-                  });
+                  }
 
                   if (uploadData && uploadData.url) {
                     setUploadProgressPercent(100);
@@ -576,6 +685,16 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
           const finalThumbnail = thumbnailUrl || srcUrl;
           const finalSrc = srcUrl || thumbnailUrl;
           
+          // 确保 gallery 包含所有上传的文件，按上传顺序排列
+          const allUploadedUrls = uploadedFilesList.map(f => f.url).filter(Boolean);
+          const gallerySources = Array.from(
+            new Set(
+              allUploadedUrls.length > 0 
+                ? allUploadedUrls 
+                : [finalThumbnail, finalSrc, ...galleryUrls].filter((value): value is string => Boolean(value))
+            )
+          );
+          
           const assetData: any = {
             name: row.name?.trim() || '',
             type: row.type?.trim() || '角色',
@@ -587,7 +706,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
             shenzhenNas: row.shenzhenNas?.trim() || undefined,
             thumbnail: finalThumbnail || undefined,
             src: finalSrc || undefined,
-            gallery: galleryUrls.length > 0 ? galleryUrls : undefined,
+            gallery: gallerySources.length > 0 ? gallerySources : undefined,
           };
 
           // 验证必填字段
@@ -640,7 +759,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
     } finally {
       setUploading(false);
     }
-  }, [onSuccess]);
+  }, [onSuccess, storageMode]);
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1100,7 +1219,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
             {/* 创建结果 */}
             {results.length > 0 && (
               <div className="space-y-2">
-                <h3 className="font-medium text-sm">创建结果</h3>
+                <h3 className="text-sm font-semibold">创建结果</h3>
                 <div className="max-h-40 overflow-y-auto space-y-1 border rounded-lg p-3">
                   {results.map((result, index) => (
                     <div
@@ -1151,7 +1270,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
           {/* 下载模板 */}
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div>
-              <h3 className="font-medium mb-1">CSV模板</h3>
+              <h3 className="text-sm font-semibold mb-1">CSV模板</h3>
               <p className="text-sm text-muted-foreground">
                 下载CSV模板，填写资产信息后与资源文件一起打包成ZIP上传。
                 <br />
@@ -1213,7 +1332,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
           {/* 处理结果 */}
           {results.length > 0 && (
             <div className="space-y-2">
-              <h3 className="font-medium">处理结果</h3>
+              <h3 className="text-sm font-semibold">处理结果</h3>
               <div className="max-h-60 overflow-y-auto space-y-1">
                 {results.map((result, index) => (
                   <div

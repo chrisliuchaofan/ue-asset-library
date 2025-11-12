@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { MaterialsList } from '@/components/materials-list';
@@ -9,47 +9,12 @@ import { type Material } from '@/data/material.schema';
 import { useOfficeLocation } from '@/components/office-selector';
 import { Loader2 } from 'lucide-react';
 import type { MaterialFilterSnapshot } from '@/components/material-filter-sidebar';
+import type { MaterialsSummary } from '@/lib/materials-data';
 
 interface MaterialsListWithHeaderProps {
   materials: Material[];
   optimisticFilters?: MaterialFilterSnapshot | null;
-}
-
-const LOCAL_CACHE_KEY = 'materials-cache-default-v1';
-const LOCAL_CACHE_TTL_MS = 30_000;
-
-type LocalCachePayload = {
-  timestamp: number;
-  materials: Material[];
-};
-
-function readDefaultCache(): Material[] | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(LOCAL_CACHE_KEY);
-    if (!raw) return null;
-    const payload = JSON.parse(raw) as LocalCachePayload;
-    if (Date.now() - payload.timestamp > LOCAL_CACHE_TTL_MS) {
-      return null;
-    }
-    return payload.materials;
-  } catch (error) {
-    console.warn('读取素材缓存失败:', error);
-    return null;
-  }
-}
-
-function writeDefaultCache(nextMaterials: Material[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const payload: LocalCachePayload = {
-      timestamp: Date.now(),
-      materials: nextMaterials,
-    };
-    window.localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(payload));
-  } catch (error) {
-    console.warn('写入素材缓存失败:', error);
-  }
+  summary: MaterialsSummary;
 }
 
 function applyFilters(source: Material[], keyword: string, snapshot: MaterialFilterSnapshot): Material[] {
@@ -75,7 +40,7 @@ function applyFilters(source: Material[], keyword: string, snapshot: MaterialFil
   return result;
 }
 
-export function MaterialsListWithHeader({ materials, optimisticFilters }: MaterialsListWithHeaderProps) {
+export function MaterialsListWithHeader({ materials, optimisticFilters, summary }: MaterialsListWithHeaderProps) {
   const searchParams = useSearchParams();
   const keyword = searchParams.get('q') ?? '';
   const selectedType = searchParams.get('type') || null;
@@ -95,65 +60,66 @@ export function MaterialsListWithHeader({ materials, optimisticFilters }: Materi
   const [displayMaterials, setDisplayMaterials] = useState<Material[]>(materials);
   const [isFetching, setIsFetching] = useState(false);
   const [filterDuration, setFilterDuration] = useState<number | null>(null);
+  const latestRequestId = useRef(0);
+  const baseMaterialsRef = useRef<Material[]>(materials);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (hasServerFilters) {
-      setBaseMaterials(materials);
+    setBaseMaterials(materials);
+    baseMaterialsRef.current = materials;
+    if (!hasServerFilters && !optimisticFilters) {
       setDisplayMaterials(materials);
-      return;
+      setIsFetching(false);
+      setFilterDuration(null);
     }
+  }, [materials, hasServerFilters, optimisticFilters]);
 
-    const cached = readDefaultCache();
-    if (cached && cached.length > 0) {
-      setBaseMaterials(cached);
-      setDisplayMaterials(cached);
-    } else {
-      setBaseMaterials(materials);
-      setDisplayMaterials(materials);
-      writeDefaultCache(materials);
-    }
-  }, [materials, hasServerFilters]);
-
+  // 乐观更新：立即显示预览结果
   useEffect(() => {
     if (!optimisticFilters) {
       return;
     }
-    const preview = applyFilters(baseMaterials, keyword, optimisticFilters);
+    const preview = applyFilters(baseMaterialsRef.current, keyword, optimisticFilters);
     setDisplayMaterials(preview);
-    setIsFetching(true);
-  }, [optimisticFilters, baseMaterials, keyword]);
+    // 乐观更新时不显示加载状态，避免闪烁
+    setIsFetching(false);
+    setFilterDuration(null);
+  }, [keyword, optimisticFilters]);
 
+  // 服务器请求：当 URL 更新且没有乐观更新时发起
   useEffect(() => {
-    const controller = new AbortController();
-    const cachedDefault = readDefaultCache();
-    const shouldFetch =
-      hasServerFilters ||
-      (!hasServerFilters && (!cachedDefault || cachedDefault.length === 0));
-
-    if (!shouldFetch) {
-      setIsFetching(false);
-      setFilterDuration(null);
-      if (!hasServerFilters && cachedDefault) {
-        setBaseMaterials(cachedDefault);
-        setDisplayMaterials(cachedDefault);
+    if (!hasServerFilters) {
+      if (!optimisticFilters) {
+        setDisplayMaterials(baseMaterialsRef.current);
+        setIsFetching(false);
+        setFilterDuration(null);
       }
       return;
     }
 
-    setIsFetching(true);
-    const payload = {
-      keyword: keyword || undefined,
-      type: selectedType || undefined,
-      tag: selectedTag || undefined,
-      qualities: selectedQualities.length > 0 ? selectedQualities : undefined,
-    };
+    // 如果有乐观更新，等待它清除后再发起请求，避免状态切换闪烁
+    if (optimisticFilters) {
+      return;
+    }
 
-    const start = performance.now();
-    fetch('/api/materials/query', {
+    // 防抖：延迟300ms执行，如果用户在300ms内再次改变筛选条件，取消之前的请求
+    const timeoutId = setTimeout(() => {
+      const controller = new AbortController();
+      const requestId = ++latestRequestId.current;
+      const payload = {
+        keyword: keyword || undefined,
+        type: selectedType || undefined,
+        tag: selectedTag || undefined,
+        qualities: selectedQualities.length > 0 ? selectedQualities : undefined,
+      };
+
+      const start = performance.now();
+      // 只有在没有乐观更新时才显示加载状态，避免闪烁
+      setIsFetching(true);
+      fetch('/api/materials/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -167,28 +133,39 @@ export function MaterialsListWithHeader({ materials, optimisticFilters }: Materi
         return res.json() as Promise<{ materials: Material[] }>;
       })
       .then(({ materials: nextMaterials }) => {
-        const duration = performance.now() - start;
-        setFilterDuration(duration);
-        setBaseMaterials(nextMaterials);
-        setDisplayMaterials(nextMaterials);
-        if (!hasServerFilters) {
-          writeDefaultCache(nextMaterials);
+        if (latestRequestId.current !== requestId) {
+          return;
         }
+        const duration = performance.now() - start;
+        setBaseMaterials(nextMaterials);
+        baseMaterialsRef.current = nextMaterials;
+        // 只有在请求成功时才更新显示，保持流畅过渡
+        setDisplayMaterials(nextMaterials);
+        setFilterDuration(duration);
       })
       .catch((error) => {
         if (error.name === 'AbortError') return;
         console.error('素材筛选接口错误:', error);
+        // 请求失败时，恢复显示 baseMaterials
+        if (latestRequestId.current === requestId) {
+          setDisplayMaterials(baseMaterialsRef.current);
+        }
       })
       .finally(() => {
-        if (!controller.signal.aborted) {
+        if (latestRequestId.current === requestId) {
           setIsFetching(false);
         }
       });
 
+      return () => {
+        controller.abort();
+      };
+    }, 300); // 300ms 防抖延迟
+
     return () => {
-      controller.abort();
+      clearTimeout(timeoutId);
     };
-  }, [filtersKey, keyword, selectedQualities, selectedTag, selectedType, hasServerFilters]);
+  }, [filtersKey, keyword, selectedQualities, selectedTag, selectedType, hasServerFilters, optimisticFilters]);
 
   const portal = mounted ? document.getElementById('header-actions-portal') : null;
 
@@ -197,6 +174,9 @@ export function MaterialsListWithHeader({ materials, optimisticFilters }: Materi
       <div className="mb-4 flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
           找到 {displayMaterials.length} 个素材
+          {summary.total > 0 && !hasServerFilters && (
+            <span className="ml-2 text-xs text-muted-foreground/80">共 {summary.total} 个</span>
+          )}
           {filterDuration !== null && (
             <span className="ml-2 text-xs text-muted-foreground/80">
               ({Math.round(filterDuration)} ms)
@@ -223,5 +203,6 @@ export function MaterialsListWithHeader({ materials, optimisticFilters }: Materi
     </>
   );
 }
+
 
 
