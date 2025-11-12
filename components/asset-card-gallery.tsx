@@ -277,23 +277,49 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           return;
         }
 
-        video.crossOrigin = 'anonymous';
+        // 不设置 crossOrigin，避免 CORS 问题（视频帧提取不需要跨域）
+        // 如果需要跨域提取帧，需要在 OSS 配置 CORS
         video.preload = 'metadata';
         video.src = getClientAssetUrl(firstVideoUrl);
 
         await new Promise<void>((resolve, reject) => {
-          video.onloadedmetadata = () => {
-            resolve();
-          };
-          video.onerror = () => {
-            reject(new Error('视频加载失败'));
-          };
-          // 超时处理
-          setTimeout(() => {
-            if (video.readyState < 2) {
-              reject(new Error('视频加载超时'));
+          let timeoutId: NodeJS.Timeout | null = null;
+          let resolved = false;
+          
+          const cleanup = () => {
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
             }
-          }, 5000);
+            video.onloadedmetadata = null;
+            video.onerror = null;
+          };
+
+          const handleSuccess = () => {
+            if (!resolved) {
+              resolved = true;
+              cleanup();
+              resolve();
+            }
+          };
+
+          const handleError = (errorMsg: string) => {
+            if (!resolved) {
+              resolved = true;
+              cleanup();
+              reject(new Error(errorMsg));
+            }
+          };
+
+          video.onloadedmetadata = handleSuccess;
+          video.onerror = () => handleError('视频加载失败');
+          
+          // 超时处理（10秒）
+          timeoutId = setTimeout(() => {
+            if (!resolved && video.readyState < 2) {
+              handleError('视频加载超时');
+            }
+          }, 10000);
         });
 
         const duration = video.duration;
