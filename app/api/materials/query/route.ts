@@ -118,8 +118,38 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error('素材筛选请求失败', error);
+    const err = error as any;
+    
+    // 对于网络错误和超时，返回空结果而不是 500 错误
+    // 这样前端可以正常显示空状态，而不是显示错误页面
+    if (
+      err?.code === 'ETIMEDOUT' ||
+      err?.code === 'ENOTFOUND' ||
+      err?.code === 'ECONNRESET' ||
+      err?.code === 'ECONNREFUSED' ||
+      err?.message?.includes?.('ETIMEDOUT') ||
+      err?.message?.includes?.('connect ETIMEDOUT')
+    ) {
+      console.warn('素材筛选接口网络错误，返回空结果:', err?.message || err?.code);
+      return NextResponse.json({
+        materials: [],
+        total: 0,
+        returned: 0,
+        summary: { total: 0, types: {}, tags: {}, qualities: {} },
+        cache: 'error',
+        message: '网络连接超时，请稍后重试',
+      }, { status: 200 }); // 返回 200 而不是 500，避免前端显示错误页面
+    }
+    
     const message = error instanceof Error ? error.message : '素材筛选失败';
-    return NextResponse.json({ message, materials: [], total: 0, returned: 0 }, { status: 500 });
+    return NextResponse.json({ 
+      message, 
+      materials: [], 
+      total: 0, 
+      returned: 0,
+      summary: { total: 0, types: {}, tags: {}, qualities: {} },
+      cache: 'error',
+    }, { status: 200 }); // 返回 200，让前端处理空状态
   }
 }
 

@@ -130,7 +130,15 @@ async function readOssMaterials(): Promise<Material[]> {
       return [];
     }
 
-    const result = await client.get(MATERIALS_MANIFEST_FILE);
+    // 添加超时处理
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('ETIMEDOUT: 连接 OSS 超时'));
+      }, 10000); // 10秒超时
+    });
+
+    const getPromise = client.get(MATERIALS_MANIFEST_FILE);
+    const result = await Promise.race([getPromise, timeoutPromise]);
     const data = JSON.parse(result.content.toString('utf-8'));
 
     try {
@@ -161,19 +169,27 @@ async function readOssMaterials(): Promise<Material[]> {
       writeMaterialsCache(cacheKey, []);
       return [];
     }
+    // 处理超时和网络错误
     if (
       err?.code === 'ENOTFOUND' ||
+      err?.code === 'ETIMEDOUT' ||
+      err?.code === 'ECONNRESET' ||
+      err?.code === 'ECONNREFUSED' ||
       err?.code === 'UserDisable' ||
       err?.message?.includes?.('ENOTFOUND') ||
+      err?.message?.includes?.('ETIMEDOUT') ||
       err?.message?.includes?.('getaddrinfo') ||
-      err?.message?.includes?.('UserDisable')
+      err?.message?.includes?.('UserDisable') ||
+      err?.message?.includes?.('connect ETIMEDOUT')
     ) {
-      console.warn('连接 OSS 失败，返回空数组:', err?.message);
+      console.warn('连接 OSS 失败，返回空数组:', err?.message || err?.code);
       writeMaterialsCache(cacheKey, []);
       return [];
     }
     console.error('读取 OSS 素材清单失败:', error);
-    throw error;
+    // 对于其他错误，也返回空数组而不是抛出异常，避免整个接口崩溃
+    writeMaterialsCache(cacheKey, []);
+    return [];
   }
 }
 
