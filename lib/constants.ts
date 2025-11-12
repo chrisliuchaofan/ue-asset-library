@@ -36,7 +36,23 @@ export const DEFAULT_ASSET_TYPES = [
 // 分页配置
 export const PAGINATION = {
   ITEMS_PER_PAGE: 50,
-  PRIORITY_IMAGES_COUNT: 7, // 首屏优先加载的图片数量
+  // 性能优化：减少初始渲染数量
+  INITIAL_ITEMS_PER_PAGE: 18, // 素材列表初始每页显示数量（从 24 降到 18，进一步减少首屏渲染）
+  PRIORITY_IMAGES_COUNT: 12, // 首屏优先加载的图片数量（根据实际可见区域调整）
+  // 虚拟滚动配置
+  VIRTUAL_SCROLL_OVERSCAN: 1, // 虚拟滚动预渲染行数（从 2 降到 1，最小化初始渲染）
+} as const;
+
+// 批量上传配置
+export const BATCH_UPLOAD_CONFIG = {
+  // 最大并发上传数（避免内存溢出和连接数过多）
+  MAX_CONCURRENT_UPLOADS: 5,
+  // 单次批量上传最大文件数
+  MAX_BATCH_SIZE: 100,
+  // 上传重试次数
+  MAX_RETRIES: 3,
+  // 重试延迟（毫秒）
+  RETRY_DELAY: 1000,
 } as const;
 
 

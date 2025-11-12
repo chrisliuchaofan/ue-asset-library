@@ -3,7 +3,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { createHash } from 'crypto';
 import { getStorageMode } from '@/lib/storage';
-import { FILE_UPLOAD_LIMITS, ALLOWED_FILE_EXTENSIONS, ALLOWED_MIME_TYPES } from '@/lib/constants';
+import { FILE_UPLOAD_LIMITS, ALLOWED_FILE_EXTENSIONS, ALLOWED_MIME_TYPES, BATCH_UPLOAD_CONFIG } from '@/lib/constants';
 import OSS from 'ali-oss';
 import sharp from 'sharp';
 
@@ -159,6 +159,55 @@ async function uploadFile(
   };
 }
 
+// 并发控制：限制同时上传的文件数量
+async function uploadWithConcurrencyLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let currentIndex = 0;
+  
+  // 创建并发池
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (currentIndex < items.length) {
+      const index = currentIndex++;
+      if (index >= items.length) break;
+      
+      try {
+        results[index] = await fn(items[index], index);
+      } catch (error) {
+        // 保持错误信息，但标记为失败
+        results[index] = { error: error instanceof Error ? error.message : String(error) } as any;
+      }
+    }
+  });
+  
+  await Promise.all(workers);
+  return results;
+}
+
+// 带重试的上传函数
+async function uploadFileWithRetry(
+  file: File,
+  index: number,
+  retries = BATCH_UPLOAD_CONFIG.MAX_RETRIES
+): Promise<ReturnType<typeof uploadFile>> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await uploadFile(file, index);
+    } catch (error) {
+      if (attempt === retries) {
+        throw error;
+      }
+      // 等待后重试
+      await new Promise(resolve => setTimeout(resolve, BATCH_UPLOAD_CONFIG.RETRY_DELAY * attempt));
+      console.warn(`文件 ${file.name} 上传失败，重试 ${attempt}/${retries}...`);
+    }
+  }
+  throw new Error('上传失败：重试次数用尽');
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -168,13 +217,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: '没有上传文件' }, { status: 400 });
     }
 
-    const results = await Promise.all(
-      files.map((file, index) => uploadFile(file, index))
+    // 检查批量大小限制
+    if (files.length > BATCH_UPLOAD_CONFIG.MAX_BATCH_SIZE) {
+      return NextResponse.json(
+        { 
+          message: `批量上传文件数量超过限制（最大 ${BATCH_UPLOAD_CONFIG.MAX_BATCH_SIZE} 个）`,
+          maxBatchSize: BATCH_UPLOAD_CONFIG.MAX_BATCH_SIZE
+        },
+        { status: 400 }
+      );
+    }
+
+    // 使用并发控制上传文件
+    const results = await uploadWithConcurrencyLimit(
+      files,
+      BATCH_UPLOAD_CONFIG.MAX_CONCURRENT_UPLOADS,
+      (file, index) => uploadFileWithRetry(file, index)
     );
 
+    // 检查是否有失败的上传
+    const failedUploads = results.filter(r => r && 'error' in r);
+    if (failedUploads.length > 0) {
+      console.warn(`批量上传部分失败: ${failedUploads.length}/${files.length}`);
+    }
+
     return NextResponse.json({
-      success: true,
+      success: failedUploads.length === 0,
       files: results,
+      stats: {
+        total: files.length,
+        success: results.length - failedUploads.length,
+        failed: failedUploads.length,
+      },
     });
   } catch (error) {
     console.error('批量上传文件失败:', error);

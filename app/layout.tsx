@@ -78,6 +78,19 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
+        {/* DNS 预解析和预连接，提升资源加载速度 */}
+        {cdnBase && cdnBase !== '/' && (
+          <>
+            <link rel="dns-prefetch" href={cdnBase} />
+            <link rel="preconnect" href={cdnBase} crossOrigin="anonymous" />
+          </>
+        )}
+        {storageMode === 'oss' && (ossBucket || serverOssBucket) && (ossRegion || serverOssRegion) && (
+          <>
+            <link rel="dns-prefetch" href={`https://${ossBucket || serverOssBucket}.oss-${(ossRegion || serverOssRegion).replace(/^oss-/, '')}.aliyuncs.com`} />
+            <link rel="preconnect" href={`https://${ossBucket || serverOssBucket}.oss-${(ossRegion || serverOssRegion).replace(/^oss-/, '')}.aliyuncs.com`} crossOrigin="anonymous" />
+          </>
+        )}
         <script
           dangerouslySetInnerHTML={{
             __html: `

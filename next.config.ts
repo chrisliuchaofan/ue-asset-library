@@ -49,11 +49,132 @@ const nextConfig: NextConfig = {
   
   // 优化构建输出
   experimental: {
-    optimizePackageImports: ['lucide-react'],
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-radio-group'],
+    // 启用部分预渲染，提升性能
+    ppr: false, // 暂时禁用，等稳定后启用
   },
   
   // 优化输出
   output: 'standalone',
+  
+  // 编译器优化
+  compiler: {
+    // 移除 console.log（生产环境）
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
+  },
+  
+  // 优化 Webpack 配置
+  webpack: (config, { dev, isServer }) => {
+    // 生产环境客户端优化
+    if (!dev && !isServer) {
+      // 优化代码分割
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: 'deterministic',
+        runtimeChunk: 'single',
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            default: false,
+            vendors: false,
+            // React 框架代码分离
+            framework: {
+              name: 'framework',
+              chunks: 'all',
+              test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+              priority: 40,
+              enforce: true,
+            },
+            // UI 库分离
+            ui: {
+              name: 'ui',
+              chunks: 'all',
+              test: /[\\/]node_modules[\\/](@radix-ui|lucide-react)[\\/]/,
+              priority: 35,
+              enforce: true,
+            },
+            // 其他大型库分离
+            lib: {
+              test(module: { resource?: string }) {
+                return module.resource &&
+                  module.resource.includes('node_modules') &&
+                  !module.resource.includes('react') &&
+                  !module.resource.includes('react-dom') &&
+                  !module.resource.includes('@radix-ui') &&
+                  !module.resource.includes('lucide-react');
+              },
+              name(module: { resource?: string }) {
+                const packageName = module.resource?.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/)?.[1];
+                return `lib.${packageName?.replace('@', '').replace('/', '-') || 'unknown'}`;
+              },
+              priority: 30,
+              minChunks: 1,
+              reuseExistingChunk: true,
+            },
+            // 公共代码
+            commons: {
+              name: 'commons',
+              minChunks: 2,
+              priority: 20,
+            },
+          },
+          maxInitialRequests: 25,
+          minSize: 20000,
+        },
+      };
+    }
+    
+    return config;
+  },
+  
+  // 优化 HTTP 头
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
+          },
+        ],
+      },
+      {
+        // 静态资源缓存
+        source: '/:path*\\.(jpg|jpeg|png|gif|webp|svg|ico|woff|woff2|ttf|eot)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // JavaScript 和 CSS 缓存
+        source: '/:path*\\.(js|css)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

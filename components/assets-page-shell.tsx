@@ -2,13 +2,16 @@
 
 import { useEffect, useState, useCallback } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { Suspense } from "react";
+import { Suspense, lazy } from "react";
 import { createPortal } from "react-dom";
 import { Menu, X, ChevronDown } from "lucide-react";
-import { FilterSidebar, type FilterSnapshot } from "@/components/filter-sidebar";
+import type { FilterSnapshot } from "@/components/filter-sidebar";
 import { AssetsListWithSelection } from "@/components/assets-list-with-selection";
 import { AssetsListSkeleton } from "@/components/assets-list";
 import type { Asset } from "@/data/manifest.schema";
+
+// 动态导入 FilterSidebar，只在侧边栏打开时加载
+const FilterSidebar = lazy(() => import("@/components/filter-sidebar").then(mod => ({ default: mod.FilterSidebar })));
 
 interface AssetsPageShellProps {
   assets: Asset[];
