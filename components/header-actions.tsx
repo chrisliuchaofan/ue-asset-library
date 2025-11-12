@@ -19,7 +19,7 @@ interface HeaderActionsProps {
 }
 
 const navButtonBase =
-  'relative inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-transparent bg-transparent text-slate-600 transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:text-slate-100 dark:focus-visible:ring-primary/40';
+  'relative inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-transparent bg-transparent text-slate-600 transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:text-slate-100 dark:focus-visible:ring-primary/40 cursor-pointer';
 
 export function HeaderActions({
   selectedAssets = [],

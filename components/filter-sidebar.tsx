@@ -69,6 +69,7 @@ function FilterSection({
         {hasMore && (
           <div className="col-span-2 flex justify-center pt-1">
             <Button
+              type="button"
               variant="outline"
               size="sm"
               className="h-7 w-14 rounded-md border border-transparent bg-transparent text-slate-700 hover:bg-slate-100 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/[0.08]"
@@ -279,6 +280,7 @@ export function FilterSidebar({
         />
 
         <Button
+          type="button"
           variant="outline"
           size="sm"
           onClick={clearAllFilters}

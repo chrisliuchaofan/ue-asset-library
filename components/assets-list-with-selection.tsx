@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LayoutPanelTop, Film, Grid3x3, ChevronDown, ChevronUp } from 'lucide-react';
 import { filterAssetsByOptions } from '@/lib/asset-filters';
+import { PAGINATION } from '@/lib/constants';
 
 interface AssetsListWithSelectionProps {
   assets: Asset[];
@@ -67,6 +68,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const [filterDurationMs, setFilterDurationMs] = useState<number | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     setMounted(true);
@@ -84,6 +86,26 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     if (typeof window === 'undefined') return;
     localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
   }, [viewMode]);
+
+  // 从 URL 参数读取页码
+  useEffect(() => {
+    const pageParam = searchParams.get('page');
+    if (pageParam) {
+      const page = parseInt(pageParam, 10);
+      if (page > 0) {
+        setCurrentPage(page);
+      }
+    } else {
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
+
+  // 计算分页数据
+  const itemsPerPage = PAGINATION.ASSETS_PER_PAGE; // 100个
+  const totalPages = Math.ceil(displayAssets.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedAssets = displayAssets.slice(startIndex, endIndex);
 
   useEffect(() => {
     if (hasHydratedSelection) return;
@@ -127,15 +149,21 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   }, [selectedAssetIds, hasHydratedSelection]);
 
   const handleToggleSelection = useCallback((assetId: string) => {
-    console.log('handleToggleSelection 被调用', { assetId });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('handleToggleSelection 被调用', { assetId });
+    }
     setSelectedAssetIds((prev) => {
       const next = new Set(prev);
       if (next.has(assetId)) {
         next.delete(assetId);
-        console.log('从清单移除', { assetId, newSize: next.size });
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('从清单移除', { assetId, newSize: next.size });
+        }
       } else {
         next.add(assetId);
-        console.log('添加到清单', { assetId, newSize: next.size });
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('添加到清单', { assetId, newSize: next.size });
+        }
       }
       return next;
     });
@@ -245,8 +273,8 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     }
 
     // 防抖：延迟300ms执行，如果用户在300ms内再次改变筛选条件，取消之前的请求
+    const controller = new AbortController();
     const timeoutId = setTimeout(() => {
-      const controller = new AbortController();
       const payload = {
         keyword: keyword.trim() || undefined,
         types: selectedTypes,
@@ -286,14 +314,11 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
           setIsFetching(false);
         }
       });
-
-      return () => {
-        controller.abort();
-      };
     }, 300); // 300ms 防抖延迟
 
     return () => {
       clearTimeout(timeoutId);
+      controller.abort();
     };
   }, [
     assets,
@@ -360,7 +385,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       </div>
       <div ref={scrollContainerRef} className="flex-1 overflow-auto px-3 pb-6 sm:px-5 lg:px-6">
         <AssetsList
-          assets={displayAssets}
+          assets={paginatedAssets}
           selectedAssetIds={selectedAssetIds}
           onToggleSelection={handleToggleSelection}
           officeLocation={officeLocation}
@@ -370,6 +395,128 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
           filterDurationMs={filterDurationMs}
           isFetching={isFetching}
         />
+        
+        {/* 分页控件 */}
+        {totalPages > 1 && (
+          <div className="mt-8 flex flex-col items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              共 {displayAssets.length} 个资产，第 {currentPage} / {totalPages} 页
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {currentPage > 1 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const newPage = currentPage - 1;
+                    setCurrentPage(newPage);
+                    const params = new URLSearchParams(searchParams.toString());
+                    if (newPage === 1) {
+                      params.delete('page');
+                    } else {
+                      params.set('page', newPage.toString());
+                    }
+                    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+                    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                >
+                  上一页
+                </Button>
+              )}
+              {(() => {
+                const maxVisiblePages = 7;
+                let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                if (endPage - startPage < maxVisiblePages - 1) {
+                  startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                }
+                const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+                
+                return (
+                  <>
+                    {startPage > 1 && (
+                      <>
+                        <Button
+                          type="button"
+                          variant={currentPage === 1 ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setCurrentPage(1);
+                            const params = new URLSearchParams(searchParams.toString());
+                            params.delete('page');
+                            window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+                            scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                        >
+                          1
+                        </Button>
+                        {startPage > 2 && <span className="px-2 text-muted-foreground">...</span>}
+                      </>
+                    )}
+                    {pages.map((page) => (
+                      <Button
+                        key={page}
+                        type="button"
+                        variant={currentPage === page ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => {
+                          setCurrentPage(page);
+                          const params = new URLSearchParams(searchParams.toString());
+                          if (page === 1) {
+                            params.delete('page');
+                          } else {
+                            params.set('page', page.toString());
+                          }
+                          window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+                          scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                      >
+                        {page}
+                      </Button>
+                    ))}
+                    {endPage < totalPages && (
+                      <>
+                        {endPage < totalPages - 1 && <span className="px-2 text-muted-foreground">...</span>}
+                        <Button
+                          type="button"
+                          variant={currentPage === totalPages ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => {
+                            setCurrentPage(totalPages);
+                            const params = new URLSearchParams(searchParams.toString());
+                            params.set('page', totalPages.toString());
+                            window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+                            scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                        >
+                          {totalPages}
+                        </Button>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+              {currentPage < totalPages && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const newPage = currentPage + 1;
+                    setCurrentPage(newPage);
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.set('page', newPage.toString());
+                    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+                    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                >
+                  下一页
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       {headerPortal && createPortal(
         <HeaderActions

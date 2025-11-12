@@ -29,8 +29,23 @@ const AssetQuerySchema = z.object({
 export async function POST(request: Request) {
   const requestStart = Date.now();
   try {
-    const json = await request.json();
-    const parsed = AssetQuerySchema.safeParse(json);
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        return NextResponse.json({
+          assets: [],
+          total: 0,
+          returned: 0,
+          summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {} },
+          cache: 'aborted',
+        });
+      }
+      throw error;
+    }
+
+    const parsed = AssetQuerySchema.safeParse(body);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -103,10 +118,39 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error('资产筛选请求失败', error);
+
+    const err = error as any;
+    
+    // 对于网络错误和超时，返回空结果而不是 500 错误
+    // 这样前端可以正常显示空状态，而不是显示错误页面
+    if (
+      err?.code === 'ETIMEDOUT' ||
+      err?.code === 'ENOTFOUND' ||
+      err?.code === 'ECONNRESET' ||
+      err?.code === 'ECONNREFUSED' ||
+      err?.message?.includes?.('ETIMEDOUT') ||
+      err?.message?.includes?.('connect ETIMEDOUT')
+    ) {
+      console.warn('资产筛选接口网络错误，返回空结果:', err?.message || err?.code);
+      return NextResponse.json({
+        assets: [],
+        total: 0,
+        returned: 0,
+        summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {} },
+        cache: 'error',
+        message: '网络连接超时，请稍后重试',
+      }, { status: 200 }); // 返回 200 而不是 500，避免前端显示错误页面
+    }
+    
     const message = error instanceof Error ? error.message : '资产筛选失败';
-    const response = NextResponse.json({ message, assets: [], total: 0, returned: 0 }, { status: 500 });
-    response.headers.set('X-Asset-Query-Error', Date.now().toString());
-    return response;
+    return NextResponse.json({ 
+      message, 
+      assets: [], 
+      total: 0, 
+      returned: 0,
+      summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {} },
+      cache: 'error',
+    }, { status: 200 }); // 返回 200，让前端处理空状态
   }
 }
 

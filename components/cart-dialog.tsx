@@ -122,6 +122,7 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
             <>
               <div className="flex flex-col sm:flex-row justify-end gap-2">
                 <Button 
+                  type="button"
                   variant="outline" 
                   size="sm" 
                   onClick={handleClear}
@@ -131,6 +132,7 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
                   清空
                 </Button>
                 <Button 
+                  type="button"
                   onClick={handleExport} 
                   disabled={exporting}
                   className="w-full sm:w-auto"
@@ -164,6 +166,7 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
                       </div>
                     </div>
                     <Button
+                      type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => onRemove(asset.id)}
