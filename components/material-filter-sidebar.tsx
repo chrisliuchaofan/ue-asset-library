@@ -6,9 +6,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 
-const MATERIAL_TYPES = ['UE视频', 'AE视频', '混剪', 'AI视频', '图片'] as const;
-const MATERIAL_TAGS = ['爆款', '优质', '达标'] as const;
-const MATERIAL_QUALITIES = ['高品质', '常规', '迭代'] as const;
+const DEFAULT_TYPES = ['UE视频', 'AE视频', '混剪', 'AI视频', '图片'] as const;
+const DEFAULT_TAGS = ['爆款', '优质', '达标'] as const;
+const DEFAULT_QUALITIES = ['高品质', '常规', '迭代'] as const;
 
 export interface MaterialFilterSnapshot {
   type: string | null;
@@ -18,6 +18,9 @@ export interface MaterialFilterSnapshot {
 
 interface MaterialFilterSidebarProps {
   onOptimisticFiltersChange?: (snapshot: MaterialFilterSnapshot | null) => void;
+  types?: string[];
+  tags?: string[];
+  qualities?: string[];
 }
 
 interface FilterSectionProps {
@@ -89,11 +92,20 @@ function FilterSection({ title, items, selectedItems, mode, isPending, onChange 
   );
 }
 
-export function MaterialFilterSidebar({ onOptimisticFiltersChange }: MaterialFilterSidebarProps) {
+export function MaterialFilterSidebar({
+  onOptimisticFiltersChange,
+  types = [],
+  tags = [],
+  qualities = [],
+}: MaterialFilterSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+
+  const availableTypes = Array.from(new Set([...DEFAULT_TYPES, ...types]));
+  const availableTags = Array.from(new Set([...DEFAULT_TAGS, ...tags]));
+  const availableQualities = Array.from(new Set([...DEFAULT_QUALITIES, ...qualities]));
 
   const selectedType = searchParams.get('type') || '';
   const selectedTag = searchParams.get('tag') || '';
@@ -105,15 +117,37 @@ export function MaterialFilterSidebar({ onOptimisticFiltersChange }: MaterialFil
     qualities: selectedQualities,
   };
 
+  const areSnapshotsEqual = useCallback((a: MaterialFilterSnapshot, b: MaterialFilterSnapshot) => {
+    if (a.type !== b.type || a.tag !== b.tag) return false;
+    if (a.qualities.length !== b.qualities.length) return false;
+    return a.qualities.every((value, index) => value === b.qualities[index]);
+  }, []);
+
   const [localFilters, setLocalFilters] = useState<MaterialFilterSnapshot>(syncedFilters);
 
   useEffect(() => {
     if (isPending) {
       return;
     }
-    setLocalFilters(syncedFilters);
-    onOptimisticFiltersChange?.(null);
-  }, [selectedType, selectedTag, selectedQualities.join('|'), isPending, onOptimisticFiltersChange]);
+    let shouldClear = false;
+    setLocalFilters((prev) => {
+      if (areSnapshotsEqual(prev, syncedFilters)) {
+        return prev;
+      }
+      shouldClear = true;
+      return syncedFilters;
+    });
+    // 延迟清除乐观更新，确保 URL 已完全同步且服务器请求可以开始
+    // 使用 requestAnimationFrame 确保在下一个渲染周期清除，避免闪烁
+    if (shouldClear) {
+      const frameId = requestAnimationFrame(() => {
+        onOptimisticFiltersChange?.(null);
+      });
+      return () => {
+        cancelAnimationFrame(frameId);
+      };
+    }
+  }, [syncedFilters.type, syncedFilters.tag, syncedFilters.qualities.join('|'), isPending, onOptimisticFiltersChange, areSnapshotsEqual]);
 
   const updateParams = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -127,9 +161,14 @@ export function MaterialFilterSidebar({ onOptimisticFiltersChange }: MaterialFil
     });
 
     params.delete('page');
+    const nextParams = params.toString();
 
     startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`);
+      if (nextParams) {
+        router.push(`${pathname}?${nextParams}`);
+      } else {
+        router.push(pathname);
+      }
     });
   }, [router, pathname, searchParams]);
 
@@ -182,7 +221,7 @@ export function MaterialFilterSidebar({ onOptimisticFiltersChange }: MaterialFil
     <div className="flex h-full flex-col gap-4 text-sm text-slate-700 dark:text-slate-200">
       <FilterSection
         title="类型"
-        items={MATERIAL_TYPES}
+        items={availableTypes}
         selectedItems={selectedType ? [selectedType] : []}
         mode="single"
         isPending={isPending}
@@ -191,7 +230,7 @@ export function MaterialFilterSidebar({ onOptimisticFiltersChange }: MaterialFil
 
       <FilterSection
         title="标签"
-        items={MATERIAL_TAGS}
+        items={availableTags}
         selectedItems={selectedTag ? [selectedTag] : []}
         mode="single"
         isPending={isPending}
@@ -200,7 +239,7 @@ export function MaterialFilterSidebar({ onOptimisticFiltersChange }: MaterialFil
 
       <FilterSection
         title="质量"
-        items={MATERIAL_QUALITIES}
+        items={availableQualities}
         selectedItems={selectedQualities}
         mode="multi"
         isPending={isPending}

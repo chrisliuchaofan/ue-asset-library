@@ -2,13 +2,13 @@
 
 import { useCallback, useMemo, useState, useRef, useEffect, type ChangeEvent } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import Link from 'next/link';
 import type { Asset } from '@/data/manifest.schema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, FileArchive, Tags, ArrowLeft, CheckSquare, ImageIcon, MoreVertical } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, FileArchive, Tags, CheckSquare, ImageIcon, MoreVertical, Edit, Copy, Check } from 'lucide-react';
 import { BatchUploadDialog } from './batch-upload-dialog';
 import { TagsManagementDialog } from './tags-management-dialog';
 import { BatchEditDialog } from './batch-edit-dialog';
@@ -20,7 +20,17 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { uploadFileDirect } from '@/lib/client/direct-upload';
+import { createPortal } from 'react-dom';
+import Image from 'next/image';
+import { getOptimizedImageUrl, getClientAssetUrl } from '@/lib/utils';
 
 type StorageMode = 'local' | 'oss';
 
@@ -28,6 +38,8 @@ interface AdminDashboardProps {
   initialAssets: Asset[];
   storageMode: StorageMode;
   cdnBase: string;
+  showOnlyList?: boolean;
+  refreshKey?: number;
 }
 
 // 资产类型选项（默认值，实际使用时会从API动态获取）
@@ -42,18 +54,19 @@ const SOURCE_SUGGESTIONS = ['内部', '外部', '网络'];
 // 版本建议值
 const VERSION_SUGGESTIONS = ['UE5.6', 'UE5.5', 'UE5.4', 'UE5.3', 'UE4.3'];
 
-const PREVIEW_SIZE = 64;
-const ROW_HEIGHT = 72;
+const PREVIEW_SIZE = 56;
+const ROW_HEIGHT = 56; // 更紧凑的行高
 const SELECTION_COL_WIDTH = 48;
 
+// 计算最小宽度：表头文字宽度（每个中文字符约12px）+ padding（16px）
 const ASSET_COLUMNS = [
-  { id: 'preview', label: '预览图', defaultWidth: 128, minWidth: 96 },
-  { id: 'name', label: '名称', defaultWidth: 240, minWidth: 160 },
-  { id: 'type', label: '类型', defaultWidth: 120, minWidth: 96 },
-  { id: 'tags', label: '标签', defaultWidth: 220, minWidth: 160 },
-  { id: 'paths', label: '资源路径', defaultWidth: 420, minWidth: 260 },
-  { id: 'updatedAt', label: '更新时间', defaultWidth: 160, minWidth: 140 },
-  { id: 'actions', label: '操作', defaultWidth: 160, minWidth: 140 },
+  { id: 'preview', label: '预览图', defaultWidth: 128, minWidth: 52 }, // 3字 * 12 + 16 = 52
+  { id: 'name', label: '名称', defaultWidth: 240, minWidth: 40 }, // 2字 * 12 + 16 = 40
+  { id: 'type', label: '类型', defaultWidth: 120, minWidth: 40 }, // 2字 * 12 + 16 = 40
+  { id: 'tags', label: '标签', defaultWidth: 220, minWidth: 40 }, // 2字 * 12 + 16 = 40
+  { id: 'paths', label: '资源路径', defaultWidth: 420, minWidth: 64 }, // 4字 * 12 + 16 = 64
+  { id: 'updatedAt', label: '更新时间', defaultWidth: 160, minWidth: 64 }, // 4字 * 12 + 16 = 64
+  { id: 'actions', label: '操作', defaultWidth: 160, minWidth: 40 }, // 2字 * 12 + 16 = 40
 ] as const;
 
 interface FormState {
@@ -92,7 +105,7 @@ const initialFormState: FormState = {
   filesize: '',
 };
 
-export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDashboardProps) {
+export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyList, refreshKey }: AdminDashboardProps) {
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [form, setForm] = useState<FormState>(initialFormState);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
@@ -119,12 +132,27 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
   const [searchKeyword, setSearchKeyword] = useState('');
   const [filterType, setFilterType] = useState<string>('');
   const [filterTag, setFilterTag] = useState<string>('');
-  const [showAllAssets, setShowAllAssets] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
+  const ITEMS_PER_PAGE = 12;
   const [tagsManagementOpen, setTagsManagementOpen] = useState(false);
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
   const [batchEditOpen, setBatchEditOpen] = useState(false);
-  const [allowedTypes, setAllowedTypes] = useState<string[]>([]); // 允许的资产类型列表（动态获取）
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingAssetInDialog, setEditingAssetInDialog] = useState<Asset | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [assetToDelete, setAssetToDelete] = useState<Asset | null>(null);
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+  const [isLongPressing, setIsLongPressing] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const rowRefsRef = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  
+  // 框选功能状态
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectStart, setSelectStart] = useState<{ x: number; y: number } | null>(null);
+  const [selectEnd, setSelectEnd] = useState<{ x: number; y: number } | null>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [allowedTypes, setAllowedTypes] = useState<string[]>([...DEFAULT_ASSET_TYPES]); // 允许的资产类型列表（动态获取）
   const [showPaths, setShowPaths] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<(typeof ASSET_COLUMNS)[number]['id'], number>>(() =>
     ASSET_COLUMNS.reduce((acc, column) => {
@@ -136,7 +164,8 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
     () => ASSET_COLUMNS.filter((column) => showPaths || column.id !== 'paths'),
     [showPaths]
   );
-  const [sortKey, setSortKey] = useState<'updatedAt' | 'name'>('updatedAt');
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const nameCollator = useMemo(
     () => new Intl.Collator('zh-Hans-u-co-pinyin', { sensitivity: 'base', numeric: true }),
     []
@@ -147,8 +176,20 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
 
   // 从API获取允许的类型列表
   const fetchAllowedTypes = useCallback(async () => {
+    // 只在客户端执行
+    if (typeof window === 'undefined') {
+      setAllowedTypes([...DEFAULT_ASSET_TYPES]);
+      return;
+    }
+    
     try {
-      const res = await fetch('/api/assets/types');
+      const res = await fetch('/api/assets/types', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.allowedTypes) && data.allowedTypes.length > 0) {
@@ -156,15 +197,23 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
           return;
         }
       }
+      // 如果响应不OK或数据无效，使用默认值
       setAllowedTypes([...DEFAULT_ASSET_TYPES]);
     } catch (err) {
-        console.error('获取类型列表失败:', err);
-        setAllowedTypes([...DEFAULT_ASSET_TYPES]);
+      // 网络错误或其他错误，使用默认值
+      console.warn('获取类型列表失败，使用默认类型:', err);
+      setAllowedTypes([...DEFAULT_ASSET_TYPES]);
     }
   }, []);
 
   useEffect(() => {
-    fetchAllowedTypes();
+    // 只在客户端执行
+    if (typeof window !== 'undefined') {
+      fetchAllowedTypes();
+    } else {
+      // 服务器端渲染时使用默认值
+      setAllowedTypes([...DEFAULT_ASSET_TYPES]);
+    }
   }, [fetchAllowedTypes]);
 
   const resetForm = useCallback(() => {
@@ -315,6 +364,13 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
     setAssets(data.assets);
   }, []);
 
+  // 当 refreshKey 变化时，刷新资产列表
+  useEffect(() => {
+    if (refreshKey !== undefined && refreshKey > 0) {
+      refreshAssets();
+    }
+  }, [refreshKey, refreshAssets]);
+
   // 处理批量添加标签
   const handleBatchAddTags = useCallback(async (newTags: string[]) => {
     if (selectedAssetIds.size === 0) {
@@ -356,6 +412,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
       const startWidth = columnWidths[columnId];
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
+        moveEvent.preventDefault();
         const delta = moveEvent.clientX - startX;
         const nextWidth = Math.max(column.minWidth, startWidth + delta);
         setColumnWidths((prev) => {
@@ -370,9 +427,11 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
         document.body.classList.remove('select-none');
+        document.body.style.cursor = '';
       };
 
       document.body.classList.add('select-none');
+      document.body.style.cursor = 'col-resize';
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     },
@@ -1259,25 +1318,67 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
       filtered = filtered.filter((asset) => asset.tags.includes(filterTag));
     }
 
-    const sorted = [...filtered].sort((a, b) => {
-      if (sortKey === 'name') {
-        return nameCollator.compare(a.name, b.name);
-      }
-      const aTime = a.updatedAt ?? a.createdAt ?? 0;
-      const bTime = b.updatedAt ?? b.createdAt ?? 0;
-      return bTime - aTime;
-    });
+    let sorted = [...filtered];
+    if (sortKey) {
+      sorted = sorted.sort((a, b) => {
+        let comparison = 0;
+        if (sortKey === 'name') {
+          comparison = nameCollator.compare(a.name, b.name);
+        } else if (sortKey === 'type') {
+          comparison = a.type.localeCompare(b.type);
+        } else if (sortKey === 'updatedAt') {
+          const aTime = a.updatedAt ?? a.createdAt ?? 0;
+          const bTime = b.updatedAt ?? b.createdAt ?? 0;
+          comparison = aTime - bTime;
+        }
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+    }
 
     return sorted;
-  }, [assets, searchKeyword, filterType, filterTag, sortKey, nameCollator]);
+  }, [assets, searchKeyword, filterType, filterTag, sortKey, sortDirection, nameCollator]);
 
-  // 分页显示（默认显示5条）
+  // 分页显示（每页显示12条）
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredAssets.length / ITEMS_PER_PAGE);
+  }, [filteredAssets.length]);
+
   const displayedAssets = useMemo(() => {
-    if (showAllAssets) {
-      return filteredAssets;
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return filteredAssets.slice(startIndex, endIndex);
+  }, [filteredAssets, currentPage]);
+
+  // 当筛选条件变化时，重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchKeyword, filterType, filterTag]);
+
+  // 预览图悬停状态
+  const [hoveredPreview, setHoveredPreview] = useState<{
+    assetId: string;
+    elementRef: HTMLDivElement | null;
+    mediaFiles: Array<{ url: string; label: string; type: 'image' | 'video' }>;
+  } | null>(null);
+  const previewRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // 复制状态：记录哪个路径被复制了
+  const [copiedPath, setCopiedPath] = useState<string | null>(null);
+
+  // 复制到剪贴板
+  const copyToClipboard = useCallback(async (text: string, pathKey: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedPath(pathKey);
+      setTimeout(() => {
+        setCopiedPath(null);
+      }, 2000);
+    } catch (err) {
+      console.error('复制失败:', err);
+      setMessage('复制失败');
+      setTimeout(() => setMessage(null), 2000);
     }
-    return filteredAssets.slice(0, 5);
-  }, [filteredAssets, showAllAssets]);
+  }, []);
 
   // 获取预览图URL（客户端）- 与前端保持一致的处理逻辑
   const getPreviewUrl = useCallback((url: string) => {
@@ -1400,10 +1501,31 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                           };
                           
                           return (
-          <div className="flex h-[72px] items-center">
-                            <div className="relative group">
+          <div className="flex h-[56px] items-center">
+                            <div 
+                              className="relative group"
+                              ref={(el) => {
+                                if (el) {
+                                  previewRefs.current.set(asset.id, el);
+                                } else {
+                                  previewRefs.current.delete(asset.id);
+                                }
+                              }}
+                              onMouseEnter={() => {
+                                if (allMediaFiles.length > 0) {
+                                  setHoveredPreview({
+                                    assetId: asset.id,
+                                    elementRef: previewRefs.current.get(asset.id) || null,
+                                    mediaFiles: allMediaFiles,
+                                  });
+                                }
+                              }}
+                              onMouseLeave={() => {
+                                setHoveredPreview(null);
+                              }}
+                            >
                               {currentPreviewUrl ? (
-                <div className="relative h-[64px] w-[64px] overflow-hidden rounded-md border border-white/15 bg-[#111a2d]">
+                <div className="relative h-[48px] w-[48px] overflow-hidden border border-gray-300 bg-gray-100 cursor-pointer">
                                   {isVideoUrl(currentThumbnail) ? (
                     <video src={currentPreviewUrl} className="h-full w-full object-cover" muted playsInline />
                                   ) : (
@@ -1436,7 +1558,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end" className="w-48">
-                        <div className="px-2 py-1.5 text-xs font-medium text-slate-300">选择预览图</div>
+                        <div className="px-2 py-1.5 text-xs font-medium text-gray-700">选择预览图</div>
                                         <DropdownMenuSeparator />
                                         {allMediaFiles.map((file, index) => {
                                           const filePreviewUrl = getPreviewUrl(file.url);
@@ -1447,7 +1569,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                                               onClick={() => handleSelectThumbnail(file.url)}
                               className="flex items-center gap-2"
                                             >
-                              <div className="h-8 w-8 overflow-hidden rounded bg-[#0f172a]">
+                              <div className="h-8 w-8 overflow-hidden rounded bg-gray-100">
                                                 {file.type === 'video' ? (
                                   <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
                                                 ) : (
@@ -1476,7 +1598,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                                 </div>
                               ) : (
                 <div className="relative group">
-                  <div className="flex h-[64px] w-[64px] items-center justify-center rounded-md border border-dashed border-white/15 bg-white/5 text-[11px] text-slate-400">
+                  <div className="flex h-[48px] w-[48px] items-center justify-center border border-dashed border-gray-300 bg-gray-50 text-[10px] text-gray-500">
                                     无预览
                                   </div>
                                   {allMediaFiles.length > 0 && (
@@ -1491,7 +1613,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end" className="w-48">
-                        <div className="px-2 py-1.5 text-xs font-medium text-slate-300">选择预览图</div>
+                        <div className="px-2 py-1.5 text-xs font-medium text-gray-700">选择预览图</div>
                                         <DropdownMenuSeparator />
                                         {allMediaFiles.map((file, index) => {
                                           const filePreviewUrl = getPreviewUrl(file.url);
@@ -1501,7 +1623,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                                               onClick={() => handleSelectThumbnail(file.url)}
                               className="flex items-center gap-2"
                                             >
-                              <div className="h-8 w-8 overflow-hidden rounded bg-[#0f172a]">
+                              <div className="h-8 w-8 overflow-hidden rounded bg-gray-100">
                                                 {file.type === 'video' ? (
                                   <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
                                                 ) : (
@@ -1530,13 +1652,13 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
       }
       case 'name':
         return (
-          <div className="flex h-[72px] items-center text-sm font-medium text-foreground" title={asset.name}>
-            <span className="truncate">{asset.name}</span>
+          <div className="flex h-[56px] items-center text-xs text-gray-700 overflow-hidden" title={asset.name}>
+            <span className="truncate block w-full">{asset.name}</span>
           </div>
         );
       case 'type':
         return (
-          <div className="flex h-[72px] items-center whitespace-nowrap text-xs sm:text-sm">
+          <div className="flex h-[56px] items-center whitespace-nowrap text-xs text-gray-700">
                         {asset.type}
           </div>
         );
@@ -1550,24 +1672,83 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 .filter(Boolean)
                               : [];
         return (
-          <div className="flex h-[72px] flex-wrap items-center gap-1">
+          <div className="flex h-[56px] flex-wrap items-center gap-1">
             {tagsArray.map((tag: string) => (
-              <Badge key={tag} variant="secondary" className="text-[11px] font-medium">
+              <span key={tag} className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">
                                 {tag}
-                              </Badge>
+                              </span>
             ))}
                         </div>
         );
       }
-      case 'paths':
+      case 'paths': {
+        const guangzhouPathKey = `${asset.id}-guangzhouNas`;
+        const shenzhenPathKey = `${asset.id}-shenzhenNas`;
+        const isGuangzhouCopied = copiedPath === guangzhouPathKey;
+        const isShenzhenCopied = copiedPath === shenzhenPathKey;
+        
         return (
-          <div className="flex h-[72px] items-center">
-            <div className="space-y-1 break-all text-[11px] leading-relaxed text-muted-foreground">
-                          {asset.thumbnail && <div>封面：{asset.thumbnail}</div>}
-                          <div>资源：{asset.src}</div>
-                        </div>
+          <div className="flex h-[56px] items-center">
+            <div className="space-y-0.5 w-full break-all text-[10px] leading-relaxed text-gray-600">
+              {asset.guangzhouNas && (
+                <div className="flex items-center gap-1 group">
+                  <span className="flex-1">广州NAS：{asset.guangzhouNas}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                      "h-5 w-5 transition-opacity text-gray-500 hover:text-gray-900",
+                      isGuangzhouCopied ? "opacity-100 text-green-600" : "opacity-0 group-hover:opacity-100"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (asset.guangzhouNas) {
+                        copyToClipboard(asset.guangzhouNas, guangzhouPathKey);
+                      }
+                    }}
+                    title={isGuangzhouCopied ? "已复制" : "复制路径"}
+                  >
+                    {isGuangzhouCopied ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
+              )}
+              {asset.shenzhenNas && (
+                <div className="flex items-center gap-1 group">
+                  <span className="flex-1">深圳NAS：{asset.shenzhenNas}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                      "h-5 w-5 transition-opacity text-gray-500 hover:text-gray-900",
+                      isShenzhenCopied ? "opacity-100 text-green-600" : "opacity-0 group-hover:opacity-100"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (asset.shenzhenNas) {
+                        copyToClipboard(asset.shenzhenNas, shenzhenPathKey);
+                      }
+                    }}
+                    title={isShenzhenCopied ? "已复制" : "复制路径"}
+                  >
+                    {isShenzhenCopied ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
+              )}
+              {!asset.guangzhouNas && !asset.shenzhenNas && (
+                <div className="text-gray-400">暂无NAS路径</div>
+              )}
+            </div>
           </div>
         );
+      }
       case 'updatedAt': {
                           const updateTime = asset.updatedAt || asset.createdAt;
         const display = updateTime
@@ -1579,38 +1760,39 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                               minute: '2-digit',
             })
           : '-';
-        return <div className="flex h-[72px] items-center text-[11px] text-slate-400 whitespace-nowrap">{display}</div>;
+        return <div className="flex h-[56px] items-center text-[10px] text-gray-600 whitespace-nowrap">{display}</div>;
       }
       case 'actions':
         return (
-          <div className="flex h-[72px] items-center gap-1.5">
+          <div className="flex h-[56px] items-center gap-1.5">
                           <Button
               size="icon"
-                            variant="outline"
-              className="h-8 w-8 rounded-lg border-white/20 text-sm font-semibold"
-              onClick={() => window.open(`/assets/${asset.id}`, '_blank', 'noopener,noreferrer')}
+                            variant="ghost"
+              className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingAssetInDialog(asset);
+                setEditDialogOpen(true);
+              }}
+                            disabled={loading}
+              title="编辑资产"
                           >
-              预
-              <span className="sr-only">预览</span>
+              <Edit className="h-4 w-4" />
+              <span className="sr-only">编辑</span>
                           </Button>
                           <Button
               size="icon"
-                            variant="default"
-              className="h-8 w-8 rounded-lg text-sm font-semibold"
-                            onClick={() => handleEdit(asset)}
+                            variant="ghost"
+              className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                setAssetToDelete(asset);
+                setDeleteDialogOpen(true);
+              }}
                             disabled={loading}
+              title="删除资产"
                           >
-              改
-              <span className="sr-only">修改</span>
-                          </Button>
-                          <Button
-              size="icon"
-                            variant="destructive"
-              className="h-8 w-8 rounded-lg text-sm font-semibold"
-                            onClick={() => handleDelete(asset.id)}
-                            disabled={loading}
-                          >
-              删
+              <Trash2 className="h-4 w-4" />
               <span className="sr-only">删除</span>
                           </Button>
           </div>
@@ -1708,41 +1890,138 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
     setMessage(result.message || `已删除 ${result.processed ?? count} 个资产`);
   }, [selectedAssetIds, refreshAssets, fetchAllowedTypes]);
 
+  // 框选功能：在表格容器上按下鼠标开始框选
+  const handleTableMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    // 如果点击的是checkbox、按钮、列宽调整区域或表头，不启动框选
+    if (
+      target.closest('input[type="checkbox"]') ||
+      target.closest('button') ||
+      target.closest('[class*="cursor-col-resize"]') ||
+      target.closest('thead') ||
+      target.closest('th')
+    ) {
+      return;
+    }
+
+    // 如果按住Ctrl/Cmd，不启动框选（允许单独点击）
+    if (e.ctrlKey || e.metaKey) {
+      return;
+    }
+
+    const rect = tableContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+
+    setIsSelecting(true);
+    setSelectStart({ x: startX, y: startY });
+    setSelectEnd({ x: startX, y: startY });
+
+    // 保存初始选择状态，用于累加选择
+    const initialSelection = new Set(selectedAssetIds);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!tableContainerRef.current) return;
+      const rect = tableContainerRef.current.getBoundingClientRect();
+      const endX = moveEvent.clientX - rect.left;
+      const endY = moveEvent.clientY - rect.top;
+      setSelectEnd({ x: endX, y: startY }); // 使用startY作为固定起点
+
+      // 实时选中框内的行
+      const minX = Math.min(startX, endX);
+      const maxX = Math.max(startX, endX);
+      const minY = Math.min(startY, endY);
+      const maxY = Math.max(startY, endY);
+
+      const newSelection = new Set(initialSelection);
+      displayedAssets.forEach((asset) => {
+        const rowElement = rowRefsRef.current.get(asset.id);
+        if (rowElement) {
+          const rowRect = rowElement.getBoundingClientRect();
+          const containerRect = tableContainerRef.current!.getBoundingClientRect();
+          const rowTop = rowRect.top - containerRect.top;
+          const rowBottom = rowRect.bottom - containerRect.top;
+          const rowLeft = rowRect.left - containerRect.left;
+          const rowRight = rowRect.right - containerRect.left;
+
+          // 检查行是否与选择框相交
+          if (
+            rowBottom > minY &&
+            rowTop < maxY &&
+            rowRight > minX &&
+            rowLeft < maxX
+          ) {
+            newSelection.add(asset.id);
+          } else {
+            // 如果不在选择框内，从初始选择中移除（如果原本不在初始选择中）
+            if (!initialSelection.has(asset.id)) {
+              newSelection.delete(asset.id);
+            }
+          }
+        }
+      });
+      setSelectedAssetIds(newSelection);
+    };
+
+    const handleMouseUp = () => {
+      setIsSelecting(false);
+      setSelectStart(null);
+      setSelectEnd(null);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [selectedAssetIds, displayedAssets]);
+
+  // 处理多选：shift连续多选
+  const handleRowMouseDown = useCallback((assetId: string, index: number, event: React.MouseEvent) => {
+    // 如果按住shift，进行连续多选
+    if (event.shiftKey && lastSelectedIndex !== null) {
+      event.preventDefault();
+      const startIndex = Math.min(lastSelectedIndex, index);
+      const endIndex = Math.max(lastSelectedIndex, index);
+      const newSelection = new Set(selectedAssetIds);
+      for (let i = startIndex; i <= endIndex; i++) {
+        if (displayedAssets[i]) {
+          newSelection.add(displayedAssets[i].id);
+        }
+      }
+      setSelectedAssetIds(newSelection);
+      setLastSelectedIndex(index);
+      return;
+    }
+  }, [selectedAssetIds, lastSelectedIndex, displayedAssets]);
+
+  // 清理长按定时器
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
+  // 处理列头点击排序
+  const handleColumnSort = useCallback((columnId: string) => {
+    if (sortKey === columnId) {
+      // 如果已经是当前排序列，切换排序方向
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(columnId);
+      setSortDirection('asc');
+    }
+  }, [sortKey]);
+
   return (
-    <div className="space-y-8">
-      {/* 返回资产页按钮 */}
-      <div className="flex items-center justify-between">
-        <Link href="/assets">
-          <Button variant="outline" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            返回资产页
-          </Button>
-        </Link>
-      </div>
-
-      <Card className="rounded-2xl border border-white/10 bg-[#0d1424]/85 backdrop-blur-xl shadow-[0_24px_60px_rgba(4,9,20,0.65)]">
-        <CardHeader className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-5 py-4 sm:px-6">
-          <CardTitle className="text-base font-semibold">存储状态</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 px-5 py-4 text-sm text-slate-400 sm:px-6">
-          <div>
-            当前存储模式：<Badge variant="outline">{storageMode}</Badge>
-          </div>
-          <div>CDN / 静态资源基路径：{normalizedCdnBase || '/'}</div>
-          {storageMode === 'oss' ? (
-            <p className="text-emerald-400">
-              OSS 模式已启用，可以直接通过此页面管理资产，数据将保存到阿里云 OSS。
-            </p>
-          ) : (
-            <p className="text-slate-300">本地模式允许通过此页面直接编辑 manifest.json，用于预览和调试。</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-2xl border border-white/10 bg-[#0d1424]/85 backdrop-blur-xl shadow-[0_24px_60px_rgba(4,9,20,0.65)]">
-        <CardHeader className="border-b border-white/10 bg-white/5 px-5 py-4 sm:px-6">
+    <div className="space-y-4 h-full flex flex-col">
+      <div className="border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base font-semibold">资产列表</CardTitle>
+            <h3 className="text-sm font-semibold text-gray-900">资产列表</h3>
             <div className="flex flex-wrap items-center gap-2">
               {selectedAssetIds.size > 0 && (
                 <Button
@@ -1778,22 +2057,22 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
               </Button>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4 px-5 py-5 sm:px-6">
+        </div>
+        <div className="space-y-4 px-4 py-4">
           {/* 搜索和筛选栏 */}
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <Input
                   placeholder="搜索资产名称或标签..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 border-gray-300 bg-white text-gray-900"
                 />
               </div>
               <select
-                className="h-9 rounded-md border border-white/10 bg-[#131a2c]/90 px-3 text-sm text-slate-100"
+                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
               >
@@ -1805,7 +2084,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 ))}
               </select>
               <select
-                className="h-9 rounded-md border border-white/10 bg-[#131a2c]/90 px-3 text-sm text-slate-100"
+                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
                 value={filterTag}
                 onChange={(e) => setFilterTag(e.target.value)}
               >
@@ -1818,42 +2097,18 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
               </select>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-gray-600">
                 共找到 {filteredAssets.length} 个资产
                 {filteredAssets.length !== assets.length && `（共 ${assets.length} 个）`}
               </p>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setSortKey('updatedAt')}
-                  aria-pressed={sortKey === 'updatedAt'}
-                  className={`h-7 rounded-md border px-3 text-xs transition ${
-                    sortKey === 'updatedAt'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-white/20 text-slate-300 hover:border-white/30 hover:text-white'
-                  }`}
-                >
-                  按时间
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSortKey('name')}
-                  aria-pressed={sortKey === 'name'}
-                  className={`h-7 rounded-md border px-3 text-xs transition ${
-                    sortKey === 'name'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-white/20 text-slate-300 hover:border-white/30 hover:text-white'
-                  }`}
-                >
-                  按名称
-                </button>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setShowPaths((prev) => !prev)}
-                  className={`h-7 rounded-md border px-3 text-xs transition ${
+                  className={`h-7 rounded border px-3 text-xs transition ${
                     showPaths
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-white/20 text-slate-300 hover:border-white/30 hover:text-white'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
                   {showPaths ? '隐藏路径' : '显示路径'}
@@ -1862,19 +2117,35 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-white/10 bg-[#0a1020]/80">
-            <div className="overflow-x-auto">
-              <table className="min-w-full table-fixed text-xs sm:text-sm">
+          <div className="flex-1 overflow-hidden border border-gray-200 bg-white">
+            <div 
+              ref={tableContainerRef}
+              className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)] relative"
+              onMouseDown={handleTableMouseDown}
+            >
+              {/* 选择框视觉反馈 */}
+              {isSelecting && selectStart && selectEnd && (
+                <div
+                  className="absolute border-2 border-blue-500 bg-blue-100/20 pointer-events-none z-30"
+                  style={{
+                    left: `${Math.min(selectStart.x, selectEnd.x)}px`,
+                    top: `${Math.min(selectStart.y, selectEnd.y)}px`,
+                    width: `${Math.abs(selectEnd.x - selectStart.x)}px`,
+                    height: `${Math.abs(selectEnd.y - selectStart.y)}px`,
+                  }}
+                />
+              )}
+              <table className="min-w-full table-fixed text-xs">
                 <colgroup>
                   <col style={{ width: `${SELECTION_COL_WIDTH}px` }} />
                   {visibleAssetColumns.map((column) => (
                     <col key={column.id} style={{ width: `${columnWidths[column.id]}px` }} />
                   ))}
                 </colgroup>
-                <thead className="bg-white/5 text-left text-[11px] uppercase tracking-wide text-slate-300">
+                <thead className="bg-gray-50 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">
                   <tr>
                     <th className="px-2 py-2">
-                      <div className="flex h-[72px] items-center justify-center">
+                      <div className="flex h-[32px] items-center justify-center">
                         <Checkbox
                           checked={
                             displayedAssets.length > 0 &&
@@ -1896,23 +2167,36 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                     </th>
                     {visibleAssetColumns.map((column) => {
                       const isActions = column.id === 'actions';
-                      const isName = column.id === 'name';
-                      const isUpdatedAt = column.id === 'updatedAt';
+                      const isSortable = ['name', 'type', 'updatedAt'].includes(column.id);
+                      const isSorted = sortKey === column.id;
                       return (
-                        <th key={column.id} className="relative px-2 py-2 font-medium">
-                          <div className="flex items-center gap-2">
-                            <span>{column.label}</span>
-                            {isName && sortKey === 'name' && (
-                              <span className="rounded bg-primary/10 px-2 text-[10px] font-semibold text-primary">排序</span>
+                        <th 
+                          key={column.id} 
+                          className="relative px-2 py-2 text-sm font-semibold text-gray-700"
+                        >
+                          <div 
+                            className={cn(
+                              "flex items-center gap-1",
+                              isSortable && "cursor-pointer hover:text-gray-900 select-none"
                             )}
-                            {isUpdatedAt && sortKey === 'updatedAt' && (
-                              <span className="rounded bg-primary/10 px-2 text-[10px] font-semibold text-primary">排序</span>
+                            onClick={() => isSortable && handleColumnSort(column.id)}
+                          >
+                            <span>{column.label}</span>
+                            {isSortable && (
+                              <span className="text-[8px] text-gray-400">
+                                {isSorted ? (sortDirection === 'asc' ? '↑' : '↓') : '⇅'}
+                              </span>
                             )}
                           </div>
                           {!isActions && (
                             <span
-                              onMouseDown={(event) => handleColumnResizeStart(event, column.id)}
-                              className="absolute right-0 top-0 h-full w-2 cursor-col-resize select-none"
+                              onMouseDown={(event) => {
+                                event.stopPropagation();
+                                handleColumnResizeStart(event, column.id);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-0 h-full w-4 cursor-col-resize select-none hover:bg-blue-300 z-20 transition-colors"
+                              style={{ marginRight: '-8px', paddingLeft: '4px', paddingRight: '4px' }}
                             />
                           )}
                         </th>
@@ -1920,19 +2204,73 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                     })}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/10">
-                  {displayedAssets.map((asset) => {
+                <tbody className="divide-y divide-gray-200">
+                  {displayedAssets.map((asset, index) => {
                     const isSelected = selectedAssetIds.has(asset.id);
                     return (
                       <tr
                         key={asset.id}
-                        className={`align-middle transition-colors ${isSelected ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                        ref={(el) => {
+                          if (el) rowRefsRef.current.set(asset.id, el);
+                          else rowRefsRef.current.delete(asset.id);
+                        }}
+                        className={`align-middle transition-colors cursor-pointer select-none ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50'}`}
+                        onMouseDown={(e) => {
+                          // 如果正在框选，不处理行点击
+                          if (isSelecting) {
+                            return;
+                          }
+                          // 如果点击的是checkbox或按钮，不触发行选择
+                          const target = e.target as HTMLElement;
+                          if (target.closest('input[type="checkbox"]') || target.closest('button')) {
+                            return;
+                          }
+                          handleRowMouseDown(asset.id, index, e);
+                        }}
+                        onClick={(e) => {
+                          // 如果正在框选，不处理行点击
+                          if (isSelecting) {
+                            return;
+                          }
+                          // 如果点击的是checkbox、按钮或列宽调整区域，不触发行选择
+                          const target = e.target as HTMLElement;
+                          if (target.closest('input[type="checkbox"]') || target.closest('button') || target.closest('[class*="cursor-col-resize"]')) {
+                            return;
+                          }
+                          
+                          // Shift+点击：连续多选
+                          if (e.shiftKey && lastSelectedIndex !== null) {
+                            e.preventDefault();
+                            const startIndex = Math.min(lastSelectedIndex, index);
+                            const endIndex = Math.max(lastSelectedIndex, index);
+                            const newSelection = new Set(selectedAssetIds);
+                            for (let i = startIndex; i <= endIndex; i++) {
+                              if (displayedAssets[i]) {
+                                newSelection.add(displayedAssets[i].id);
+                              }
+                            }
+                            setSelectedAssetIds(newSelection);
+                            setLastSelectedIndex(index);
+                            return;
+                          }
+                          
+                          // 普通点击切换选择
+                          const nextSelection = new Set(selectedAssetIds);
+                          if (nextSelection.has(asset.id)) {
+                            nextSelection.delete(asset.id);
+                          } else {
+                            nextSelection.add(asset.id);
+                          }
+                          setSelectedAssetIds(nextSelection);
+                          setLastSelectedIndex(index);
+                        }}
                       >
-                        <td className="px-2 py-2">
-                          <div className="flex h-[72px] items-center justify-center">
+                        <td className="px-2 py-1.5">
+                          <div className="flex h-[56px] items-center justify-center">
                             <Checkbox
                               checked={isSelected}
                               onChange={(e) => {
+                                e.stopPropagation();
                                 const nextSelection = new Set(selectedAssetIds);
                                 if (e.target.checked) {
                                   nextSelection.add(asset.id);
@@ -1940,12 +2278,13 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                                   nextSelection.delete(asset.id);
                                 }
                                 setSelectedAssetIds(nextSelection);
+                                setLastSelectedIndex(index);
                               }}
                             />
                         </div>
                       </td>
                         {visibleAssetColumns.map((column) => (
-                          <td key={column.id} className="px-2 py-2">
+                          <td key={column.id} className="px-2 py-1.5 relative">
                             {renderAssetCell(column.id, asset)}
                           </td>
                         ))}
@@ -1957,34 +2296,102 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
             </div>
           </div>
 
-          {/* 分页控制 */}
-          {filteredAssets.length > 5 && (
-            <div className="mt-4 flex justify-center">
-              {!showAllAssets ? (
+          {/* 横向分页控制 */}
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
                 <Button
                   variant="outline"
-                  onClick={() => setShowAllAssets(true)}
+                size="sm"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="h-8 px-3"
                 >
-                  显示更多 ({filteredAssets.length - 5} 个)
+                <ChevronLeft className="h-4 w-4" />
+                上一页
                 </Button>
-              ) : (
+              <div className="flex items-center gap-1">
+                {/* 显示页码按钮，最多显示7个页码 */}
+                {(() => {
+                  const pages: (number | string)[] = [];
+                  const maxVisible = 7;
+                  
+                  if (totalPages <= maxVisible) {
+                    // 如果总页数少于等于7，显示所有页码
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(i);
+                    }
+                  } else {
+                    // 否则显示：1 ... 当前页附近 ... 最后一页
+                    pages.push(1);
+                    
+                    if (currentPage > 3) {
+                      pages.push('...');
+                    }
+                    
+                    const start = Math.max(2, currentPage - 1);
+                    const end = Math.min(totalPages - 1, currentPage + 1);
+                    
+                    for (let i = start; i <= end; i++) {
+                      if (i !== 1 && i !== totalPages) {
+                        pages.push(i);
+                      }
+                    }
+                    
+                    if (currentPage < totalPages - 2) {
+                      pages.push('...');
+                    }
+                    
+                    pages.push(totalPages);
+                  }
+                  
+                  return pages.map((page, index) => {
+                    if (page === '...') {
+                      return (
+                        <span key={`ellipsis-${index}`} className="px-2 text-gray-500">
+                          ...
+                        </span>
+                      );
+                    }
+                    return (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setCurrentPage(page as number)}
+                        className={`h-8 min-w-[32px] px-2 ${
+                          currentPage === page ? 'bg-blue-600 text-white' : ''
+                        }`}
+                      >
+                        {page}
+                      </Button>
+                    );
+                  });
+                })()}
+              </div>
                 <Button
                   variant="outline"
-                  onClick={() => setShowAllAssets(false)}
+                size="sm"
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="h-8 px-3"
                 >
-                  收起（仅显示前5条）
+                下一页
+                <ChevronRight className="h-4 w-4" />
                 </Button>
-              )}
+              <span className="text-sm text-gray-600 ml-2">
+                第 {currentPage} / {totalPages} 页，共 {filteredAssets.length} 条
+              </span>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card id="asset-form-card" className="rounded-2xl border border-white/10 bg-[#0d1424]/85 backdrop-blur-xl shadow-[0_24px_60px_rgba(4,9,20,0.65)]">
-        <CardHeader className="border-b border-white/10 bg-white/5 px-5 py-4 sm:px-6">
-          <CardTitle className="text-base font-semibold">{editingAssetId ? '编辑资产' : '新增资产'}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5 px-5 py-5 sm:px-6">
+      {!showOnlyList && (
+      <div id="asset-form-card" className="border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+          <h3 className="text-sm font-semibold text-gray-900">{editingAssetId ? '编辑资产' : '新增资产'}</h3>
+        </div>
+        <div className="space-y-5 px-4 py-4">
           {/* 文件上传区域 */}
           <div
             className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center transition-colors hover:border-primary/50"
@@ -2005,13 +2412,13 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
               htmlFor="file-upload"
               className="cursor-pointer flex flex-col items-center gap-2"
             >
-              <Upload className="h-8 w-8 text-slate-400" />
-              <div className="text-sm text-slate-300 w-full">
+              <Upload className="h-8 w-8 text-gray-400" />
+              <div className="text-sm text-gray-700 w-full">
                 {uploading ? (
                   <div className="space-y-2 w-full">
                     <div className="text-center">{uploadProgress || '上传中...'}</div>
                     {uploadProgressPercent > 0 && (
-                      <div className="w-full rounded-full h-2 bg-[#0d1424]">
+                      <div className="w-full rounded-full h-2 bg-gray-200">
                         <div
                           className="bg-primary h-2 rounded-full transition-all duration-300"
                           style={{ width: `${uploadProgressPercent}%` }}
@@ -2032,7 +2439,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
 
           {/* 预览区域 */}
           {previewUrls.length > 0 && (
-            <div className="relative border border-white/10 rounded-lg p-4 bg-[#0c1322]/70">
+            <div className="relative border border-gray-300 rounded-lg p-4 bg-gray-50">
               <div className="flex items-start justify-between mb-2">
                 <span className="text-sm font-medium">
                   预览 ({currentPreviewIndex + 1}/{previewUrls.length})
@@ -2049,7 +2456,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-[#0f172a]">
+              <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-gray-100">
                 {previewUrls[currentPreviewIndex] && (
                   <>
                     {(() => {
@@ -2121,7 +2528,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                   return (
                     <div
                       key={index}
-                      className="relative group border border-white/10 rounded-lg overflow-hidden bg-[#0c1322]/70"
+                      className="relative group border border-gray-300 rounded-lg overflow-hidden bg-gray-50"
                     >
                       <div className="aspect-video relative">
                         {file.type === 'image' ? (
@@ -2289,7 +2696,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                 onChange={handleInputChange('shenzhenNas')}
                 disabled={loading}
               />
-              <p className="text-xs text-slate-400">注意：广州NAS和深圳NAS至少需要填写一个</p>
+              <p className="text-xs text-gray-600">注意：广州NAS和深圳NAS至少需要填写一个</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">封面路径</label>
@@ -2331,10 +2738,11 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
                     </Button>
                   </>
                 )}
-                {message && <span className="text-sm text-slate-300">{message}</span>}
+                {message && <span className="text-sm text-gray-700">{message}</span>}
               </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+      )}
 
       {/* 批量上传弹窗 */}
       <BatchUploadDialog
@@ -2366,6 +2774,408 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase }: AdminDas
         onUpdateVersion={handleBatchUpdateVersion}
         onDelete={handleBatchDelete}
       />
+
+      {/* 编辑资产弹窗 */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => {
+        setEditDialogOpen(open);
+        if (!open) {
+          setEditingAssetInDialog(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>编辑资产</DialogTitle>
+          </DialogHeader>
+          {editingAssetInDialog && (
+            <div className="space-y-4 py-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">名称 <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="资产名称"
+                    value={editingAssetInDialog.name}
+                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, name: e.target.value })}
+                    disabled={loading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">类型（可新增）<span className="text-red-500">*</span></label>
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="选择或输入新类型"
+                      value={editingAssetInDialog.type}
+                      onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, type: e.target.value as typeof editingAssetInDialog.type })}
+                      disabled={loading}
+                      required
+                      list="type-suggestions-dialog"
+                    />
+                    <datalist id="type-suggestions-dialog">
+                      {(allowedTypes.length > 0 ? allowedTypes : [...DEFAULT_ASSET_TYPES]).map((type) => (
+                        <option key={type} value={type} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">风格（逗号分隔，可新增）</label>
+                  <Input
+                    placeholder="写实, 二次元"
+                    value={Array.isArray(editingAssetInDialog.style) ? editingAssetInDialog.style.join(', ') : (editingAssetInDialog.style || '')}
+                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, style: e.target.value })}
+                    disabled={loading}
+                    list="style-suggestions-dialog"
+                  />
+                  <datalist id="style-suggestions-dialog">
+                    {STYLE_SUGGESTIONS.map((style) => (
+                      <option key={style} value={style} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="自然, 风景, 建筑"
+                    value={Array.isArray(editingAssetInDialog.tags) ? editingAssetInDialog.tags.join(', ') : editingAssetInDialog.tags}
+                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, tags: e.target.value.split(',').map(tag => tag.trim()).filter(Boolean) })}
+                    disabled={loading}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">来源（可新增）<span className="text-red-500">*</span></label>
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="内部"
+                      value={editingAssetInDialog.source || ''}
+                      onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, source: e.target.value })}
+                      disabled={loading}
+                      list="source-suggestions-dialog"
+                      required
+                    />
+                    <datalist id="source-suggestions-dialog">
+                      {SOURCE_SUGGESTIONS.map((source) => (
+                        <option key={source} value={source} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">版本（可新增）<span className="text-red-500">*</span></label>
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="UE5.5"
+                      value={editingAssetInDialog.engineVersion || ''}
+                      onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, engineVersion: e.target.value })}
+                      disabled={loading}
+                      list="version-suggestions-dialog"
+                      required
+                    />
+                    <datalist id="version-suggestions-dialog">
+                      {VERSION_SUGGESTIONS.map((version) => (
+                        <option key={version} value={version} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">广州NAS路径 <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="例如：/nas/guangzhou/assets/xxx.jpg"
+                    value={editingAssetInDialog.guangzhouNas || ''}
+                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, guangzhouNas: e.target.value })}
+                    disabled={loading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">深圳NAS路径 <span className="text-red-500">*</span></label>
+                  <Input
+                    placeholder="例如：/nas/shenzhen/assets/xxx.jpg"
+                    value={editingAssetInDialog.shenzhenNas || ''}
+                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, shenzhenNas: e.target.value })}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-gray-600">注意：广州NAS和深圳NAS至少需要填写一个</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">封面路径</label>
+                  <Input
+                    placeholder="/demo/xxx.jpg 或完整 CDN 地址"
+                    value={editingAssetInDialog.thumbnail || ''}
+                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, thumbnail: e.target.value })}
+                    disabled={loading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">资源路径</label>
+                  <Input
+                    placeholder="/demo/xxx.jpg 或完整 CDN 地址"
+                    value={editingAssetInDialog.src || ''}
+                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, src: e.target.value })}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditDialogOpen(false);
+                setEditingAssetInDialog(null);
+              }}
+              disabled={loading}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!editingAssetInDialog) return;
+                setLoading(true);
+                try {
+                  // 验证必填字段
+                  if (!editingAssetInDialog.name?.trim()) {
+                    throw new Error('名称不能为空');
+                  }
+                  if (!editingAssetInDialog.type) {
+                    throw new Error('类型不能为空');
+                  }
+                  if (!editingAssetInDialog.tags || (Array.isArray(editingAssetInDialog.tags) && editingAssetInDialog.tags.length === 0)) {
+                    throw new Error('至少需要一个标签');
+                  }
+                  if (!editingAssetInDialog.source?.trim()) {
+                    throw new Error('来源不能为空');
+                  }
+                  if (!editingAssetInDialog.engineVersion?.trim()) {
+                    throw new Error('版本不能为空');
+                  }
+                  if (!editingAssetInDialog.guangzhouNas?.trim() && !editingAssetInDialog.shenzhenNas?.trim()) {
+                    throw new Error('广州NAS和深圳NAS至少需要填写一个');
+                  }
+
+                  // 处理风格
+                  const styleValue = editingAssetInDialog.style
+                    ? Array.isArray(editingAssetInDialog.style)
+                      ? editingAssetInDialog.style
+                      : typeof editingAssetInDialog.style === 'string' && editingAssetInDialog.style.includes(',')
+                      ? editingAssetInDialog.style.split(',').map((s: string) => s.trim()).filter(Boolean)
+                      : editingAssetInDialog.style
+                    : undefined;
+                  const style = Array.isArray(styleValue) && styleValue.length === 1 ? styleValue[0] : styleValue;
+
+                  // 处理标签
+                  const tags = Array.isArray(editingAssetInDialog.tags)
+                    ? editingAssetInDialog.tags
+                    : [];
+
+                  const payload = {
+                    name: editingAssetInDialog.name.trim(),
+                    type: editingAssetInDialog.type.trim(),
+                    style: style,
+                    tags: tags,
+                    source: editingAssetInDialog.source.trim(),
+                    engineVersion: editingAssetInDialog.engineVersion.trim(),
+                    guangzhouNas: editingAssetInDialog.guangzhouNas?.trim() || undefined,
+                    shenzhenNas: editingAssetInDialog.shenzhenNas?.trim() || undefined,
+                    thumbnail: editingAssetInDialog.thumbnail?.trim() || undefined,
+                    src: editingAssetInDialog.src?.trim() || undefined,
+                    gallery: editingAssetInDialog.gallery,
+                  };
+
+                  const response = await fetch(`/api/assets/${editingAssetInDialog.id}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                  });
+
+                  if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || '更新资产失败');
+                  }
+
+                  await refreshAssets();
+                  setEditDialogOpen(false);
+                  setEditingAssetInDialog(null);
+                  setMessage('资产已更新');
+                } catch (error) {
+                  console.error(error);
+                  setMessage(error instanceof Error ? error.message : '更新资产失败');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading ? '保存中...' : '保存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除确认弹窗 */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) {
+          setAssetToDelete(null);
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认删除</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-700">
+              确定要删除资产 <span className="font-semibold">"{assetToDelete?.name}"</span> 吗？
+            </p>
+            <p className="text-xs text-gray-500 mt-2">此操作不可恢复。</p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setAssetToDelete(null);
+              }}
+              disabled={loading}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!assetToDelete) return;
+                setLoading(true);
+                try {
+                  const response = await fetch(`/api/assets/${assetToDelete.id}`, {
+                    method: 'DELETE',
+                  });
+
+                  if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || '删除资产失败');
+                  }
+
+                  await refreshAssets();
+                  setDeleteDialogOpen(false);
+                  setAssetToDelete(null);
+                  setMessage('资产已删除');
+                  
+                  // 如果删除的是正在编辑的资产，重置表单
+                  if (editingAssetId === assetToDelete.id) {
+                    resetForm();
+                  }
+                  
+                  // 如果删除的是弹窗中正在编辑的资产，关闭弹窗
+                  if (editingAssetInDialog?.id === assetToDelete.id) {
+                    setEditDialogOpen(false);
+                    setEditingAssetInDialog(null);
+                  }
+                } catch (error) {
+                  console.error(error);
+                  setMessage(error instanceof Error ? error.message : '删除资产失败');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+            >
+              {loading ? '删除中...' : '确认删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 放大预览组件 */}
+      {hoveredPreview && hoveredPreview.elementRef && typeof window !== 'undefined' && createPortal(
+        (() => {
+          const rect = hoveredPreview.elementRef.getBoundingClientRect();
+          const isVideoUrl = (url: string) => {
+            if (!url) return false;
+            const lower = url.toLowerCase();
+            return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
+          };
+          
+          // 计算位置，确保不超出视窗
+          const previewWidth = 400;
+          const previewHeight = 400;
+          const spacing = 10;
+          let left = rect.right + spacing;
+          let top = rect.top;
+          
+          // 如果右侧空间不足，显示在左侧
+          if (left + previewWidth > window.innerWidth) {
+            left = rect.left - previewWidth - spacing;
+          }
+          
+          // 如果左侧空间也不足，居中显示
+          if (left < 0) {
+            left = (window.innerWidth - previewWidth) / 2;
+          }
+          
+          // 确保不超出视窗顶部和底部
+          if (top + previewHeight > window.innerHeight) {
+            top = window.innerHeight - previewHeight - 10;
+          }
+          if (top < 10) {
+            top = 10;
+          }
+          
+          return (
+            <div
+              className="fixed z-50 pointer-events-auto"
+              style={{
+                left: `${left}px`,
+                top: `${top}px`,
+                maxWidth: `${previewWidth}px`,
+                maxHeight: `${previewHeight}px`,
+              }}
+              onMouseEnter={() => {}} // 保持显示
+              onMouseLeave={() => setHoveredPreview(null)}
+            >
+              <div className="bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-2">
+                {hoveredPreview.mediaFiles.length > 0 && (() => {
+                  const firstMedia = hoveredPreview.mediaFiles[0];
+                  const previewUrl = getPreviewUrl(firstMedia.url);
+                  const isVideo = firstMedia.type === 'video' || isVideoUrl(firstMedia.url);
+                  
+                  return (
+                    <div className="relative">
+                      {isVideo ? (
+                        <video
+                          src={previewUrl}
+                          className="max-w-full max-h-[400px] object-contain rounded"
+                          controls
+                          autoPlay
+                          muted
+                          playsInline
+                        />
+                      ) : (
+                        <img
+                          src={previewUrl}
+                          alt={firstMedia.label}
+                          className="max-w-full max-h-[400px] object-contain rounded"
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23ccc" width="400" height="400"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999" font-size="16"%3E无预览%3C/text%3E%3C/svg%3E';
+                          }}
+                        />
+                      )}
+                      {hoveredPreview.mediaFiles.length > 1 && (
+                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                          +{hoveredPreview.mediaFiles.length - 1}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          );
+        })(),
+        document.body
+      )}
     </div>
   );
 }

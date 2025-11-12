@@ -4,16 +4,18 @@ import { useState, useEffect, useCallback } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { Menu } from 'lucide-react';
+import { Menu, X, ChevronDown } from 'lucide-react';
 import { MaterialFilterSidebar, type MaterialFilterSnapshot } from '@/components/material-filter-sidebar';
 import { MaterialsListWithHeader } from '@/components/materials-list-with-header';
 import type { Material } from '@/data/material.schema';
+import type { MaterialsSummary } from '@/lib/materials-data';
 
 interface MaterialsPageShellProps {
   materials: Material[];
+  summary: MaterialsSummary;
 }
 
-export function MaterialsPageShell({ materials }: MaterialsPageShellProps) {
+export function MaterialsPageShell({ materials, summary }: MaterialsPageShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(220);
@@ -78,7 +80,11 @@ export function MaterialsPageShell({ materials }: MaterialsPageShellProps) {
         aria-label={isSidebarOpen ? '关闭筛选' : '打开筛选'}
         title={isSidebarOpen ? '关闭筛选' : '打开筛选'}
       >
-        <Menu className="h-4 w-4" strokeWidth={2} />
+        {isSidebarOpen ? (
+          <X className="h-4 w-4" strokeWidth={2} />
+        ) : (
+          <Menu className="h-4 w-4" strokeWidth={2} />
+        )}
       </button>
     </div>
   );
@@ -99,7 +105,11 @@ export function MaterialsPageShell({ materials }: MaterialsPageShellProps) {
                 aria-label={isSidebarOpen ? '关闭筛选' : '打开筛选'}
                 title={isSidebarOpen ? '关闭筛选' : '打开筛选'}
               >
-                <Menu className="h-4 w-4" strokeWidth={2} />
+                {isSidebarOpen ? (
+                  <ChevronDown className="h-4 w-4" strokeWidth={2} />
+                ) : (
+                  <Menu className="h-4 w-4" strokeWidth={2} />
+                )}
               </button>
             </div>
           </div>
@@ -115,7 +125,12 @@ export function MaterialsPageShell({ materials }: MaterialsPageShellProps) {
             <div className="relative h-full border-r border-zinc-200/70 bg-white/95 px-1.5 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/[0.08] dark:bg-black/65 dark:shadow-[0_28px_60px_rgba(0,0,0,0.45)] dark:backdrop-blur">
               {isSidebarOpen ? (
                 <Suspense fallback={<div className="w-full" />}>
-                  <MaterialFilterSidebar onOptimisticFiltersChange={setOptimisticFilters} />
+                  <MaterialFilterSidebar
+                    types={Object.keys(summary.types)}
+                    tags={Object.keys(summary.tags)}
+                    qualities={Object.keys(summary.qualities)}
+                    onOptimisticFiltersChange={setOptimisticFilters}
+                  />
                 </Suspense>
               ) : (
                 <div className="flex h-full flex-col items-stretch gap-2 py-2">
@@ -152,7 +167,11 @@ export function MaterialsPageShell({ materials }: MaterialsPageShellProps) {
         >
           <div className="p-3 sm:p-5 lg:p-6">
             <Suspense fallback={<div>加载中...</div>}>
-              <MaterialsListWithHeader materials={materials} optimisticFilters={optimisticFilters} />
+              <MaterialsListWithHeader
+                materials={materials}
+                optimisticFilters={optimisticFilters}
+                summary={summary}
+              />
             </Suspense>
           </div>
         </main>

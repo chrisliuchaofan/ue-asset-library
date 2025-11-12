@@ -15,7 +15,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
-import { LayoutPanelTop, Film, Grid3x3, ChevronDown } from 'lucide-react';
+import { LayoutPanelTop, Film, Grid3x3, ChevronDown, ChevronUp } from 'lucide-react';
 import { filterAssetsByOptions } from '@/lib/asset-filters';
 
 interface AssetsListWithSelectionProps {
@@ -66,6 +66,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const [displayAssets, setDisplayAssets] = useState<Asset[]>(assets);
   const [filterDurationMs, setFilterDurationMs] = useState<number | null>(null);
   const [isFetching, setIsFetching] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -158,6 +159,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     setViewMode(mode);
+    setIsDropdownOpen(false); // 选择后自动关闭下拉菜单
   }, []);
 
   const keyword = searchParams.get('q') ?? '';
@@ -233,7 +235,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     }
   }, [assets, hasServerFilters, optimisticFilters]);
 
-  // 服务端筛选
+  // 服务端筛选 - 添加防抖优化，减少频繁请求
   useEffect(() => {
     if (optimisticFilters) {
       return;
@@ -242,20 +244,22 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       return;
     }
 
-    const controller = new AbortController();
-    const payload = {
-      keyword: keyword.trim() || undefined,
-      types: selectedTypes,
-      styles: selectedStyles,
-      tags: selectedTags,
-      sources: selectedSources,
-      versions: selectedVersions,
-    };
+    // 防抖：延迟300ms执行，如果用户在300ms内再次改变筛选条件，取消之前的请求
+    const timeoutId = setTimeout(() => {
+      const controller = new AbortController();
+      const payload = {
+        keyword: keyword.trim() || undefined,
+        types: selectedTypes,
+        styles: selectedStyles,
+        tags: selectedTags,
+        sources: selectedSources,
+        versions: selectedVersions,
+      };
 
-    const start = performance.now();
-    setIsFetching(true);
+      const start = performance.now();
+      setIsFetching(true);
 
-    fetch('/api/assets/query', {
+      fetch('/api/assets/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -283,8 +287,13 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
         }
       });
 
+      return () => {
+        controller.abort();
+      };
+    }, 300); // 300ms 防抖延迟
+
     return () => {
-      controller.abort();
+      clearTimeout(timeoutId);
     };
   }, [
     assets,
@@ -304,7 +313,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const viewModeOptions: Array<{ value: ViewMode; label: string; icon: ReactNode }> = [
     { value: 'classic', label: '经典预览', icon: <LayoutPanelTop className="h-4 w-4" /> },
     { value: 'thumbnail', label: '缩略图预览', icon: <Film className="h-4 w-4" /> },
-    { value: 'grid', label: '宫格预览', icon: <Grid3x3 className="h-4 w-4" /> },
+    { value: 'grid', label: '宫格图预览', icon: <Grid3x3 className="h-4 w-4" /> },
   ];
 
   const currentViewOption = viewModeOptions.find((option) => option.value === viewMode) ?? viewModeOptions[0];
@@ -316,28 +325,32 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
           <div className="text-sm text-muted-foreground">
             找到 {displayAssets.length} 个资产
           </div>
-          <DropdownMenu>
+          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
             <DropdownMenuTrigger asChild>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="inline-flex items-center gap-2 rounded-full border border-muted-foreground/20 bg-background/80 px-3 py-2 text-xs font-medium text-foreground shadow-sm transition hover:bg-muted/80 dark:bg-white/10"
+                className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground transition hover:bg-transparent"
               >
                 {currentViewOption.icon}
                 <span className="hidden md:inline">{currentViewOption.label}</span>
-                <ChevronDown className="h-4 w-4" />
+                {isDropdownOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent align="start" className="w-44">
               <DropdownMenuRadioGroup
                 value={viewMode}
                 onValueChange={(value) => handleViewModeChange(value as ViewMode)}
               >
                 {viewModeOptions.map((option) => (
-                  <DropdownMenuRadioItem key={option.value} value={option.value} className="flex items-center gap-2">
+                  <DropdownMenuRadioItem key={option.value} value={option.value} className="flex items-center gap-2 text-sm">
                     {option.icon}
-                    <span>{option.label}</span>
+                    <span className="text-sm">{option.label}</span>
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuRadioGroup>
