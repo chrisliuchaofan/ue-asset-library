@@ -277,10 +277,18 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           return;
         }
 
-        // 不设置 crossOrigin，避免 CORS 问题（视频帧提取不需要跨域）
-        // 如果需要跨域提取帧，需要在 OSS 配置 CORS
+        // 尝试设置 crossOrigin 以支持跨域视频帧提取
+        // 如果 OSS 不支持 CORS，会在 toBlob 时捕获错误
+        const videoUrl = getClientAssetUrl(firstVideoUrl);
+        const isCrossOrigin = videoUrl.startsWith('http://') || videoUrl.startsWith('https://');
+        
+        if (isCrossOrigin) {
+          // 跨域视频需要设置 crossOrigin，但需要服务器支持 CORS
+          video.crossOrigin = 'anonymous';
+        }
+        
         video.preload = 'metadata';
-        video.src = getClientAssetUrl(firstVideoUrl);
+        video.src = videoUrl;
 
         await new Promise<void>((resolve, reject) => {
           let timeoutId: NodeJS.Timeout | null = null;
@@ -343,18 +351,50 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
             video.onseeked = () => {
               // 在空闲时执行绘制操作
               const drawFrame = () => {
-                ctx.drawImage(video, 0, 0);
-                canvas.toBlob(
-                  (blob) => {
-                    if (blob) {
-                      const url = URL.createObjectURL(blob);
-                      frames.push(url);
+                try {
+                  ctx.drawImage(video, 0, 0);
+                  
+                  // 尝试提取帧，如果 CORS 失败则跳过
+                  // 注意：toBlob 是异步的，CORS 错误会在回调中表现为 blob 为 null
+                  // 但 SecurityError 会在调用时同步抛出
+                  try {
+                    canvas.toBlob(
+                      (blob) => {
+                        if (blob) {
+                          const url = URL.createObjectURL(blob);
+                          frames.push(url);
+                        } else {
+                          // blob 为 null 可能是 CORS 限制
+                          if (process.env.NODE_ENV !== 'production') {
+                            console.warn('无法提取视频帧：blob 为 null（可能是 CORS 限制）');
+                          }
+                        }
+                        resolve();
+                      },
+                      'image/jpeg',
+                      0.8
+                    );
+                  } catch (blobError: any) {
+                    // CORS 错误：canvas 被污染，无法导出
+                    // SecurityError 会在同步调用时抛出
+                    if (blobError.name === 'SecurityError' || blobError.message?.includes('Tainted')) {
+                      if (process.env.NODE_ENV !== 'production') {
+                        console.warn('无法提取视频帧（CORS 限制）:', blobError.message);
+                      }
+                    } else {
+                      if (process.env.NODE_ENV !== 'production') {
+                        console.warn('提取视频帧时发生错误:', blobError);
+                      }
                     }
-                    resolve();
-                  },
-                  'image/jpeg',
-                  0.8
-                );
+                    resolve(); // 继续处理下一帧
+                  }
+                } catch (drawError) {
+                  // 绘制错误，跳过这一帧
+                  if (process.env.NODE_ENV !== 'production') {
+                    console.warn('绘制视频帧失败:', drawError);
+                  }
+                  resolve();
+                }
               };
 
               // 使用 requestIdleCallback 延迟绘制，如果浏览器不支持则立即执行
@@ -373,10 +413,22 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           await extractFrame(i);
         }
 
-        setVideoThumbnails(frames);
+        // 如果成功提取了至少一帧，才设置缩略图
+        // 如果因为 CORS 问题没有提取到任何帧，保持空数组（不显示缩略图）
+        if (frames.length > 0) {
+          setVideoThumbnails(frames);
+        } else {
+          // 没有提取到任何帧（可能是 CORS 问题），静默失败
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('视频帧提取失败：可能是 CORS 限制，视频需要配置 CORS 头才能提取帧');
+          }
+        }
         extractingFramesRef.current = false;
       } catch (error) {
-        console.warn('提取视频帧失败:', error);
+        // 捕获所有错误，包括 CORS 错误
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('提取视频帧失败:', error);
+        }
         setVideoThumbnails([]);
         extractingFramesRef.current = false;
         lastVideoUrlRef.current = null;
@@ -567,8 +619,9 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     () => [asset.type, ...displayTags].filter(Boolean).join(' · '),
     [asset.type, displayTags]
   );
-  const overlayActionButtonClass =
-    'h-8 w-8 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center';
+  const overlayActionButtonClass = isOverlayMode
+    ? 'h-6 w-6 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center relative z-50'
+    : 'h-8 w-8 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center relative z-50';
   const selectionButtonTitle = isSelected ? '从清单移除' : '加入清单';
 
   const handleSelectionButtonClick = useCallback(
@@ -635,7 +688,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           onClick={handleSelectionButtonClick}
           className={cn(overlayActionButtonClass, isSelected && 'bg-primary text-primary-foreground hover:bg-primary/90', 'pointer-events-auto')}
         >
-          {isSelected ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          {isSelected ? <Check className={isOverlayMode ? "h-3 w-3" : "h-4 w-4"} /> : <Plus className={isOverlayMode ? "h-3 w-3" : "h-4 w-4"} />}
           <span className="sr-only">{selectionButtonTitle}</span>
         </Button>
         <Button
@@ -646,7 +699,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           onClick={handleCopyNasClick}
           className={cn(overlayActionButtonClass, 'pointer-events-auto')}
         >
-          <FolderOpen className="h-4 w-4" />
+          <FolderOpen className={isOverlayMode ? "h-3 w-3" : "h-4 w-4"} />
           <span className="sr-only">复制 NAS 路径</span>
         </Button>
         <Button
@@ -657,7 +710,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           onClick={handleDetailButtonClick}
           className={cn(overlayActionButtonClass, 'pointer-events-auto')}
         >
-          <Eye className="h-4 w-4" />
+          <Eye className={isOverlayMode ? "h-3 w-3" : "h-4 w-4"} />
           <span className="sr-only">查看详情</span>
         </Button>
       </>
@@ -926,13 +979,16 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
         style={{ width: cardWidth }}
       >
         <Card
-          className="group relative flex flex-col overflow-visible rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition hover:shadow-lg dark:border-white/[0.08] dark:bg-white/[0.04]"
+          className={cn(
+            "group relative flex flex-col rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition hover:shadow-lg dark:border-white/[0.08] dark:bg-white/[0.04]",
+            isClassic ? "overflow-hidden" : "overflow-visible"
+          )}
           style={{ width: '100%', height: isGrid ? gridHeight : (isClassic ? classicHeight : compactHeight) }}
         >
           {isGrid ? (
             // 宫格图预览：直接显示缩略图网格，不显示预览图区域，1:1方形
             <div 
-              className="overflow-hidden rounded-t-xl"
+              className="overflow-hidden rounded-t-xl rounded-b-xl"
               style={{ height: gridHeight }}
               onMouseEnter={() => setIsHoveringThumbnails(true)}
               onMouseLeave={() => {
@@ -960,7 +1016,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                       ref={(el) => {
                         thumbnailRefs.current[idx] = el;
                       }}
-                      className="relative h-full w-full overflow-visible"
+                      className="relative h-full w-full overflow-hidden"
                       onMouseEnter={() => {
                         if (hoveredThumbnailIndex !== idx) {
                           setHoveredThumbnailIndex(idx);
@@ -1090,7 +1146,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   );
                 })}
               </div>
-              <div className="pointer-events-none absolute bottom-4 right-4 z-30 flex gap-1">
+              <div className="pointer-events-none absolute bottom-4 right-4 z-50 flex gap-1">
                 {renderActionButtons()}
               </div>
               {totalPages > 1 && (
@@ -1122,7 +1178,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           ) : (
             <div
               className={cn(
-                'relative flex w-full items-center justify-center overflow-hidden cursor-pointer rounded-t-xl',
+                'relative flex w-full items-center justify-center overflow-hidden cursor-pointer',
+                isOverlayMode ? 'rounded-xl' : 'rounded-t-xl', // 缩略图模式：全部圆角；经典模式：只圆顶部
                 previewBackgroundClass,
                 isClassic ? 'h-[180px]' : previewAspectClass
               )}
@@ -1143,6 +1200,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   src={getClientAssetUrl(url)}
                   preload="none"
                   className={`absolute inset-0 h-full w-full ${mediaObjectClass} transition-opacity duration-200 ${
+                    isOverlayMode ? 'rounded-xl' : 'rounded-t-xl'
+                  } ${
                     index === displayIndex ? 'z-10 opacity-100' : 'pointer-events-none opacity-0'
                   }`}
                   muted
@@ -1157,7 +1216,9 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 src={currentUrl}
                 alt={`${asset.name} - ${displayIndex + 1}`}
                 fill
-                className="z-10 object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                className={`z-10 object-cover transition-transform duration-300 group-hover:scale-[1.02] ${
+                  isOverlayMode ? 'rounded-xl' : 'rounded-t-xl'
+                }`}
                 sizes={priority ? "(max-width: 768px) 100vw, 400px" : "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"}
                 loading={priority ? 'eager' : 'lazy'}
                 priority={priority}
@@ -1197,31 +1258,31 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
 
             {isOverlayMode && (
               <>
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent p-3">
-                  <div className="truncate text-sm font-semibold text-white">{asset.name}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-white/80">
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 via-black/40 to-transparent p-2">
+                  <div className="truncate text-xs font-semibold text-white">{asset.name}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-white/80">
                     <span className="font-medium text-white/90">{asset.type}</span>
                     {displayTags.map((tag: string) => (
                       <span
                         key={tag}
-                        className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] leading-none text-white"
+                        className="rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] leading-none text-white"
                       >
                         {tag}
                       </span>
                     ))}
                     {remainingTagCount > 0 && (
-                      <span className="text-[10px] text-white/70">+{remainingTagCount}</span>
+                      <span className="text-[9px] text-white/70">+{remainingTagCount}</span>
                     )}
                   </div>
                 </div>
-                <div className="pointer-events-none absolute right-2 top-2 flex gap-1">
+                <div className="pointer-events-none absolute right-1.5 top-1.5 z-50 flex gap-0.5">
                   {renderActionButtons()}
                 </div>
               </>
             )}
 
             {currentIsVideo && (
-              <div className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+              <div className={`absolute ${isOverlayMode ? 'left-1.5 top-1.5' : 'left-2 top-2'} z-20 rounded-full bg-black/70 ${isOverlayMode ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[10px]'} font-semibold uppercase tracking-wide text-white`}>
                 视频
               </div>
             )}
@@ -1288,18 +1349,55 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
               </div>
             )}
 
-            <Link
-              href={`/assets/${asset.id}`}
-              className="absolute inset-0 z-0"
+            {/* 点击区域：排除按钮区域 */}
+            <div
+              className="absolute inset-0 z-0 cursor-pointer"
               onClick={(e) => {
                 const target = e.target as HTMLElement;
-                if (target.closest('button') || target.closest('[role="button"]')) {
-                  e.preventDefault();
-                  e.stopPropagation();
+                
+                // 检查点击的元素是否是按钮或按钮内的元素
+                // 使用更严格的检查，确保按钮点击不会被拦截
+                const clickedButton = target.closest('button');
+                if (clickedButton) {
+                  // 如果点击的是按钮，不处理，让按钮自己的事件处理
+                  // 按钮已经有 stopPropagation()，所以这里直接返回即可
                   return;
                 }
+                
+                // 检查是否点击了按钮容器内的元素
+                // 按钮容器是 pointer-events-none，但按钮本身是 pointer-events-auto
+                // 如果点击穿透到了按钮容器，说明点击的不是按钮本身
+                // 但我们需要检查点击的元素是否在按钮的视觉区域内
+                const buttonContainer = target.closest('[class*="z-50"]');
+                if (buttonContainer) {
+                  // 检查按钮容器内是否有按钮，并且点击的元素是否是按钮或按钮的子元素
+                  const buttonsInContainer = buttonContainer.querySelectorAll('button');
+                  for (const button of Array.from(buttonsInContainer)) {
+                    // 检查点击的元素是否在按钮内
+                    if (button.contains(target) || button === target) {
+                      return;
+                    }
+                  }
+                }
 
-                e.preventDefault();
+                // 检查父元素链中是否有按钮（排除图片和视频元素）
+                let currentElement: HTMLElement | null = target;
+                while (currentElement && currentElement !== e.currentTarget) {
+                  // 如果当前元素是按钮，不处理
+                  if (currentElement.tagName === 'BUTTON' || currentElement.getAttribute('role') === 'button') {
+                    return;
+                  }
+                  
+                  // 跳过图片和视频元素，继续向上查找
+                  if (currentElement.tagName === 'IMG' || currentElement.tagName === 'VIDEO') {
+                    currentElement = currentElement.parentElement;
+                    continue;
+                  }
+                  
+                  currentElement = currentElement.parentElement;
+                }
+
+                // 只有确认不是点击按钮时，才处理卡片点击
                 if (clickTimeoutRef.current) {
                   clearTimeout(clickTimeoutRef.current);
                 }
@@ -1314,6 +1412,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
 
           {isClassic && (
             <div 
+              className="overflow-hidden rounded-b-xl"
               style={{ height: compactHeight }}
               onMouseEnter={() => setIsHoveringThumbnails(true)}
               onMouseLeave={() => {
@@ -1402,7 +1501,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   );
                 })}
               </div>
-              <div className="pointer-events-none absolute bottom-4 right-4 z-30 flex gap-1">
+              <div className="pointer-events-none absolute bottom-4 right-4 z-50 flex gap-1">
                 {renderActionButtons()}
               </div>
               {totalPages > 1 && (

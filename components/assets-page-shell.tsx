@@ -79,7 +79,7 @@ export function AssetsPageShell({
   ];
 
   const navButtonBase =
-    "inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-transparent bg-transparent text-slate-600 transition active:scale-95 active:border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 dark:text-slate-100";
+    "inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-transparent bg-transparent text-slate-600 transition active:scale-95 active:border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 dark:text-slate-100 cursor-pointer";
 
   const effectiveSidebarWidth = isSidebarOpen ? sidebarWidth : collapsedWidth;
 
@@ -89,6 +89,7 @@ export function AssetsPageShell({
       style={{ width: collapsedWidth }}
     >
       <button
+        type="button"
         onClick={() => setIsSidebarOpen((prev) => !prev)}
         className={navButtonBase}
         aria-label={isSidebarOpen ? "关闭筛选" : "打开筛选"}
@@ -114,6 +115,7 @@ export function AssetsPageShell({
           >
             <div className="flex h-full items-center justify-center">
               <button
+                type="button"
                 onClick={() => setIsSidebarOpen((prev) => !prev)}
                 className={navButtonBase}
                 aria-label={isSidebarOpen ? "关闭筛选" : "打开筛选"}
@@ -152,8 +154,9 @@ export function AssetsPageShell({
                 <div className="flex h-full flex-col items-stretch gap-2 py-2">
                   {collapsedCategories.map((item) => (
                     <button
+                      type="button"
                       key={item.key}
-                      className="flex h-10 w-full items-center justify-center rounded-md text-sm font-semibold text-slate-600 transition active:scale-95 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/[0.08]"
+                      className="flex h-10 w-full items-center justify-center rounded-md text-sm font-semibold text-slate-600 transition active:scale-95 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/[0.08] cursor-pointer"
                       onClick={() => setIsSidebarOpen(true)}
                       title={item.name}
                       aria-label={item.name}

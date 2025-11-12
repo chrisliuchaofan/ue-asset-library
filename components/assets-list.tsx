@@ -46,8 +46,12 @@ function AssetsListContent({
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
+  const [isPotentialSelection, setIsPotentialSelection] = useState(false); // 潜在的框选状态（鼠标按下但未移动足够距离）
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  
+  // 最小拖动距离阈值：只有移动超过这个距离才开始真正的框选
+  const MIN_DRAG_DISTANCE = 5; // 5px
 
   useEffect(() => {
     if (!scrollElement) return;
@@ -84,33 +88,33 @@ function AssetsListContent({
   }
 
   // 使用 useMemo 缓存视图模式指标计算
+  // 固定每行10个卡片，每页10x10=100个
   const { cardWidth, estimatedRowHeight } = useMemo(() => {
+    // 计算固定10列时的卡片宽度
+    // 容器宽度减去左右padding（各24px）和9个gap（每个12px，缩小间距）
+    const containerPadding = 48; // 左右各24px
+    const totalGap = 9 * 12; // 10个卡片之间有9个gap，每个12px（从16px缩小到12px）
+    const availableWidth = containerWidth > 0 
+      ? containerWidth - containerPadding - totalGap
+      : (typeof window !== 'undefined' ? window.innerWidth : 1920) - containerPadding - totalGap;
+    const calculatedCardWidth = Math.max(150, Math.floor(availableWidth / 10)); // 最小150px（从200px缩小到150px）
+    
     switch (viewMode) {
       case 'thumbnail':
-        return { cardWidth: 320, estimatedRowHeight: 280 };
+        return { cardWidth: calculatedCardWidth, estimatedRowHeight: Math.floor(calculatedCardWidth * 0.875) }; // 16:9 比例
       case 'grid':
-        return { cardWidth: 320, estimatedRowHeight: 260 };
+        return { cardWidth: calculatedCardWidth, estimatedRowHeight: calculatedCardWidth }; // 1:1 方形
       case 'classic':
       default:
-        return { cardWidth: 320, estimatedRowHeight: 400 };
+        return { cardWidth: calculatedCardWidth, estimatedRowHeight: Math.floor(calculatedCardWidth * 1.25) }; // 4:5 比例
     }
-  }, [viewMode]);
+  }, [viewMode, containerWidth]);
 
   // 使用 useMemo 缓存间距和列数计算
-  const horizontalGap = useMemo(
-    () => containerWidth >= 640 ? 16 : 12,
-    [containerWidth]
-  );
-  
-  const verticalGap = useMemo(
-    () => containerWidth >= 640 ? 16 : 12,
-    [containerWidth]
-  );
-  
-  const columns = useMemo(
-    () => containerWidth > 0 ? Math.max(1, Math.floor((containerWidth + horizontalGap) / (cardWidth + horizontalGap))) : 1,
-    [containerWidth, horizontalGap, cardWidth]
-  );
+  // 固定间距和列数
+  const horizontalGap = 12; // 从16px缩小到12px
+  const verticalGap = 12; // 从16px缩小到12px
+  const columns = 10; // 固定10列
   
   const rowCount = useMemo(
     () => Math.ceil(assets.length / columns),
@@ -131,6 +135,7 @@ function AssetsListContent({
 
   // 计算选择框的样式
   const getSelectionBoxStyle = useCallback((): React.CSSProperties | undefined => {
+    // 只在真正框选时显示选择框，不显示潜在框选状态
     if (!isSelecting || !selectionStart || !selectionEnd || !containerRef.current) {
       return undefined;
     }
@@ -201,7 +206,45 @@ function AssetsListContent({
 
   // 处理框选结束，批量选中/取消选中
   const handleSelectionEnd = useCallback(() => {
-    if (!isSelecting || !onToggleSelection) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[框选调试] handleSelectionEnd 被调用', {
+        isSelecting,
+        hasOnToggleSelection: !!onToggleSelection,
+        selectionStart,
+        selectionEnd,
+      });
+    }
+
+    if (!isSelecting || !onToggleSelection || !selectionStart || !selectionEnd) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 提前返回：条件不满足');
+      }
+      setIsSelecting(false);
+      setSelectionStart(null);
+      setSelectionEnd(null);
+      return;
+    }
+
+    // 计算框选区域的尺寸
+    const width = Math.abs(selectionEnd.x - selectionStart.x);
+    const height = Math.abs(selectionEnd.y - selectionStart.y);
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[框选调试] 框选区域尺寸', { width, height });
+    }
+    
+    // 最小框选尺寸阈值：只有当框选区域足够大时才执行批量选择
+    // 这样可以避免点击被误判为框选
+    const MIN_SELECTION_SIZE = 10; // 10px 的最小尺寸
+    
+    if (width < MIN_SELECTION_SIZE && height < MIN_SELECTION_SIZE) {
+      // 框选区域太小，视为点击，不执行批量选择
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 框选区域太小，取消批量选择', { width, height, MIN_SELECTION_SIZE });
+      }
+      setIsSelecting(false);
+      setSelectionStart(null);
+      setSelectionEnd(null);
       return;
     }
 
@@ -212,15 +255,22 @@ function AssetsListContent({
       }
     });
 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[框选调试] 找到相交的资产', { count: intersectedAssets.length, ids: intersectedAssets });
+    }
+
     // 批量切换选中状态
     intersectedAssets.forEach((assetId) => {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 切换资产选择状态', { assetId });
+      }
       onToggleSelection(assetId);
     });
 
     setIsSelecting(false);
     setSelectionStart(null);
     setSelectionEnd(null);
-  }, [isSelecting, assets, checkIntersection, onToggleSelection]);
+  }, [isSelecting, assets, checkIntersection, onToggleSelection, selectionStart, selectionEnd]);
 
   // 鼠标事件处理
   useEffect(() => {
@@ -238,11 +288,19 @@ function AssetsListContent({
         target.closest('select') ||
         target.closest('textarea')
       ) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[框选调试] 鼠标按下：点击了交互元素，跳过');
+        }
         return;
       }
 
       const containerRect = containerRef.current?.getBoundingClientRect();
-      if (!containerRect) return;
+      if (!containerRect) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[框选调试] 鼠标按下：容器不存在');
+        }
+        return;
+      }
 
       const x = e.clientX;
       const y = e.clientY;
@@ -254,30 +312,75 @@ function AssetsListContent({
         y >= containerRect.top &&
         y <= containerRect.bottom
       ) {
-        setIsSelecting(true);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[框选调试] 鼠标按下：开始潜在框选', { x, y });
+        }
+        // 先设置为潜在框选状态，等待鼠标移动
+        setIsPotentialSelection(true);
         setSelectionStart({ x, y });
         setSelectionEnd({ x, y });
         // 防止框选时触发文本选择
         e.preventDefault();
+      } else {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[框选调试] 鼠标按下：点击在容器外');
+        }
       }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isSelecting) return;
-      // 防止框选时触发文本选择
-      e.preventDefault();
-      setSelectionEnd({ x: e.clientX, y: e.clientY });
+      if (!isPotentialSelection && !isSelecting) return;
+      
+      if (!selectionStart) return;
+      
+      // 计算鼠标移动的距离
+      const deltaX = Math.abs(e.clientX - selectionStart.x);
+      const deltaY = Math.abs(e.clientY - selectionStart.y);
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      
+      // 只有当移动距离超过阈值时，才开始真正的框选
+      if (isPotentialSelection && distance >= MIN_DRAG_DISTANCE) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[框选调试] 鼠标移动：开始真正的框选', { distance, MIN_DRAG_DISTANCE });
+        }
+        setIsPotentialSelection(false);
+        setIsSelecting(true);
+      }
+      
+      if (isSelecting || (isPotentialSelection && distance >= MIN_DRAG_DISTANCE)) {
+        // 防止框选时触发文本选择
+        e.preventDefault();
+        setSelectionEnd({ x: e.clientX, y: e.clientY });
+      }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 鼠标抬起', { isPotentialSelection, isSelecting });
+      }
+      
+      if (isPotentialSelection) {
+        // 如果只是点击（没有拖动），不执行任何操作
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[框选调试] 只是点击，取消框选');
+        }
+        setIsPotentialSelection(false);
+        setSelectionStart(null);
+        setSelectionEnd(null);
+        return;
+      }
+      
       if (isSelecting) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[框选调试] 框选结束，调用 handleSelectionEnd');
+        }
         e.preventDefault();
         handleSelectionEnd();
       }
     };
 
     const handleSelectStart = (e: Event) => {
-      if (isSelecting) {
+      if (isSelecting || isPotentialSelection) {
         e.preventDefault();
       }
     };
@@ -293,7 +396,7 @@ function AssetsListContent({
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('selectstart', handleSelectStart);
     };
-  }, [scrollElement, isSelecting, handleSelectionEnd, onToggleSelection]);
+  }, [scrollElement, isSelecting, isPotentialSelection, selectionStart, handleSelectionEnd, onToggleSelection]);
 
   // 使用 useCallback 缓存 renderGridRow 函数，避免每次渲染都重新创建
   const renderGridRow = useCallback((rowIndex: number) => {

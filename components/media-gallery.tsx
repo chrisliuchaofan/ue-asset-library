@@ -66,30 +66,35 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
   return (
     <>
       <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-muted flex items-center justify-center">
-        {isVideo ? (
+        {isVideo && currentSource && currentUrl ? (
           <>
             {/* 视频自动播放层 */}
-            {galleryUrls.map((url, index) => (
-              <video
-                key={index}
-                ref={(el) => {
-                  videoRefs.current[index] = el;
-                }}
-                src={getClientAssetUrl(url)}
-                className={`absolute inset-0 w-full h-full object-contain ${
-                  index === currentIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
-                muted
-                loop
-                playsInline
-                controls={index === currentIndex}
-                preload={index === currentIndex ? 'metadata' : 'none'}
-              />
-            ))}
+            {galleryUrls.map((url, index) => {
+              const videoUrl = getClientAssetUrl(url);
+              if (!videoUrl) return null;
+              return (
+                <video
+                  key={index}
+                  ref={(el) => {
+                    videoRefs.current[index] = el;
+                  }}
+                  src={videoUrl}
+                  className={`absolute inset-0 w-full h-full object-contain ${
+                    index === currentIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  }`}
+                  muted
+                  loop
+                  playsInline
+                  controls={index === currentIndex}
+                  preload={index === currentIndex ? 'metadata' : 'none'}
+                />
+              );
+            })}
             {/* 切换按钮 */}
             {galleryUrls.length > 1 && (
               <>
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
                   className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-background/80 hover:bg-background z-10"
@@ -98,6 +103,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
                   className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-background/80 hover:bg-background z-10"
@@ -109,6 +115,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                   {galleryUrls.map((_, index) => (
                     <button
+                      type="button"
                       key={index}
                       className={`h-2 rounded-full transition-all ${
                         index === currentIndex
@@ -124,28 +131,38 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
           </>
         ) : (
           <>
-            <Image
-              src={getOptimizedImageUrl(currentSource, 1600)}
-              alt={`${asset.name} - ${currentIndex + 1}`}
-              fill
-              className="object-contain"
-              sizes="100vw"
-              priority={currentIndex === 0}
-              loading={currentIndex === 0 ? 'eager' : 'lazy'}
-              unoptimized={getOptimizedImageUrl(currentSource).includes('x-oss-process=image')}
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute bottom-4 right-4 bg-background/80 hover:bg-background"
-              onClick={() => setIsImageOpen(true)}
-            >
-              <ZoomIn className="h-5 w-5" />
-            </Button>
-            {/* 切换按钮 */}
-            {galleryUrls.length > 1 && (
+            {currentSource && currentUrl ? (
+              <>
+                <Image
+                  src={getOptimizedImageUrl(currentSource, 1600)}
+                  alt={`${asset.name} - ${currentIndex + 1}`}
+                  fill
+                  className="object-contain"
+                  sizes="100vw"
+                  priority={currentIndex === 0}
+                  loading={currentIndex === 0 ? 'eager' : 'lazy'}
+                  unoptimized={getOptimizedImageUrl(currentSource).includes('x-oss-process=image')}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute bottom-4 right-4 bg-background/80 hover:bg-background"
+                  onClick={() => setIsImageOpen(true)}
+                >
+                  <ZoomIn className="h-5 w-5" />
+                </Button>
+              </>
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+                无预览图
+              </div>
+            )}
+            {/* 切换按钮 - 只在有有效预览图时显示 */}
+            {galleryUrls.length > 1 && currentSource && currentUrl && (
               <>
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
                   className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-background/80 hover:bg-background z-10"
@@ -154,6 +171,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
                   className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-background/80 hover:bg-background z-10"
@@ -165,6 +183,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                   {galleryUrls.map((_, index) => (
                     <button
+                      type="button"
                       key={index}
                       className={`h-2 rounded-full transition-all ${
                         index === currentIndex
@@ -181,12 +200,13 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
         )}
       </div>
 
-      {isImageOpen && !isVideo && (
+      {isImageOpen && !isVideo && currentSource && currentUrl && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
           onClick={() => setIsImageOpen(false)}
         >
           <Button
+            type="button"
             variant="ghost"
             size="icon"
             className="absolute right-4 top-4 text-white hover:bg-white/20"
@@ -195,18 +215,25 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
             <X className="h-6 w-6" />
           </Button>
           <div className="relative h-full w-full max-w-7xl" onClick={(e) => e.stopPropagation()}>
-            <Image
-              src={getOptimizedImageUrl(currentSource, 1920)}
-              alt={`${asset.name} - ${currentIndex + 1}`}
-              fill
-              className="object-contain"
-              sizes="100vw"
-              unoptimized={getOptimizedImageUrl(currentSource).includes('x-oss-process=image')}
-            />
+            {currentSource && currentUrl ? (
+              <Image
+                src={getOptimizedImageUrl(currentSource, 1920)}
+                alt={`${asset.name} - ${currentIndex + 1}`}
+                fill
+                className="object-contain"
+                sizes="100vw"
+                unoptimized={getOptimizedImageUrl(currentSource).includes('x-oss-process=image')}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-lg text-white/80">
+                无预览图
+              </div>
+            )}
             {/* 大图模式下的切换按钮 */}
             {galleryUrls.length > 1 && (
               <>
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
                   className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border-white/30"
@@ -215,6 +242,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                   <ChevronLeft className="h-6 w-6" />
                 </Button>
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
                   className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border-white/30"

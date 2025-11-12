@@ -50,16 +50,16 @@ export function HeroSection() {
           href="/assets"
           prefetch
           aria-label="进入资产"
-          className="inline-flex"
+          className={clsx(
+            "inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm md:text-base font-semibold",
+            "text-zinc-100 ring-1 ring-[#CFE0FF]/60 hover:ring-[#CFE0FF]/80 hover:bg-white/5",
+            "transition-all duration-200 cursor-pointer"
+          )}
         >
           <motion.span
-            whileHover={reduce ? undefined : { y: -2, boxShadow: "0 8px 20px rgba(140,170,255,0.10)" }}
+            whileHover={reduce ? undefined : { y: -2 }}
             whileTap={{ y: 0 }}
-            className={clsx(
-              "inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm md:text-base font-semibold",
-              "text-zinc-100 ring-1 ring-[#CFE0FF]/60 hover:ring-[#CFE0FF]/80 hover:bg-white/5",
-              "transition-all duration-200"
-            )}
+            className="inline-flex items-center gap-2"
           >
             <Library className="h-5 w-5 text-zinc-100" />
             资产
@@ -70,16 +70,16 @@ export function HeroSection() {
           href="/materials"
           prefetch
           aria-label="进入素材"
-          className="inline-flex"
+          className={clsx(
+            "inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm md:text-base font-semibold",
+            "text-zinc-100 ring-1 ring-[#CFE0FF]/60 hover:ring-[#CFE0FF]/80 hover:bg-white/5",
+            "transition-all duration-200 cursor-pointer"
+          )}
         >
           <motion.span
-            whileHover={reduce ? undefined : { y: -2, boxShadow: "0 8px 20px rgba(140,170,255,0.10)" }}
+            whileHover={reduce ? undefined : { y: -2 }}
             whileTap={{ y: 0 }}
-            className={clsx(
-              "inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm md:text-base font-semibold",
-              "text-zinc-100 ring-1 ring-[#CFE0FF]/60 hover:ring-[#CFE0FF]/80 hover:bg-white/5",
-              "transition-all duration-200"
-            )}
+            className="inline-flex items-center gap-2"
           >
             <Box className="h-5 w-5 text-zinc-100" />
             素材
