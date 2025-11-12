@@ -34,6 +34,11 @@ function AssetsListContent({
   filterDurationMs,
   isFetching = false,
 }: AssetsListProps) {
+  // 早期返回必须在所有 hooks 之前，避免 React Hooks 规则违反
+  if (assets.length === 0) {
+    return <EmptyState />;
+  }
+
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const scrollElement = scrollContainerRef?.current ?? null;
   
@@ -69,10 +74,6 @@ function AssetsListContent({
       window.removeEventListener('resize', computeWidth);
     };
   }, [scrollElement]);
-
-  if (assets.length === 0) {
-    return <EmptyState />;
-  }
 
   if (process.env.NODE_ENV !== 'production') {
     console.info('[AssetsList] render start', {

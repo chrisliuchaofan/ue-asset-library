@@ -118,6 +118,7 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error('素材筛选请求失败', error);
+
     const err = error as any;
     
     // 对于网络错误和超时，返回空结果而不是 500 错误

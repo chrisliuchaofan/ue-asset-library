@@ -568,7 +568,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     [asset.type, displayTags]
   );
   const overlayActionButtonClass =
-    'h-8 w-8 rounded-full bg-black/60 text-white transition hover:bg-black/80';
+    'h-8 w-8 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center';
   const selectionButtonTitle = isSelected ? '从清单移除' : '加入清单';
 
   const handleSelectionButtonClick = useCallback(
@@ -633,7 +633,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           title={selectionButtonTitle}
           aria-pressed={isSelected}
           onClick={handleSelectionButtonClick}
-          className={cn(overlayActionButtonClass, isSelected && 'bg-primary text-primary-foreground hover:bg-primary/90')}
+          className={cn(overlayActionButtonClass, isSelected && 'bg-primary text-primary-foreground hover:bg-primary/90', 'pointer-events-auto')}
         >
           {isSelected ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           <span className="sr-only">{selectionButtonTitle}</span>
@@ -644,7 +644,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           size="icon"
           title="复制 NAS 路径"
           onClick={handleCopyNasClick}
-          className={overlayActionButtonClass}
+          className={cn(overlayActionButtonClass, 'pointer-events-auto')}
         >
           <FolderOpen className="h-4 w-4" />
           <span className="sr-only">复制 NAS 路径</span>
@@ -655,7 +655,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           size="icon"
           title="查看详情"
           onClick={handleDetailButtonClick}
-          className={overlayActionButtonClass}
+          className={cn(overlayActionButtonClass, 'pointer-events-auto')}
         >
           <Eye className="h-4 w-4" />
           <span className="sr-only">查看详情</span>
@@ -932,6 +932,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           {isGrid ? (
             // 宫格图预览：直接显示缩略图网格，不显示预览图区域，1:1方形
             <div 
+              className="overflow-hidden rounded-t-xl"
               style={{ height: gridHeight }}
               onMouseEnter={() => setIsHoveringThumbnails(true)}
               onMouseLeave={() => {
@@ -1089,7 +1090,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   );
                 })}
               </div>
-              <div className="pointer-events-auto absolute bottom-4 right-4 z-30 flex gap-1">
+              <div className="pointer-events-none absolute bottom-4 right-4 z-30 flex gap-1">
                 {renderActionButtons()}
               </div>
               {totalPages > 1 && (
@@ -1121,7 +1122,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           ) : (
             <div
               className={cn(
-                'relative flex w-full items-center justify-center overflow-hidden cursor-pointer',
+                'relative flex w-full items-center justify-center overflow-hidden cursor-pointer rounded-t-xl',
                 previewBackgroundClass,
                 isClassic ? 'h-[180px]' : previewAspectClass
               )}
@@ -1213,7 +1214,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                     )}
                   </div>
                 </div>
-                <div className="pointer-events-auto absolute right-2 top-2 flex gap-1">
+                <div className="pointer-events-none absolute right-2 top-2 flex gap-1">
                   {renderActionButtons()}
                 </div>
               </>
@@ -1401,7 +1402,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   );
                 })}
               </div>
-              <div className="pointer-events-auto absolute bottom-4 right-4 z-30 flex gap-1">
+              <div className="pointer-events-none absolute bottom-4 right-4 z-30 flex gap-1">
                 {renderActionButtons()}
               </div>
               {totalPages > 1 && (
