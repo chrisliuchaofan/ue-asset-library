@@ -88,33 +88,76 @@ function AssetsListContent({
   }
 
   // 使用 useMemo 缓存视图模式指标计算
-  // 固定每行10个卡片，每页10x10=100个
-  const { cardWidth, estimatedRowHeight } = useMemo(() => {
-    // 计算固定10列时的卡片宽度
-    // 容器宽度减去左右padding（各24px）和9个gap（每个12px，缩小间距）
+  // 根据容器宽度动态计算列数，保持间距不小于5px
+  const { cardWidth, estimatedRowHeight, columns, horizontalGap } = useMemo(() => {
     const containerPadding = 48; // 左右各24px
-    const totalGap = 9 * 12; // 10个卡片之间有9个gap，每个12px（从16px缩小到12px）
-    const availableWidth = containerWidth > 0 
-      ? containerWidth - containerPadding - totalGap
-      : (typeof window !== 'undefined' ? window.innerWidth : 1920) - containerPadding - totalGap;
-    const calculatedCardWidth = Math.max(150, Math.floor(availableWidth / 10)); // 最小150px（从200px缩小到150px）
+    const minCardWidth = 240; // 最小卡片宽度
+    const minGap = 5; // 最小间距
     
+    const availableWidth = containerWidth > 0 
+      ? containerWidth - containerPadding
+      : (typeof window !== 'undefined' ? window.innerWidth : 1920) - containerPadding;
+    
+    // 计算最多能放多少个卡片（考虑最小宽度和最小间距）
+    // 公式：availableWidth >= columns * minCardWidth + (columns - 1) * minGap
+    // 解：columns <= (availableWidth + minGap) / (minCardWidth + minGap)
+    const maxColumns = Math.floor((availableWidth + minGap) / (minCardWidth + minGap));
+    const calculatedColumns = Math.max(1, maxColumns); // 至少1列
+    
+    // 根据实际列数计算间距和卡片宽度
+    // availableWidth = columns * cardWidth + (columns - 1) * gap
+    // 优先保证间距 >= minGap，然后分配剩余空间
+    // 如果有剩余空间，优先增加间距（因为间距太小不好看），然后再增加卡片宽度
+    const totalGapWidth = (calculatedColumns - 1) * minGap;
+    const remainingWidth = availableWidth - totalGapWidth;
+    const baseCardWidth = Math.max(minCardWidth, Math.floor(remainingWidth / calculatedColumns));
+    
+    // 计算实际卡片宽度和间距
+    // 优先保证最小卡片宽度和最小间距
+    let actualCardWidth = baseCardWidth;
+    let actualGap = minGap;
+    
+    // 如果有剩余空间，先增加间距（最多到12px），然后再增加卡片宽度
+    if (calculatedColumns > 1) {
+      const totalCardWidth = calculatedColumns * actualCardWidth;
+      const remainingForGap = availableWidth - totalCardWidth;
+      const maxGap = 12; // 最大间距
+      const idealGap = Math.floor(remainingForGap / (calculatedColumns - 1));
+      
+      if (idealGap > minGap) {
+        // 有空间增加间距
+        actualGap = Math.min(maxGap, idealGap);
+        // 重新计算卡片宽度
+        const usedGapWidth = (calculatedColumns - 1) * actualGap;
+        const remainingForCards = availableWidth - usedGapWidth;
+        actualCardWidth = Math.max(minCardWidth, Math.floor(remainingForCards / calculatedColumns));
+      }
+    }
+    
+    let estimatedHeight: number;
     switch (viewMode) {
       case 'thumbnail':
-        return { cardWidth: calculatedCardWidth, estimatedRowHeight: Math.floor(calculatedCardWidth * 0.875) }; // 16:9 比例
+        estimatedHeight = Math.floor(actualCardWidth * 0.875); // 16:9 比例
+        break;
       case 'grid':
-        return { cardWidth: calculatedCardWidth, estimatedRowHeight: calculatedCardWidth }; // 1:1 方形
+        estimatedHeight = actualCardWidth; // 1:1 方形
+        break;
       case 'classic':
       default:
-        return { cardWidth: calculatedCardWidth, estimatedRowHeight: Math.floor(calculatedCardWidth * 1.25) }; // 4:5 比例
+        estimatedHeight = Math.floor(actualCardWidth * 1.25); // 4:5 比例
+        break;
     }
+    
+    return { 
+      cardWidth: actualCardWidth, 
+      estimatedRowHeight: estimatedHeight,
+      columns: calculatedColumns,
+      horizontalGap: actualGap
+    };
   }, [viewMode, containerWidth]);
 
-  // 使用 useMemo 缓存间距和列数计算
-  // 固定间距和列数
-  const horizontalGap = 12; // 从16px缩小到12px
-  const verticalGap = 12; // 从16px缩小到12px
-  const columns = 10; // 固定10列
+  // 垂直间距
+  const verticalGap = 12;
   
   const rowCount = useMemo(
     () => Math.ceil(assets.length / columns),
