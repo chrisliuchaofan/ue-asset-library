@@ -15,7 +15,9 @@ interface MaterialsListProps {
 function MaterialsListContent({ materials }: MaterialsListProps) {
   const searchParams = useSearchParams();
   const page = parseInt(searchParams.get('page') || '1', 10);
-  const itemsPerPage = 50;
+  // 性能优化：减少初始每页显示数量，提升首屏性能
+  // 第一页使用较小的数量，后续页面使用标准数量
+  const itemsPerPage = page === 1 ? PAGINATION.INITIAL_ITEMS_PER_PAGE : PAGINATION.ITEMS_PER_PAGE;
 
   const totalPages = Math.max(1, Math.ceil(materials.length / itemsPerPage));
   const currentPage = Math.min(page, totalPages);

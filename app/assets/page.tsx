@@ -26,9 +26,11 @@ export const metadata: Metadata = {
   },
 };
 
-// ✅ 强制动态渲染，确保每次请求都读取最新数据
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// 性能优化：使用 ISR (Incremental Static Regeneration)
+// 每 60 秒重新生成一次页面，平衡数据新鲜度和性能
+// 如果需要实时数据，可以在客户端使用 SWR 或 React Query
+export const revalidate = 60; // 60 秒重新验证
+export const dynamic = 'auto'; // 允许静态生成
 
 export default async function AssetsPage() {
   const [allAssets, tags, types, styles, sources, engineVersions] = await Promise.all([
