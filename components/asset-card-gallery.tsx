@@ -521,23 +521,23 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     if (priority) {
       switch (viewMode) {
         case 'thumbnail':
-          return 360; // 首屏缩略图模式：更小尺寸以提升 LCP
+          return 240; // 首屏缩略图模式：更小尺寸以提升 LCP（从360缩小到240）
         case 'grid':
-          return 320; // 首屏宫格模式：更小尺寸以提升 LCP
+          return 240; // 首屏宫格模式：更小尺寸以提升 LCP（从320缩小到240）
         case 'classic':
         default:
-          return 400; // 首屏经典模式：更小尺寸以提升 LCP
+          return 320; // 首屏经典模式：更小尺寸以提升 LCP（从400缩小到320）
       }
     }
     // 非首屏图片可以使用稍大尺寸
     switch (viewMode) {
       case 'thumbnail':
-        return 450; // 从540降到450，减少约17%流量
+        return 300; // 从450缩小到300，适配更小的卡片
       case 'grid':
-        return 400; // 从480降到400，减少约17%流量
+        return 300; // 从400缩小到300，适配更小的卡片
       case 'classic':
       default:
-        return 560; // 从640降到560，减少约12%流量
+        return 400; // 从560缩小到400，适配更小的卡片
     }
   }, [viewMode, priority]);
 
@@ -963,10 +963,10 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     setIsEnlarged(true);
   };
 
-  const cardWidth = 320;
-  const classicHeight = 360;
-  const gridHeight = 320; // 1:1 方形
-  const compactHeight = 180;
+  const cardWidth = 240; // 从320缩小到240
+  const classicHeight = 240; // 从360缩小到240
+  const gridHeight = 240; // 1:1 方形（从320缩小到240）
+  const compactHeight = 150; // 从180缩小到150，适配更小的卡片
   const primaryTags = Array.isArray(asset.tags) ? asset.tags : [];
   const combinedTags = primaryTags;
   const secondaryRowText = [asset.type, ...combinedTags].filter(Boolean).join(' · ');
@@ -1120,13 +1120,13 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                           ) : (
                             <>
                               <Image
-                                  src={getOptimizedImageUrl(thumbnailUrl, 360)}
+                                  src={getOptimizedImageUrl(thumbnailUrl, 240)}
                                   alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
                                   fill
                                   className="object-cover"
                                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                   loading="lazy"
-                                  unoptimized={getOptimizedImageUrl(thumbnailUrl, 360).includes('x-oss-process=image')}
+                                  unoptimized={getOptimizedImageUrl(thumbnailUrl, 240).includes('x-oss-process=image')}
                                 />
                               {/* 悬停预览弹出框 - 智能定位，朝向画面中心 */}
                               {hoveredThumbnailPreview?.index === idx && (
@@ -1181,7 +1181,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 'relative flex w-full items-center justify-center overflow-hidden cursor-pointer',
                 isOverlayMode ? 'rounded-xl' : 'rounded-t-xl', // 缩略图模式：全部圆角；经典模式：只圆顶部
                 previewBackgroundClass,
-                isClassic ? 'h-[180px]' : previewAspectClass
+                isClassic ? 'h-[150px]' : previewAspectClass
               )}
               onDoubleClick={handleDoubleClick}
               onMouseEnter={() => setIsHoveringPreview(true)}
@@ -1486,7 +1486,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                             </>
                           ) : (
                             <Image
-                              src={getOptimizedImageUrl(thumbnailUrl, 360)}
+                              src={getOptimizedImageUrl(thumbnailUrl, 240)}
                               alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
                               fill
                               className="object-cover"
