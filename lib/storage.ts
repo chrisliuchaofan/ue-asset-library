@@ -795,6 +795,51 @@ export async function listAssets(): Promise<Asset[]> {
   return result.assets;
 }
 
+/**
+ * Lightweight check: returns the total count of assets without loading full data.
+ * Used for fast-path optimization when the library is empty.
+ */
+export async function getAssetsCount(): Promise<number> {
+  // Check cache first
+  const cached = readAssetManifestCache();
+  if (cached) {
+    return cached.assets.length;
+  }
+
+  // If not cached, we can optimize for empty files
+  if (STORAGE_MODE === 'local') {
+    try {
+      // Quick check: if file doesn't exist or is very small, likely empty
+      const stats = await fs.stat(manifestPath).catch(() => null);
+      if (!stats || stats.size < 20) {
+        // File doesn't exist or is too small to contain assets (less than "{"assets":[]}")
+        const emptyManifest: Manifest = {
+          assets: [],
+          allowedTypes: [...DEFAULT_ASSET_TYPES],
+        };
+        writeAssetManifestCache(emptyManifest);
+        return 0;
+      }
+    } catch {
+      // File doesn't exist
+      const emptyManifest: Manifest = {
+        assets: [],
+        allowedTypes: [...DEFAULT_ASSET_TYPES],
+      };
+      writeAssetManifestCache(emptyManifest);
+      return 0;
+    }
+  } else {
+    // OSS mode: cache will help, but we still need to read the file
+    // The cache check above should handle most cases
+    // If cache miss, we'll read the file (which is still faster than full listAssets for empty files)
+  }
+
+  // If we get here, we need to read the full file (but cache will help)
+  const result = STORAGE_MODE === 'local' ? await readLocalManifest() : await readOSSManifest();
+  return result.assets.length;
+}
+
 // 获取允许的类型列表
 export async function getAllowedTypes(): Promise<string[]> {
   if (STORAGE_MODE === 'local') {

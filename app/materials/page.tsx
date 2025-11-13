@@ -2,7 +2,8 @@ import { Suspense } from 'react';
 import { SearchBox } from '@/components/search-box';
 import { ProjectSelector } from '@/components/project-selector';
 import { MaterialsPageShell } from '@/components/materials-page-shell';
-import { getAllMaterials, getMaterialsSummary } from '@/lib/materials-data';
+import { getAllMaterials, getMaterialsSummary, getMaterialsCount, type MaterialsSummary } from '@/lib/materials-data';
+import type { Material } from '@/data/material.schema';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -14,8 +15,33 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function MaterialsPage() {
-  const allMaterials = await getAllMaterials();
-  const summary = getMaterialsSummary(allMaterials);
+  // Fast path: check count first
+  const start = Date.now();
+  const totalCount = await getMaterialsCount();
+  const countCheckDuration = Date.now() - start;
+  
+  console.log(`[MaterialsPage] Fast path check: totalCount=${totalCount}, durationMs=${countCheckDuration}`);
+  
+  let allMaterials: Material[];
+  let summary: MaterialsSummary;
+  
+  if (totalCount === 0) {
+    // Empty library fast path: skip full query
+    console.log('[MaterialsPage] Empty library fast path: skipping full getAllMaterials() call');
+    allMaterials = [];
+    summary = {
+      total: 0,
+      types: {},
+      tags: {},
+      qualities: {},
+      projects: {},
+    };
+  } else {
+    // Has data: load full materials list
+    console.log(`[MaterialsPage] Has data (${totalCount} materials): loading full list`);
+    allMaterials = await getAllMaterials();
+    summary = getMaterialsSummary(allMaterials);
+  }
 
   return (
     <div className="flex min-h-screen flex-col">

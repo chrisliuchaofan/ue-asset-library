@@ -337,6 +337,15 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       return;
     }
 
+    // Fast path: if library is empty, skip all queries
+    if (assets.length === 0) {
+      console.log('[AssetsListWithSelection] Empty library fast path: skipping query request');
+      setDisplayAssets([]);
+      setIsFetching(false);
+      setFilterDurationMs(null);
+      return;
+    }
+
     // 防抖：延迟300ms执行，如果用户在300ms内再次改变筛选条件，取消之前的请求
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -352,6 +361,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
       const start = performance.now();
       setIsFetching(true);
+      console.log('[AssetsListWithSelection] Full list request (totalCount > 0)');
 
       fetch('/api/assets/query', {
       method: 'POST',
