@@ -75,21 +75,38 @@ async function readLocalMaterials(): Promise<Material[]> {
     
     // 尝试验证，如果失败则返回空数组
     try {
+      // 先确保所有素材都有项目字段
+      if (data && Array.isArray(data.materials)) {
+        data.materials = data.materials.map((m: any) => {
+          if (!m.project) {
+            return { ...m, project: '项目A' };
+          }
+          return m;
+        });
+      }
       const validated = MaterialsManifestSchema.parse(data);
       return validated.materials;
     } catch (parseError) {
       console.error('素材数据格式验证失败:', parseError);
       // 如果验证失败，尝试返回空数组，而不是崩溃
       if (data && Array.isArray(data.materials)) {
-        // 如果数据结构基本正确，尝试过滤有效数据
-        const validMaterials = data.materials.filter((m: any) => {
-          try {
-            MaterialSchema.parse(m);
-            return true;
-          } catch {
-            return false;
-          }
-        });
+        // 如果数据结构基本正确，尝试过滤有效数据，并确保项目字段存在
+        const validMaterials = data.materials
+          .map((m: any) => {
+            // 如果项目为空或未定义，自动设置为项目A
+            if (!m.project) {
+              return { ...m, project: '项目A' };
+            }
+            return m;
+          })
+          .filter((m: any) => {
+            try {
+              MaterialSchema.parse(m);
+              return true;
+            } catch {
+              return false;
+            }
+          });
         return validMaterials;
       }
       return [];
@@ -142,20 +159,37 @@ async function readOssMaterials(): Promise<Material[]> {
     const data = JSON.parse(result.content.toString('utf-8'));
 
     try {
+      // 先确保所有素材都有项目字段
+      if (data && Array.isArray(data.materials)) {
+        data.materials = data.materials.map((m: any) => {
+          if (!m.project) {
+            return { ...m, project: '项目A' };
+          }
+          return m;
+        });
+      }
       const validated = MaterialsManifestSchema.parse(data);
       writeMaterialsCache(cacheKey, validated.materials);
       return validated.materials;
     } catch (parseError) {
       console.error('素材数据格式验证失败:', parseError);
       if (data && Array.isArray(data.materials)) {
-        const validMaterials = data.materials.filter((item: unknown) => {
-          try {
-            MaterialSchema.parse(item);
-            return true;
-          } catch {
-            return false;
-          }
-        });
+        // 确保项目字段存在
+        const validMaterials = data.materials
+          .map((m: any) => {
+            if (!m.project) {
+              return { ...m, project: '项目A' };
+            }
+            return m;
+          })
+          .filter((item: unknown) => {
+            try {
+              MaterialSchema.parse(item);
+              return true;
+            } catch {
+              return false;
+            }
+          });
         writeMaterialsCache(cacheKey, validMaterials as Material[]);
         return validMaterials as Material[];
       }

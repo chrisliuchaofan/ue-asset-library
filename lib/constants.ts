@@ -9,6 +9,13 @@ export const PROJECTS = [
 
 export type Project = typeof PROJECTS[number];
 
+// 项目显示名称映射（用于页面显示）
+export const PROJECT_DISPLAY_NAMES: Record<Project, string> = {
+  '项目A': '三冰',
+  '项目B': '次神',
+  '项目C': '造化',
+};
+
 // 项目密码配置（支持中文密码）
 // 密码就是项目名：项目A=三冰，项目B=次神，项目C=造化
 // 可以通过环境变量覆盖，格式：PROJECT_PASSWORDS={"项目A":"三冰","项目B":"次神"}
@@ -17,6 +24,60 @@ export const PROJECT_PASSWORDS: Record<Project, string> = {
   '项目B': process.env.NEXT_PUBLIC_PROJECT_B_PASSWORD || '次神',
   '项目C': process.env.NEXT_PUBLIC_PROJECT_C_PASSWORD || '造化',
 };
+
+// 获取项目显示名称（支持自定义项目）
+export function getProjectDisplayName(project: string): string {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('project_display_names');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed[project]) {
+          return parsed[project];
+        }
+      } catch {
+        // 如果解析失败，使用默认值
+      }
+    }
+  }
+  return PROJECT_DISPLAY_NAMES[project as Project] || project;
+}
+
+// 获取项目密码（支持自定义项目）
+export function getProjectPassword(project: string): string {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('project_passwords');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed[project]) {
+          return parsed[project];
+        }
+      } catch {
+        // 如果解析失败，使用默认值
+      }
+    }
+  }
+  return PROJECT_PASSWORDS[project as Project] || '';
+}
+
+// 获取所有项目（包括自定义项目）
+export function getAllProjects(): string[] {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('custom_projects');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return [...PROJECTS, ...parsed];
+        }
+      } catch {
+        // 如果解析失败，使用默认值
+      }
+    }
+  }
+  return [...PROJECTS];
+}
 
 // 文件上传限制
 export const FILE_UPLOAD_LIMITS = {

@@ -1,9 +1,9 @@
 'use client';
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { useCallback, useTransition, useState, useEffect } from 'react';
+import { useCallback, useTransition, useState, useEffect, useRef } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { PROJECTS, PROJECT_PASSWORDS } from '@/lib/constants';
+import { PROJECTS, PROJECT_PASSWORDS, getAllProjects, getProjectDisplayName, getProjectPassword } from '@/lib/constants';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +35,8 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
   const [pendingProject, setPendingProject] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
 
   // 从URL参数获取当前选中的项目，如果没有则默认使用项目A（三冰）
   const currentProject = type === 'assets' 
@@ -59,6 +61,21 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
       });
     }
   }, [searchParams, pathname, router, type, startTransition]);
+
+  // 计算下拉菜单宽度，使其与按钮等宽
+  useEffect(() => {
+    const updateMenuWidth = () => {
+      if (triggerRef.current) {
+        const width = triggerRef.current.offsetWidth;
+        setMenuWidth(width);
+      }
+    };
+    
+    updateMenuWidth();
+    // 监听窗口大小变化
+    window.addEventListener('resize', updateMenuWidth);
+    return () => window.removeEventListener('resize', updateMenuWidth);
+  }, [currentProject]);
 
   const handleProjectClick = useCallback(
     (project: string) => {
@@ -85,21 +102,8 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
         return;
       }
 
-      // 优先使用 localStorage 中保存的密码，如果没有则使用默认密码
-      let expectedPassword = PROJECT_PASSWORDS[pendingProject as keyof typeof PROJECT_PASSWORDS];
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('project_passwords');
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            if (parsed[pendingProject]) {
-              expectedPassword = parsed[pendingProject];
-            }
-          } catch {
-            // 如果解析失败，使用默认密码
-          }
-        }
-      }
+      // 使用统一的密码获取函数（支持自定义项目）
+      const expectedPassword = getProjectPassword(pendingProject);
       
       // 支持中文密码，直接比较字符串
       if (password === expectedPassword) {
@@ -168,32 +172,49 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
+            ref={triggerRef}
             variant="outline"
             className={cn(
-              "h-8 sm:h-10 min-w-[100px] sm:min-w-[120px] justify-between gap-2 text-sm",
+              "h-8 sm:h-10 w-fit px-3 justify-between gap-2 text-sm whitespace-nowrap",
               !currentProject && "text-muted-foreground"
             )}
             disabled={isPending}
+            onMouseEnter={() => {
+              // 在鼠标悬停时更新宽度，确保下拉菜单打开时宽度正确
+              if (triggerRef.current) {
+                const width = triggerRef.current.offsetWidth;
+                setMenuWidth(width);
+              }
+            }}
           >
-            <span className="truncate">
-              {currentProject || '选择项目'}
+            <span>
+              {currentProject ? getProjectDisplayName(currentProject) : '选择项目'}
             </span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50 ml-1" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[200px]">
-          {PROJECTS.map((project) => (
-            <DropdownMenuItem
-              key={project}
-              onClick={() => handleProjectChange(project)}
-              className={cn(
-                "cursor-pointer",
-                currentProject === project && "bg-accent"
-              )}
-            >
-              {project}
-            </DropdownMenuItem>
-          ))}
+        <DropdownMenuContent 
+          align="start" 
+          className="w-fit"
+          style={menuWidth ? { minWidth: `${menuWidth}px`, width: 'auto' } : undefined}
+          sideOffset={4}
+        >
+          {getAllProjects().map((project) => {
+            const displayName = getProjectDisplayName(project);
+            return (
+              <DropdownMenuItem
+                key={project}
+                onClick={() => handleProjectChange(project)}
+                className={cn(
+                  "cursor-pointer whitespace-nowrap",
+                  currentProject === project && "bg-accent"
+                )}
+                title={project !== displayName ? project : undefined}
+              >
+                {displayName}
+              </DropdownMenuItem>
+            );
+          })}
         </DropdownMenuContent>
       </DropdownMenu>
 

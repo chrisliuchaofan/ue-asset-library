@@ -31,7 +31,7 @@ import { uploadFileDirect } from '@/lib/client/direct-upload';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { getOptimizedImageUrl, getClientAssetUrl } from '@/lib/utils';
-import { PROJECTS } from '@/lib/constants';
+import { getAllProjects, getProjectDisplayName } from '@/lib/constants';
 
 type StorageMode = 'local' | 'oss';
 
@@ -2091,9 +2091,9 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 onChange={(e) => setFilterProject(e.target.value || null)}
               >
                 <option value="">全部项目</option>
-                {PROJECTS.map((project) => (
+                {getAllProjects().map((project) => (
                   <option key={project} value={project}>
-                    {project}
+                    {getProjectDisplayName(project)}
                   </option>
                 ))}
               </select>
@@ -2852,9 +2852,9 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                     required
                   >
                     <option value="">请选择项目</option>
-                    {PROJECTS.map((project) => (
+                    {getAllProjects().map((project) => (
                       <option key={project} value={project}>
-                        {project}
+                        {getProjectDisplayName(project)}
                       </option>
                     ))}
                   </select>
