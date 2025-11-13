@@ -524,23 +524,23 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     if (priority) {
       switch (viewMode) {
         case 'thumbnail':
-          return 240; // 首屏缩略图模式：更小尺寸以提升 LCP（从360缩小到240）
+          return 200; // 首屏缩略图模式：进一步减小尺寸以提升 LCP（从240缩小到200）
         case 'grid':
-          return 240; // 首屏宫格模式：更小尺寸以提升 LCP（从320缩小到240）
+          return 200; // 首屏宫格模式：进一步减小尺寸以提升 LCP（从240缩小到200）
         case 'classic':
         default:
-          return 320; // 首屏经典模式：更小尺寸以提升 LCP（从400缩小到320）
+          return 280; // 首屏经典模式：进一步减小尺寸以提升 LCP（从320缩小到280）
       }
     }
     // 非首屏图片可以使用稍大尺寸
     switch (viewMode) {
       case 'thumbnail':
-        return 300; // 从450缩小到300，适配更小的卡片
+        return 280; // 从300缩小到280，进一步优化
       case 'grid':
-        return 300; // 从400缩小到300，适配更小的卡片
+        return 280; // 从300缩小到280，进一步优化
       case 'classic':
       default:
-        return 400; // 从560缩小到400，适配更小的卡片
+        return 360; // 从400缩小到360，进一步优化
     }
   }, [viewMode, priority]);
 
@@ -1216,12 +1216,12 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           ) : (
             <div
               className={cn(
-                'relative flex w-full items-center justify-center overflow-hidden cursor-pointer',
-                isOverlayMode ? 'rounded-xl' : 'rounded-t-xl', // 缩略图模式：全部圆角；经典模式：只圆顶部
+                'relative w-full overflow-hidden cursor-pointer',
+                isOverlayMode ? 'rounded-xl h-full' : 'rounded-t-xl flex items-center justify-center', // 缩略图模式：铺满高度；经典模式：居中
                 previewBackgroundClass,
-                !isClassic && previewAspectClass // 非经典模式使用aspect类
+                !isClassic && !isOverlayMode && previewAspectClass // 非经典模式且非缩略图模式使用aspect类
               )}
-              style={isClassic ? { height: previewAreaHeight } : undefined} // 经典模式使用动态计算的高度
+              style={isClassic ? { height: previewAreaHeight } : (isOverlayMode ? { height: '100%' } : undefined)} // 缩略图模式铺满高度
               onDoubleClick={handleDoubleClick}
               onMouseEnter={() => setIsHoveringPreview(true)}
               onMouseLeave={() => setIsHoveringPreview(false)}
@@ -1238,8 +1238,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   }}
                   src={getClientAssetUrl(url)}
                   preload="none"
-                  className={`absolute inset-0 h-full w-full ${mediaObjectClass} transition-opacity duration-200 ${
-                    isOverlayMode ? 'rounded-xl' : 'rounded-t-xl'
+                  className={`absolute inset-0 h-full w-full transition-opacity duration-200 ${
+                    isOverlayMode ? 'rounded-xl object-cover' : `rounded-t-xl ${mediaObjectClass}`
                   } ${
                     index === displayIndex ? 'z-10 opacity-100' : 'pointer-events-none opacity-0'
                   }`}
@@ -1255,10 +1255,10 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 src={currentUrl}
                 alt={`${asset.name} - ${displayIndex + 1}`}
                 fill
-                className={`z-10 object-cover transition-transform duration-300 group-hover:scale-[1.02] ${
-                  isOverlayMode ? 'rounded-xl' : 'rounded-t-xl'
+                className={`z-10 transition-transform duration-300 group-hover:scale-[1.02] ${
+                  isOverlayMode ? 'rounded-xl object-cover' : 'rounded-t-xl object-contain'
                 }`}
-                sizes={priority ? "(max-width: 768px) 100vw, 400px" : "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"}
+                sizes={priority ? `(max-width: 768px) 100vw, ${optimizedImageWidth}px` : "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"}
                 loading={priority ? 'eager' : 'lazy'}
                 priority={priority}
                 fetchPriority={priority ? 'high' : 'auto'}
@@ -1297,10 +1297,10 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
 
             {isOverlayMode && (
               <>
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 via-black/40 to-transparent p-2">
+                <div className="pointer-events-none absolute left-0 bottom-0 right-0 z-20 bg-gradient-to-t from-black/70 via-black/40 to-transparent" style={{ padding: '8px 12px' }}>
                   <div className="truncate text-xs font-semibold text-white">{asset.name}</div>
                   {!compactMode && (
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-white/80">
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-white/80">
                       <span className="font-medium text-white/90">{asset.type}</span>
                       {displayTags.map((tag: string) => (
                         <span

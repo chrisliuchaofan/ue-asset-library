@@ -38,7 +38,7 @@ function MaterialsListContent({ materials }: MaterialsListProps) {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+      <div className="grid gap-2 sm:gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
         {paginatedMaterials.map((material, index) => (
           <MaterialCardGallery
             key={material.id}

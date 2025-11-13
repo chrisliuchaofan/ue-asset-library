@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useEffect, useRef, useMemo, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, useDeferredValue, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { AssetsList } from './assets-list';
@@ -268,23 +268,29 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     ].join('::');
   }, [keyword, selectedTypes, selectedStyles, selectedTags, selectedSources, selectedVersions, selectedProjects]);
 
-  const hasServerFilters =
+  const hasServerFilters = useMemo(() => 
     keyword.trim() !== '' ||
     selectedTypes.length > 0 ||
     selectedStyles.length > 0 ||
     selectedTags.length > 0 ||
     selectedSources.length > 0 ||
     selectedVersions.length > 0 ||
-    selectedProjects.length > 0;
+    selectedProjects.length > 0,
+    [keyword, selectedTypes, selectedStyles, selectedTags, selectedSources, selectedVersions, selectedProjects]
+  );
 
-    // 乐观本地过滤，确保交互即时响应
-  useEffect(() => {
+  // 使用 useDeferredValue 延迟非关键更新，提升交互响应
+  const deferredKeyword = useDeferredValue(keyword);
+  const deferredOptimisticFilters = useDeferredValue(optimisticFilters);
+
+  // 使用 useMemo 缓存乐观过滤结果，减少重复计算
+  const optimisticFilteredAssets = useMemo(() => {
     if (!optimisticFilters) {
-      return;
+      return null;
     }
     const start = performance.now();
     const preview = filterAssetsByOptions(assets, {
-      keyword,
+      keyword: deferredKeyword,
       types: optimisticFilters.types,
       styles: optimisticFilters.styles,
       tags: optimisticFilters.tags,
@@ -293,10 +299,18 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       projects: selectedProjects.length > 0 ? selectedProjects : undefined,
     });
     const duration = performance.now() - start;
-    setDisplayAssets(preview);
-    setFilterDurationMs(duration);
+    return { preview, duration };
+  }, [assets, deferredKeyword, deferredOptimisticFilters, selectedProjects]);
+
+  // 乐观本地过滤，确保交互即时响应
+  useEffect(() => {
+    if (!optimisticFilteredAssets) {
+      return;
+    }
+    setDisplayAssets(optimisticFilteredAssets.preview);
+    setFilterDurationMs(optimisticFilteredAssets.duration);
     setIsFetching(true);
-  }, [assets, keyword, optimisticFilters, selectedProjects]);
+  }, [optimisticFilteredAssets]);
 
   // 没有筛选条件时使用初始数据
   useEffect(() => {
