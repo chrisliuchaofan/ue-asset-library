@@ -182,14 +182,53 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     return fallback;
   }, []);
 
-  // 检查文件是否已上传
-  const checkFileExists = useCallback(async (file: File): Promise<string | null> => {
+  /**
+   * 检查文件是否重复（基于 hash）
+   * 先检查当前会话中已上传的文件，再调用后端 API 检查数据库中是否存在
+   */
+  const checkFileExists = useCallback(async (file: File): Promise<{ url: string; isDuplicate: boolean; existingMaterialName?: string } | null> => {
+    // 1. 先检查当前会话中已上传的文件（快速检查）
     const fileHash = await calculateFileHash(file);
     const existingFile = uploadedFiles.find((f) => f.hash === fileHash);
     if (existingFile) {
-      return existingFile.url;
+      return { url: existingFile.url, isDuplicate: true };
     }
-    return null;
+
+    // 2. 调用后端 API 检查数据库中是否存在相同 hash 的文件
+    try {
+      const response = await fetch('/api/materials/check-duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hash: fileHash,
+          fileSize: file.size,
+          fileName: file.name,
+        }),
+      });
+
+      if (!response.ok) {
+        // API 调用失败，继续上传流程（不阻塞）
+        console.warn('检查重复文件失败，继续上传流程');
+        return null;
+      }
+
+      const result = await response.json();
+      if (result.isDuplicate && result.existingUrl) {
+        // 找到重复文件，返回已有文件的 URL
+        return {
+          url: result.existingUrl,
+          isDuplicate: true,
+          existingMaterialName: result.existingMaterialName,
+        };
+      }
+
+      // 没有找到重复文件
+      return null;
+    } catch (error) {
+      // 网络错误或其他错误，继续上传流程（不阻塞）
+      console.warn('检查重复文件时出错，继续上传流程:', error);
+      return null;
+    }
   }, [uploadedFiles, calculateFileHash]);
 
   const getMaterialMissingFields = useCallback((material: Material) => {
@@ -448,11 +487,16 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       setUploadProgressPercent(0);
 
       try {
-        // 检查文件是否已存在
-        const existingUrl = await checkFileExists(file);
-        if (existingUrl) {
+        // 检查文件是否重复（基于 hash）
+        const duplicateCheck = await checkFileExists(file);
+        if (duplicateCheck) {
           skippedCount++;
-          setMessage(`文件 ${file.name} 已存在，跳过上传`);
+          // 显示重复文件提示信息
+          const duplicateMessage = duplicateCheck.existingMaterialName
+            ? `文件 ${file.name} 已检测到相同内容（与素材"${duplicateCheck.existingMaterialName}"相同），已复用历史上传记录，未重复占用 OSS 存储。`
+            : `文件 ${file.name} 已检测到相同内容，已复用历史上传记录，未重复占用 OSS 存储。`;
+          setMessage(duplicateMessage);
+          // 跳过上传，不创建新素材
           continue;
         }
 
@@ -544,8 +588,6 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           };
         }
 
-        const fileHash = await calculateFileHash(file);
-
         // 为每个文件创建一个素材
         const materialName = file.name.replace(/\.[^/.]+$/, '');
         const fileType = uploadData.type === 'image' ? '图片' : 'UE视频'; // 默认类型，用户可以在列表中编辑
@@ -558,6 +600,10 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           materialType = '图片';
         }
 
+        // 获取文件的 hash 和 fileSize（用于重复检测）
+        const fileHash = uploadData.hash || await calculateFileHash(file);
+        const fileSize = uploadData.size;
+
         const materialPayload = {
           name: materialName,
           type: materialType,
@@ -566,7 +612,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           thumbnail: uploadData.url,
           src: uploadData.url,
           gallery: [uploadData.url],
-          filesize: uploadData.size,
+          filesize: fileSize,
+          fileSize: fileSize, // 统一命名：文件大小（字节数）
+          hash: fileHash, // 文件内容的 SHA256 哈希值，用于重复检测
           width: uploadData.width ?? localMetadata.width,
           height: uploadData.height ?? localMetadata.height,
           duration: uploadData.duration ?? localMetadata.duration,

@@ -77,6 +77,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
     originalName: string;
     type: 'image' | 'video';
     size: number;
+    fileSize?: number; // 统一命名：文件大小（字节数）
     width?: number;
     height?: number;
     hash?: string;
@@ -116,13 +117,53 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
     return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
   }, []);
 
-  const checkFileExists = useCallback(async (file: File): Promise<string | null> => {
+  /**
+   * 检查文件是否重复（基于 hash）
+   * 先检查当前会话中已上传的文件，再调用后端 API 检查数据库中是否存在
+   */
+  const checkFileExists = useCallback(async (file: File): Promise<{ url: string; isDuplicate: boolean; existingAssetName?: string } | null> => {
+    // 1. 先检查当前会话中已上传的文件（快速检查）
     const fileHash = await calculateFileHash(file);
     const existingFile = uploadedFiles.find((f) => f.hash === fileHash);
     if (existingFile) {
-      return existingFile.url;
+      return { url: existingFile.url, isDuplicate: true };
     }
-    return null;
+
+    // 2. 调用后端 API 检查数据库中是否存在相同 hash 的文件
+    try {
+      const response = await fetch('/api/assets/check-duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hash: fileHash,
+          fileSize: file.size,
+          fileName: file.name,
+        }),
+      });
+
+      if (!response.ok) {
+        // API 调用失败，继续上传流程（不阻塞）
+        console.warn('检查重复文件失败，继续上传流程');
+        return null;
+      }
+
+      const result = await response.json();
+      if (result.isDuplicate && result.existingUrl) {
+        // 找到重复文件，返回已有文件的 URL
+        return {
+          url: result.existingUrl,
+          isDuplicate: true,
+          existingAssetName: result.existingAssetName,
+        };
+      }
+
+      // 没有找到重复文件
+      return null;
+    } catch (error) {
+      // 网络错误或其他错误，继续上传流程（不阻塞）
+      console.warn('检查重复文件时出错，继续上传流程:', error);
+      return null;
+    }
   }, [uploadedFiles, calculateFileHash]);
 
   const updateFormFromUploadedFiles = useCallback((files: typeof uploadedFiles) => {
@@ -227,26 +268,37 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
 
   const handleFileUpload = useCallback(async (file: File) => {
     setUploading(true);
-    setUploadProgress('正在检查文件...');
+    setUploadProgress('正在检查文件是否重复...');
     setMessage(null);
 
     try {
-      const existingUrl = await checkFileExists(file);
-      if (existingUrl) {
+      // 检查文件是否重复（基于 hash）
+      const duplicateCheck = await checkFileExists(file);
+      if (duplicateCheck) {
         setUploadProgress(null);
-        setMessage(`文件已存在，使用已有文件: ${file.name}`);
+        // 显示重复文件提示信息
+        const duplicateMessage = duplicateCheck.existingAssetName
+          ? `已检测到相同内容文件（与资产"${duplicateCheck.existingAssetName}"相同），已复用历史上传记录，未重复占用 OSS 存储。`
+          : `已检测到相同内容文件，已复用历史上传记录，未重复占用 OSS 存储。`;
+        setMessage(duplicateMessage);
         
-        const existingFile = uploadedFiles.find((f) => f.url === existingUrl);
+        // 计算文件 hash，用于检查是否已经在已上传列表中
+        const fileHash = await calculateFileHash(file);
+        
+        // 检查是否已经在已上传列表中
+        const existingFile = uploadedFiles.find((f) => f.hash && f.hash === fileHash);
         if (existingFile) {
+          // 文件已在列表中，不重复添加
           return;
         }
         
+        // 使用已有文件的 URL，不实际上传
         const fileInfo = {
-          url: existingUrl,
+          url: duplicateCheck.url,
           originalName: file.name,
           type: file.type.startsWith('image/') ? 'image' as const : 'video' as const,
           size: file.size,
-          hash: await calculateFileHash(file),
+          hash: fileHash,
         };
         
         setUploadedFiles((prev) => {
@@ -265,9 +317,12 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
         originalName: string;
         type: 'image' | 'video';
         size: number;
+        fileSize?: number; // 统一命名：文件大小（字节数）
         width?: number;
         height?: number;
         hash?: string;
+        isDuplicate?: boolean; // 是否重复文件
+        existingAssetName?: string; // 已有资产名称
       };
 
       if (storageMode === 'oss') {
@@ -283,6 +338,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
           originalName: file.name,
           type: file.type.startsWith('image/') ? 'image' : 'video',
           size: file.size,
+          fileSize: file.size, // 统一命名：文件大小（字节数）
         };
       } else {
         const formData = new FormData();
@@ -334,10 +390,19 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
           originalName: responseData.originalName,
           type: responseData.type,
           size: responseData.size,
+          fileSize: responseData.fileSize || responseData.size, // 统一使用 fileSize
           width: responseData.width,
           height: responseData.height,
           hash: responseData.hash,
         };
+        
+        // 如果上传接口返回了重复文件标记，显示提示信息
+        if (responseData.isDuplicate) {
+          const duplicateMessage = responseData.existingAssetName
+            ? `已检测到相同内容文件（与资产"${responseData.existingAssetName}"相同），已复用历史上传记录，未重复占用 OSS 存储。`
+            : `已检测到相同内容文件，已复用历史上传记录，未重复占用 OSS 存储。`;
+          setMessage(duplicateMessage);
+        }
       }
 
       setUploadProgress(null);
@@ -358,15 +423,17 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
         }
       }
 
-      const fileHash = await calculateFileHash(file);
+      // 确保保存 hash 和 fileSize（用于后续重复检测）
+      const fileHash = data.hash || await calculateFileHash(file);
       const newFile = {
         url: data.url,
         originalName: data.originalName,
         type: data.type,
         size: data.size,
+        fileSize: data.fileSize || data.size, // 统一使用 fileSize
         width: data.width,
         height: data.height,
-        hash: data.hash || fileHash,
+        hash: fileHash, // 保存 hash，用于重复检测
       };
       
       setUploadedFiles((prev) => {
@@ -454,6 +521,11 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
           ? styleValues[0]
           : styleValues;
 
+      // 获取主文件的 hash 和 fileSize（用于重复检测）
+      const mainFile = uploadedFiles[0];
+      const mainFileHash = mainFile?.hash;
+      const mainFileSize = mainFile?.fileSize || mainFile?.size;
+
       const payload = {
         name: form.name.trim(),
         type: form.type,
@@ -475,6 +547,10 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               .map((url) => url.trim())
               .filter(Boolean)
           : undefined,
+        // 添加 hash 和 fileSize 字段，用于重复检测
+        hash: mainFileHash || undefined,
+        fileSize: mainFileSize || undefined,
+        filesize: mainFileSize || undefined, // 保留兼容性
       };
 
       const response = await fetch('/api/assets', {

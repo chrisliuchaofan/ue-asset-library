@@ -45,7 +45,11 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
   const keyword = searchParams.get('q') ?? '';
   const selectedType = searchParams.get('type') || null;
   const selectedTag = searchParams.get('tag') || null;
-  const selectedQualities = searchParams.get('qualities')?.split(',').filter(Boolean) ?? [];
+  // 使用 useMemo 稳定数组引用，避免每次渲染都创建新数组导致依赖项变化
+  const selectedQualities = useMemo(
+    () => searchParams.get('qualities')?.split(',').filter(Boolean) ?? [],
+    [searchParams]
+  );
   const selectedProject = searchParams.get('project') || null;
   const filtersKey = useMemo(
     () =>
@@ -54,15 +58,6 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
   );
   const hasServerFilters =
     Boolean(keyword) || Boolean(selectedType) || Boolean(selectedTag) || selectedQualities.length > 0 || Boolean(selectedProject);
-  
-  // 使用 useMemo 缓存 payload，避免在 effect 中重复计算
-  const queryPayload = useMemo(() => ({
-    keyword: keyword || undefined,
-    type: selectedType || undefined,
-    tag: selectedTag || undefined,
-    qualities: selectedQualities.length > 0 ? selectedQualities : undefined,
-    project: selectedProject || undefined,
-  }), [keyword, selectedType, selectedTag, selectedQualities, selectedProject]);
 
   const [mounted, setMounted] = useState(false);
   const [officeLocation, setOfficeLocation] = useOfficeLocation();
@@ -125,6 +120,15 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
       const controller = new AbortController();
       const requestId = ++latestRequestId.current;
 
+      // 在 effect 内部构建 payload，避免对象引用问题
+      const queryPayload = {
+        keyword: keyword || undefined,
+        type: selectedType || undefined,
+        tag: selectedTag || undefined,
+        qualities: selectedQualities.length > 0 ? selectedQualities : undefined,
+        project: selectedProject || undefined,
+      };
+
       const start = performance.now();
       // 只有在没有乐观更新时才显示加载状态，避免闪烁
       setIsFetching(true);
@@ -175,7 +179,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [filtersKey, mounted, hasServerFilters, optimisticFilters, queryPayload]); // 使用 queryPayload 减少依赖项
+  }, [filtersKey, mounted, hasServerFilters, optimisticFilters, keyword, selectedType, selectedTag, selectedQualities, selectedProject]); // 使用 filtersKey 和原始值作为依赖项，避免对象引用问题
 
   const portal = mounted ? document.getElementById('header-actions-portal') : null;
 

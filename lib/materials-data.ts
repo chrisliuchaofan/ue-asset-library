@@ -306,6 +306,8 @@ export async function createMaterial(input: {
   src?: string;
   gallery?: string[];
   filesize?: number;
+  fileSize?: number; // 统一命名：文件大小（字节数）
+  hash?: string; // 文件内容的 SHA256 哈希值，用于重复检测
   width?: number;
   height?: number;
   duration?: number;
@@ -332,7 +334,9 @@ export async function createMaterial(input: {
     thumbnail: input.thumbnail || input.src || '',
     src: input.src || input.thumbnail || '',
     gallery: input.gallery,
-    filesize: input.filesize,
+    filesize: input.filesize || input.fileSize, // 保留兼容性，优先使用 fileSize
+    fileSize: input.fileSize || input.filesize, // 统一命名：文件大小（字节数）
+    hash: input.hash, // 文件内容的 SHA256 哈希值，用于重复检测
     width: input.width,
     height: input.height,
     duration: input.duration,

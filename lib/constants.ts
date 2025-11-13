@@ -178,7 +178,7 @@ export function getAllDescriptions(): Record<DescriptionKey, string> {
 
 // 文件上传限制
 export const FILE_UPLOAD_LIMITS = {
-  MAX_FILE_SIZE: 200 * 1024 * 1024, // 200MB
+  MAX_FILE_SIZE: 2 * 1024 * 1024 * 1024, // 2GB
   MAX_FILE_NAME_LENGTH: 255,
 } as const;
 
@@ -228,7 +228,7 @@ export const BATCH_UPLOAD_CONFIG = {
   // 最大并发上传数（避免内存溢出和连接数过多）
   MAX_CONCURRENT_UPLOADS: 5,
   // 单次批量上传最大文件数
-  MAX_BATCH_SIZE: 100,
+  MAX_BATCH_SIZE: 1000,
   // 上传重试次数
   MAX_RETRIES: 3,
   // 重试延迟（毫秒）
