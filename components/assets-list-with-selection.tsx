@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LayoutPanelTop, Film, Grid3x3, ChevronDown, ChevronUp } from 'lucide-react';
 import { filterAssetsByOptions } from '@/lib/asset-filters';
-import { PAGINATION } from '@/lib/constants';
+import { PAGINATION, getDescription } from '@/lib/constants';
 
 interface AssetsListWithSelectionProps {
   assets: Asset[];
@@ -26,6 +26,7 @@ interface AssetsListWithSelectionProps {
 
 const SELECTED_ASSETS_STORAGE_KEY = 'selected-asset-ids';
 const VIEW_MODE_STORAGE_KEY = 'asset-view-mode';
+const COMPACT_MODE_STORAGE_KEY = 'asset-compact-mode';
 
 type ViewMode = 'classic' | 'thumbnail' | 'grid';
 
@@ -69,6 +70,42 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const [isFetching, setIsFetching] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // 紧凑模式：使用Map存储每个卡片的紧凑状态（assetId -> boolean）
+  const [compactModeMap, setCompactModeMap] = useState<Map<string, boolean>>(() => {
+    if (typeof window === 'undefined') return new Map();
+    try {
+      const stored = localStorage.getItem(COMPACT_MODE_STORAGE_KEY);
+      if (stored) {
+        const data = JSON.parse(stored) as Record<string, boolean>;
+        return new Map(Object.entries(data));
+      }
+    } catch {
+      // 忽略错误
+    }
+    return new Map();
+  });
+  
+  // 切换单个卡片的紧凑模式
+  const handleCompactModeToggle = useCallback((assetId: string) => {
+    setCompactModeMap((prev) => {
+      const next = new Map(prev);
+      const current = next.get(assetId) ?? false;
+      next.set(assetId, !current);
+      
+      // 保存到localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          const data = Object.fromEntries(next);
+          localStorage.setItem(COMPACT_MODE_STORAGE_KEY, JSON.stringify(data));
+        } catch {
+          // 忽略错误
+        }
+      }
+      
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -100,12 +137,15 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     }
   }, [searchParams]);
 
-  // 计算分页数据
+  // 计算分页数据（使用 useMemo 优化性能）
   const itemsPerPage = PAGINATION.ASSETS_PER_PAGE; // 100个
-  const totalPages = Math.ceil(displayAssets.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedAssets = displayAssets.slice(startIndex, endIndex);
+  const { totalPages, paginatedAssets } = useMemo(() => {
+    const total = Math.ceil(displayAssets.length / itemsPerPage);
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const paginated = displayAssets.slice(start, end);
+    return { totalPages: total, paginatedAssets: paginated };
+  }, [displayAssets, currentPage]); // itemsPerPage 是常量，不需要放在依赖数组中
 
   useEffect(() => {
     if (hasHydratedSelection) return;
@@ -357,7 +397,12 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       <div className="px-3 pt-3 sm:px-5 sm:pt-5 lg:px-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-muted-foreground">
-            找到 {displayAssets.length} 个资产
+            {useMemo(() => {
+              if (displayAssets.length === 0) {
+                return getDescription('assetsCountZero');
+              }
+              return `${getDescription('assetsCountPrefix')} ${displayAssets.length} ${getDescription('assetsCountSuffix')}`;
+            }, [displayAssets.length])}
           </div>
           <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
             <DropdownMenuTrigger asChild>
@@ -403,6 +448,8 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
           keyword={keyword}
           filterDurationMs={filterDurationMs}
           isFetching={isFetching}
+          compactMode={compactModeMap}
+          onCompactModeToggle={handleCompactModeToggle}
         />
         
         {/* 分页控件 */}

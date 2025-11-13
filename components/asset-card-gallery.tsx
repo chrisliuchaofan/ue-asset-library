@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { type Asset } from '@/data/manifest.schema';
 import { highlightText, cn, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check, Maximize2, Minimize2 } from 'lucide-react';
 import { type OfficeLocation } from '@/lib/nas-utils';
 import { createPortal } from 'react-dom';
 
@@ -20,6 +20,9 @@ interface AssetCardGalleryProps {
   priority?: boolean; // 是否为优先加载的图片（首屏图片）
   officeLocation?: OfficeLocation; // 办公地点，用于选择对应的 NAS 路径
   viewMode: 'classic' | 'thumbnail' | 'grid';
+  cardWidth?: number; // 卡片宽度（从父组件传入，用于响应式布局）
+  compactMode?: boolean; // 紧凑模式
+  onCompactModeToggle?: () => void; // 切换紧凑模式
 }
 
 interface ThumbnailPreviewPopoverProps {
@@ -175,7 +178,7 @@ const ThumbnailPreviewPopover = memo(function ThumbnailPreviewPopover({ position
   return createPortal(popoverContent, document.body);
 });
 
-export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou', viewMode }: AssetCardGalleryProps) {
+export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou', viewMode, cardWidth: propCardWidth, compactMode = false, onCompactModeToggle }: AssetCardGalleryProps) {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEnlarged, setIsEnlarged] = useState(false);
@@ -963,10 +966,33 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     setIsEnlarged(true);
   };
 
-  const cardWidth = 240; // 从320缩小到240
-  const classicHeight = 240; // 从360缩小到240
-  const gridHeight = 240; // 1:1 方形（从320缩小到240）
-  const compactHeight = 150; // 从180缩小到150，适配更小的卡片
+  // 使用传入的卡片宽度，如果没有则使用默认值
+  const cardWidth = propCardWidth || 240;
+  
+  // 根据紧凑模式调整卡片尺寸
+  const sizeMultiplier = compactMode ? 0.75 : 1; // 紧凑模式缩小25%
+  
+  // 智能缩放：根据卡片宽度动态计算高度，保持比例
+  // 基准宽度240px对应的基准高度
+  const baseCardWidth = 240;
+  const baseClassicHeight = 240; // 经典模式基准高度（4:5比例）
+  const baseGridHeight = 240; // 宫格模式基准高度（1:1比例）
+  const baseCompactHeight = 150; // 缩略图模式基准高度（16:9比例）
+  
+  // 根据实际卡片宽度按比例缩放高度
+  const widthRatio = cardWidth / baseCardWidth;
+  const classicHeight = Math.floor(baseClassicHeight * widthRatio * sizeMultiplier); // 经典模式高度
+  const gridHeight = Math.floor(baseGridHeight * widthRatio * sizeMultiplier); // 1:1 方形
+  const compactHeight = Math.floor(baseCompactHeight * widthRatio * sizeMultiplier); // 缩略图模式高度
+  
+  // 智能缩放预览区域高度
+  // 注意：这里需要先判断视图模式，所以使用 viewMode 而不是 isClassic/isGrid
+  const previewAreaHeight = viewMode === 'classic'
+    ? Math.floor(classicHeight - compactHeight - 8) // 减去缩略图区域和间距
+    : viewMode === 'grid'
+    ? gridHeight // 宫格模式使用整个卡片高度
+    : Math.floor(cardWidth * 0.5625 * sizeMultiplier); // 缩略图模式：16:9比例 (9/16 = 0.5625)
+  
   const primaryTags = Array.isArray(asset.tags) ? asset.tags : [];
   const combinedTags = primaryTags;
   const secondaryRowText = [asset.type, ...combinedTags].filter(Boolean).join(' · ');
@@ -1181,8 +1207,9 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 'relative flex w-full items-center justify-center overflow-hidden cursor-pointer',
                 isOverlayMode ? 'rounded-xl' : 'rounded-t-xl', // 缩略图模式：全部圆角；经典模式：只圆顶部
                 previewBackgroundClass,
-                isClassic ? 'h-[150px]' : previewAspectClass
+                !isClassic && previewAspectClass // 非经典模式使用aspect类
               )}
+              style={isClassic ? { height: previewAreaHeight } : undefined} // 经典模式使用动态计算的高度
               onDoubleClick={handleDoubleClick}
               onMouseEnter={() => setIsHoveringPreview(true)}
               onMouseLeave={() => setIsHoveringPreview(false)}
@@ -1260,24 +1287,49 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
               <>
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 via-black/40 to-transparent p-2">
                   <div className="truncate text-xs font-semibold text-white">{asset.name}</div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-white/80">
-                    <span className="font-medium text-white/90">{asset.type}</span>
-                    {displayTags.map((tag: string) => (
-                      <span
-                        key={tag}
-                        className="rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] leading-none text-white"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                    {remainingTagCount > 0 && (
-                      <span className="text-[9px] text-white/70">+{remainingTagCount}</span>
-                    )}
-                  </div>
+                  {!compactMode && (
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-white/80">
+                      <span className="font-medium text-white/90">{asset.type}</span>
+                      {displayTags.map((tag: string) => (
+                        <span
+                          key={tag}
+                          className="rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] leading-none text-white"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                      {remainingTagCount > 0 && (
+                        <span className="text-[9px] text-white/70">+{remainingTagCount}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="pointer-events-none absolute right-1.5 top-1.5 z-50 flex gap-0.5">
                   {renderActionButtons()}
                 </div>
+                {/* 紧凑/完整显示切换按钮 */}
+                {onCompactModeToggle && (
+                  <div className="pointer-events-none absolute left-1.5 top-1.5 z-50">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onCompactModeToggle();
+                      }}
+                      className="pointer-events-auto h-6 w-6 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center"
+                      title={compactMode ? '切换到完整显示' : '切换到紧凑显示'}
+                    >
+                      {compactMode ? (
+                        <Maximize2 className="h-3 w-3" />
+                      ) : (
+                        <Minimize2 className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
+                )}
               </>
             )}
 
@@ -1532,7 +1584,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
             </div>
           )}
 
-          {(isClassic || isGrid) && (
+          {(isClassic || isGrid) && !compactMode && (
             <div className="pointer-events-none absolute bottom-2 left-3 flex items-center gap-3 text-[10px] text-white/90">
               {asset.style && (
                 <span>{Array.isArray(asset.style) ? asset.style.join('、') : asset.style}</span>
@@ -1541,22 +1593,50 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
               {asset.source && <span>{asset.source}</span>}
             </div>
           )}
+          {/* 紧凑/完整显示切换按钮（经典和宫格模式） */}
+          {(isClassic || isGrid) && onCompactModeToggle && (
+            <div className="pointer-events-none absolute top-2 right-2 z-50">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCompactModeToggle();
+                }}
+                className="pointer-events-auto h-7 w-7 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center"
+                title={compactMode ? '切换到完整显示' : '切换到紧凑显示'}
+              >
+                {compactMode ? (
+                  <Maximize2 className="h-3.5 w-3.5" />
+                ) : (
+                  <Minimize2 className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </div>
+          )}
         </Card>
 
         {(isClassic || isGrid) && (
-          <div className="space-y-1 px-1">
+          <div className={cn("space-y-1 px-1", compactMode && "space-y-0.5")}>
             <Link href={`/assets/${asset.id}`} className="block">
               <h3
                 ref={nameRef}
-                className="text-sm font-semibold leading-tight text-foreground transition-colors hover:text-primary truncate"
+                className={cn(
+                  "font-semibold leading-tight text-foreground transition-colors hover:text-primary truncate",
+                  compactMode ? "text-xs" : "text-sm"
+                )}
                 style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
                 dangerouslySetInnerHTML={{ __html: highlightedName }}
               />
             </Link>
-            <p
-              className="text-xs text-muted-foreground truncate"
-              dangerouslySetInnerHTML={{ __html: secondaryRowHtml }}
-            />
+            {!compactMode && (
+              <p
+                className="text-xs text-muted-foreground truncate"
+                dangerouslySetInnerHTML={{ __html: secondaryRowHtml }}
+              />
+            )}
           </div>
         )}
       </div>

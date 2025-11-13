@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { FolderOpen, Video, ChevronLeft, ChevronRight, Settings, Plus, List, ChevronDown, ChevronUp, Save, X, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AdminRefreshProvider } from './admin-refresh-context';
-import { PROJECTS, PROJECT_PASSWORDS, PROJECT_DISPLAY_NAMES, getAllProjects, getProjectDisplayName } from '@/lib/constants';
+import { PROJECTS, PROJECT_PASSWORDS, PROJECT_DISPLAY_NAMES, getAllProjects, getProjectDisplayName, DEFAULT_DESCRIPTIONS, getAllDescriptions, saveDescriptions, type DescriptionKey } from '@/lib/constants';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -30,6 +30,8 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDisplayName, setNewProjectDisplayName] = useState('');
   const [newProjectPassword, setNewProjectPassword] = useState('');
+  const [descriptions, setDescriptions] = useState<Record<DescriptionKey, string>>({ ...DEFAULT_DESCRIPTIONS });
+  const [descriptionsExpanded, setDescriptionsExpanded] = useState(false);
 
   // 从 localStorage 加载项目配置
   useEffect(() => {
@@ -73,6 +75,10 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
         setCustomProjects([]);
       }
     }
+    
+    // 加载描述文字
+    const loadedDescriptions = getAllDescriptions();
+    setDescriptions(loadedDescriptions);
   }, []);
 
   const handlePasswordChange = (project: string, password: string) => {
@@ -199,6 +205,9 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
         (window as any).__CUSTOM_PROJECTS__ = customProjects;
       }
       
+      // 保存描述文字
+      saveDescriptions(descriptions);
+      
       setMessage('保存成功！页面将刷新以应用更改');
       setTimeout(() => {
         // 刷新页面以应用更改
@@ -210,6 +219,17 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
     } finally {
       setSaving(false);
     }
+  };
+  
+  const handleDescriptionChange = (key: DescriptionKey, value: string) => {
+    setDescriptions((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+  
+  const handleResetDescriptions = () => {
+    setDescriptions({ ...DEFAULT_DESCRIPTIONS });
   };
 
   return (
@@ -348,6 +368,156 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                 添加项目
               </Button>
             </div>
+          </div>
+
+          {/* 描述文字设置 */}
+          <div className="space-y-2 border-t pt-2 mt-2">
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-semibold text-gray-700">描述文字设置</div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDescriptionsExpanded(!descriptionsExpanded)}
+                className="h-6 px-2 text-xs"
+              >
+                {descriptionsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </Button>
+            </div>
+            {descriptionsExpanded && (
+              <div className="space-y-2">
+                <div className="text-xs text-gray-500 mb-2">
+                  自定义前端显示的文字内容。使用 {'{project}'} 作为项目名称占位符。
+                </div>
+                
+                {/* 项目密码验证对话框 */}
+                <div className="space-y-1 p-2 border rounded bg-gray-50">
+                  <div className="text-xs font-medium text-gray-600 mb-1">项目密码验证对话框</div>
+                  <div>
+                    <Label className="text-xs text-gray-500">对话框标题</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.projectPasswordDialogTitle}
+                      onChange={(e) => handleDescriptionChange('projectPasswordDialogTitle', e.target.value)}
+                      className="h-7 text-xs"
+                      placeholder="项目密码验证"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">对话框描述</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.projectPasswordDialogDescription}
+                      onChange={(e) => handleDescriptionChange('projectPasswordDialogDescription', e.target.value)}
+                      className="h-7 text-xs"
+                      placeholder="请输入 {project} 的密码以切换项目"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">输入框占位符</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.projectPasswordInputPlaceholder}
+                      onChange={(e) => handleDescriptionChange('projectPasswordInputPlaceholder', e.target.value)}
+                      className="h-7 text-xs"
+                      placeholder="请输入密码（支持中文）"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    <div>
+                      <Label className="text-xs text-gray-500">取消按钮</Label>
+                      <Input
+                        type="text"
+                        value={descriptions.projectPasswordDialogCancel}
+                        onChange={(e) => handleDescriptionChange('projectPasswordDialogCancel', e.target.value)}
+                        className="h-7 text-xs"
+                        placeholder="取消"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">确认按钮</Label>
+                      <Input
+                        type="text"
+                        value={descriptions.projectPasswordDialogConfirm}
+                        onChange={(e) => handleDescriptionChange('projectPasswordDialogConfirm', e.target.value)}
+                        className="h-7 text-xs"
+                        placeholder="确认"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 空状态 */}
+                <div className="space-y-1 p-2 border rounded bg-gray-50">
+                  <div className="text-xs font-medium text-gray-600 mb-1">空状态显示</div>
+                  <div>
+                    <Label className="text-xs text-gray-500">标题</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.emptyStateTitle}
+                      onChange={(e) => handleDescriptionChange('emptyStateTitle', e.target.value)}
+                      className="h-7 text-xs"
+                      placeholder="未找到资产"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">描述</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.emptyStateDescription}
+                      onChange={(e) => handleDescriptionChange('emptyStateDescription', e.target.value)}
+                      className="h-7 text-xs"
+                      placeholder="尝试调整搜索关键词或筛选条件"
+                    />
+                  </div>
+                </div>
+
+                {/* 资产计数 */}
+                <div className="space-y-1 p-2 border rounded bg-gray-50">
+                  <div className="text-xs font-medium text-gray-600 mb-1">资产计数显示</div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <div>
+                      <Label className="text-xs text-gray-500">前缀</Label>
+                      <Input
+                        type="text"
+                        value={descriptions.assetsCountPrefix}
+                        onChange={(e) => handleDescriptionChange('assetsCountPrefix', e.target.value)}
+                        className="h-7 text-xs"
+                        placeholder="找到"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">后缀</Label>
+                      <Input
+                        type="text"
+                        value={descriptions.assetsCountSuffix}
+                        onChange={(e) => handleDescriptionChange('assetsCountSuffix', e.target.value)}
+                        className="h-7 text-xs"
+                        placeholder="个资产"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">0个资产</Label>
+                      <Input
+                        type="text"
+                        value={descriptions.assetsCountZero}
+                        onChange={(e) => handleDescriptionChange('assetsCountZero', e.target.value)}
+                        className="h-7 text-xs"
+                        placeholder="找到 0 个资产"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetDescriptions}
+                  className="w-full h-7 text-xs"
+                >
+                  重置为默认值
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* 保存按钮 */}
