@@ -553,6 +553,11 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
           ? styleValues[0]
           : styleValues;
 
+      // 获取主文件的 hash 和 fileSize（用于重复检测）
+      const mainFile = uploadedFiles.find((f) => f.url === form.src) || uploadedFiles[0];
+      const mainFileHash = mainFile?.hash;
+      const mainFileSize = mainFile?.fileSize || mainFile?.size;
+
       const payload = {
         name: form.name.trim(),
         type: form.type,
@@ -574,6 +579,10 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               .map((url) => url.trim())
               .filter(Boolean)
           : undefined,
+        // 添加 hash 和 fileSize 字段，用于重复检测
+        hash: mainFileHash || undefined,
+        fileSize: mainFileSize || undefined,
+        filesize: mainFileSize || undefined, // 保留兼容性
       };
 
       const response = await fetch('/api/assets', {

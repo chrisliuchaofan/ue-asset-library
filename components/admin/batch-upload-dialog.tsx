@@ -1274,15 +1274,19 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                     }
                     
                     // ✅ 只有上传成功且验证通过的文件才会保存
-                    // 保存到已上传文件列表
+                    // 保存到已上传文件列表（包含 hash 和 fileSize）
                     const uploadedFileInfo: {
                       url: string;
                       originalName: string;
                       type: 'image' | 'video';
+                      hash?: string;
+                      fileSize?: number;
                     } = {
                       url: uploadedUrl,
                       originalName: fileName,
                       type: isVideo ? 'video' : 'image',
+                      hash: uploadData.hash,
+                      fileSize: uploadData.fileSize || uploadData.size,
                     };
                     uploadedFilesList.push(uploadedFileInfo);
                     
@@ -1391,6 +1395,11 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
             throw new Error('没有成功上传的文件');
           }
           
+          // 获取主文件的 hash 和 fileSize（用于重复检测）
+          const mainFile = uploadedFilesList.find((f) => f.url === finalSrc) || uploadedFilesList[0];
+          const mainFileHash = mainFile?.hash;
+          const mainFileSize = mainFile?.fileSize;
+
           const assetData: any = {
             name: row.name?.trim() || '',
             type: row.type?.trim() || '角色',
@@ -1403,6 +1412,10 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
             thumbnail: finalThumbnail || undefined,
             src: finalSrc || undefined,
             gallery: gallerySources.length > 0 ? gallerySources : undefined,
+            // 添加 hash 和 fileSize 字段，用于重复检测
+            hash: mainFileHash || undefined,
+            fileSize: mainFileSize || undefined,
+            filesize: mainFileSize || undefined, // 保留兼容性
           };
 
           // 验证必填字段

@@ -9,7 +9,10 @@
     "lint": "next lint",
     "build:manifest": "tsx scripts/build_manifest.ts",
     "test": "npm run build",
-    "pre-push": "./scripts/pre-push.sh"
+    "pre-push": "./scripts/pre-push.sh",
+    "cleanup-duplicates": "tsx scripts/cleanup-duplicate-files.ts",
+    "cleanup-duplicates:delete": "tsx scripts/cleanup-duplicate-files.ts --delete",
+    "find-same-size": "tsx scripts/find-same-size-files.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
