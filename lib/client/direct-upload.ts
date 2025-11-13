@@ -80,10 +80,24 @@ export async function uploadFileDirect(
 
     await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      let uploadStartTime = Date.now();
+      let lastProgressTime = Date.now();
+      let hasProgress = false;
+      
+      // 设置超时（30秒）
+      const timeout = 30000;
+      const timeoutId = setTimeout(() => {
+        if (!hasProgress && Date.now() - uploadStartTime > timeout) {
+          xhr.abort();
+          reject(new Error(`上传失败：超时（${timeout / 1000}秒内无响应）`));
+        }
+      }, timeout);
+      
       if (options.signal) {
         options.signal.addEventListener(
           'abort',
           () => {
+            clearTimeout(timeoutId);
             xhr.abort();
             reject(new DOMException('上传已取消', 'AbortError'));
           },
@@ -93,6 +107,8 @@ export async function uploadFileDirect(
 
       if (options.onProgress) {
         xhr.upload.addEventListener('progress', (event) => {
+          hasProgress = true;
+          lastProgressTime = Date.now();
           if (event.lengthComputable) {
             const percent = Math.round((event.loaded / event.total) * 100);
             options.onProgress?.(percent);
@@ -100,18 +116,62 @@ export async function uploadFileDirect(
         });
       }
 
-      xhr.onerror = () => reject(new Error('上传失败：网络错误'));
-      xhr.onabort = () => reject(new DOMException('上传已取消', 'AbortError'));
+      xhr.onerror = () => {
+        clearTimeout(timeoutId);
+        const errorDetails = {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          readyState: xhr.readyState,
+          uploadUrl: config.uploadUrl,
+          fileSize: file.size,
+          fileName: file.name,
+        };
+        console.error('[直接上传] 网络错误详情:', errorDetails);
+        reject(new Error(`上传失败：网络错误 (状态: ${xhr.status}, 就绪状态: ${xhr.readyState})`));
+      };
+      
+      xhr.onabort = () => {
+        clearTimeout(timeoutId);
+        reject(new DOMException('上传已取消', 'AbortError'));
+      };
+      
+      xhr.ontimeout = () => {
+        clearTimeout(timeoutId);
+        reject(new Error(`上传失败：请求超时（${timeout / 1000}秒）`));
+      };
+      
       xhr.onload = () => {
+        clearTimeout(timeoutId);
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve();
         } else {
-          reject(new Error(`上传失败: HTTP ${xhr.status}`));
+          const errorDetails = {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            responseText: xhr.responseText?.substring(0, 200),
+            uploadUrl: config.uploadUrl,
+          };
+          console.error('[直接上传] HTTP错误详情:', errorDetails);
+          reject(new Error(`上传失败: HTTP ${xhr.status} ${xhr.statusText}`));
         }
       };
 
-      xhr.open('POST', config.uploadUrl);
-      xhr.send(formData);
+      try {
+        xhr.open('POST', config.uploadUrl);
+        // 设置超时
+        xhr.timeout = timeout;
+        console.log('[直接上传] 开始上传到OSS:', {
+          uploadUrl: config.uploadUrl,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        });
+        xhr.send(formData);
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('[直接上传] 发送请求失败:', error);
+        reject(new Error(`上传失败：发送请求时出错 - ${error instanceof Error ? error.message : String(error)}`));
+      }
     });
 
     const duration = performance.now() - start;

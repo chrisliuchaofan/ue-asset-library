@@ -125,6 +125,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
     originalName: string;
     type: 'image' | 'video';
     size: number;
+    fileSize?: number; // 统一命名：文件大小（字节数）
     width?: number;
     height?: number;
     hash?: string;
@@ -144,6 +145,10 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
   const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingAssetInDialog, setEditingAssetInDialog] = useState<Asset | null>(null);
+  // 编辑对话框中的文件上传状态
+  const [editDialogUploadedFiles, setEditDialogUploadedFiles] = useState<Array<{ url: string; originalName: string; type: 'image' | 'video' }>>([]);
+  const [editDialogUploading, setEditDialogUploading] = useState(false);
+  const [editDialogUploadProgress, setEditDialogUploadProgress] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState<Asset | null>(null);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
@@ -240,13 +245,53 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
   const normalizedCdnBase = useMemo(() => cdnBase.replace(/\/+$/, ''), [cdnBase]);
 
   // 检查文件是否已上传
-  const checkFileExists = useCallback(async (file: File): Promise<string | null> => {
+  /**
+   * 检查文件是否重复（基于 hash）
+   * 先检查当前会话中已上传的文件，再调用后端 API 检查数据库中是否存在
+   */
+  const checkFileExists = useCallback(async (file: File): Promise<{ url: string; isDuplicate: boolean; existingAssetName?: string } | null> => {
+    // 1. 先检查当前会话中已上传的文件（快速检查）
     const fileHash = await calculateFileHash(file);
     const existingFile = uploadedFiles.find((f) => f.hash === fileHash);
     if (existingFile) {
-      return existingFile.url;
+      return { url: existingFile.url, isDuplicate: true };
     }
-    return null;
+
+    // 2. 调用后端 API 检查数据库中是否存在相同 hash 的文件
+    try {
+      const response = await fetch('/api/assets/check-duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hash: fileHash,
+          fileSize: file.size,
+          fileName: file.name,
+        }),
+      });
+
+      if (!response.ok) {
+        // API 调用失败，继续上传流程（不阻塞）
+        console.warn('检查重复文件失败，继续上传流程');
+        return null;
+      }
+
+      const result = await response.json();
+      if (result.isDuplicate && result.existingUrl) {
+        // 找到重复文件，返回已有文件的 URL
+        return {
+          url: result.existingUrl,
+          isDuplicate: true,
+          existingAssetName: result.existingAssetName,
+        };
+      }
+
+      // 没有找到重复文件
+      return null;
+    } catch (error) {
+      // 网络错误或其他错误，继续上传流程（不阻塞）
+      console.warn('检查重复文件时出错，继续上传流程:', error);
+      return null;
+    }
   }, [uploadedFiles, calculateFileHash]);
 
   // 更新表单从已上传文件列表
@@ -891,26 +936,32 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
     setMessage(null);
 
     try {
-      // 检查文件是否已上传
-      const existingUrl = await checkFileExists(file);
-      if (existingUrl) {
+      // 检查文件是否重复（基于 hash）
+      const duplicateCheck = await checkFileExists(file);
+      if (duplicateCheck) {
         setUploadProgress(null);
-        setMessage(`文件已存在，使用已有文件: ${file.name}`);
+        // 显示重复文件提示信息
+        const duplicateMessage = duplicateCheck.existingAssetName
+          ? `已检测到相同内容文件（与资产"${duplicateCheck.existingAssetName}"相同），已复用历史上传记录，未重复占用 OSS 存储。`
+          : `已检测到相同内容文件，已复用历史上传记录，未重复占用 OSS 存储。`;
+        setMessage(duplicateMessage);
         
-        // 使用已有文件，添加到已上传列表
-        const existingFile = uploadedFiles.find((f) => f.url === existingUrl);
+        // 检查是否已经在已上传列表中
+        const fileHash = await calculateFileHash(file);
+        const existingFile = uploadedFiles.find((f) => f.hash === fileHash);
         if (existingFile) {
-          // 文件已存在，不重复添加
+          // 文件已在列表中，不重复添加
           return;
         }
         
-        // 如果不在列表中，需要获取文件信息（这里简化处理，直接使用 URL）
+        // 使用已有文件的 URL，不实际上传
         const fileInfo = {
-          url: existingUrl,
+          url: duplicateCheck.url,
           originalName: file.name,
           type: file.type.startsWith('image/') ? 'image' as const : 'video' as const,
           size: file.size,
-          hash: await calculateFileHash(file),
+          fileSize: file.size, // 统一使用 fileSize
+          hash: fileHash,
         };
         
         setUploadedFiles((prev) => {
@@ -929,9 +980,12 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
         originalName: string;
         type: 'image' | 'video';
         size: number;
+        fileSize?: number; // 统一命名：文件大小（字节数）
         width?: number;
         height?: number;
         hash?: string;
+        isDuplicate?: boolean; // 是否重复文件
+        existingAssetName?: string; // 已有资产名称
       };
 
       if (storageMode === 'oss') {
@@ -947,6 +1001,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
           originalName: file.name,
           type: file.type.startsWith('image/') ? 'image' : 'video',
           size: file.size,
+          fileSize: file.size, // 统一命名：文件大小（字节数）
           width: undefined,
           height: undefined,
         };
@@ -1000,10 +1055,21 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
           originalName: responseData.originalName,
           type: responseData.type,
           size: responseData.size,
+          fileSize: responseData.fileSize || responseData.size, // 统一使用 fileSize
           width: responseData.width,
           height: responseData.height,
           hash: responseData.hash,
+          isDuplicate: responseData.isDuplicate, // 是否重复文件
+          existingAssetName: responseData.existingAssetName, // 已有资产名称
         };
+        
+        // 如果上传接口返回了重复文件标记，显示提示信息
+        if (responseData.isDuplicate) {
+          const duplicateMessage = responseData.existingAssetName
+            ? `已检测到相同内容文件（与资产"${responseData.existingAssetName}"相同），已复用历史上传记录，未重复占用 OSS 存储。`
+            : `已检测到相同内容文件，已复用历史上传记录，未重复占用 OSS 存储。`;
+          setMessage(duplicateMessage);
+        }
       }
 
       setUploadProgress(null);
@@ -1026,16 +1092,17 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
         }
       }
 
-      // 添加到已上传文件列表（累加）
-      const fileHash = await calculateFileHash(file);
+      // 确保保存 hash 和 fileSize（用于后续重复检测）
+      const fileHash = data.hash || await calculateFileHash(file);
       const newFile = {
         url: data.url, // 使用原始 URL，不包含 CDN base
         originalName: data.originalName,
         type: data.type,
         size: data.size,
+        fileSize: data.fileSize || data.size, // 统一使用 fileSize
         width: data.width,
         height: data.height,
-        hash: data.hash || fileHash,
+        hash: fileHash, // 保存 hash，用于重复检测
       };
       
       setUploadedFiles((prev) => {
@@ -1106,11 +1173,11 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
 
       // 先检查所有文件
       for (const file of files) {
-        const existingUrl = await checkFileExists(file);
-        if (existingUrl) {
+        const duplicateCheck = await checkFileExists(file);
+        if (duplicateCheck) {
           duplicateFiles.push(file.name);
           // 使用已有文件
-          const existingFile = uploadedFiles.find((f) => f.url === existingUrl);
+          const existingFile = uploadedFiles.find((f) => f.url === duplicateCheck.url);
           if (existingFile) {
             // 检查是否已在 newFiles 中
             if (!newFiles.find((f) => f.hash === existingFile.hash)) {
@@ -1120,10 +1187,11 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
             // 如果不在列表中，创建文件信息
             const fileHash = await calculateFileHash(file);
             newFiles.push({
-              url: existingUrl,
+              url: duplicateCheck.url,
               originalName: file.name,
               type: file.type.startsWith('image/') ? 'image' as const : 'video' as const,
               size: file.size,
+              fileSize: file.size, // 统一使用 fileSize
               hash: fileHash,
             });
           }
@@ -1786,6 +1854,39 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingAssetInDialog(asset);
+                // 初始化编辑对话框的文件列表
+                const allMediaFiles: Array<{ url: string; originalName: string; type: 'image' | 'video' }> = [];
+                const isVideoUrl = (url: string) => {
+                  if (!url) return false;
+                  const lower = url.toLowerCase();
+                  return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
+                };
+                if (asset.thumbnail) {
+                  allMediaFiles.push({
+                    url: asset.thumbnail,
+                    originalName: asset.thumbnail.split('/').pop() || 'thumbnail',
+                    type: isVideoUrl(asset.thumbnail) ? 'video' : 'image',
+                  });
+                }
+                if (asset.src && asset.src !== asset.thumbnail) {
+                  allMediaFiles.push({
+                    url: asset.src,
+                    originalName: asset.src.split('/').pop() || 'src',
+                    type: isVideoUrl(asset.src) ? 'video' : 'image',
+                  });
+                }
+                if (asset.gallery) {
+                  asset.gallery.forEach((url) => {
+                    if (url !== asset.thumbnail && url !== asset.src) {
+                      allMediaFiles.push({
+                        url: url,
+                        originalName: url.split('/').pop() || 'gallery',
+                        type: isVideoUrl(url) ? 'video' : 'image',
+                      });
+                    }
+                  });
+                }
+                setEditDialogUploadedFiles(allMediaFiles);
                 setEditDialogOpen(true);
               }}
                             disabled={loading}
@@ -2958,6 +3059,172 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   />
                 </div>
               </div>
+
+              {/* ✅ 文件上传区域 */}
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">预览图和视频</label>
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+                      setEditDialogUploading(true);
+                      setEditDialogUploadProgress('正在上传...');
+                      
+                      for (const file of files) {
+                        try {
+                          let uploadData: any;
+                          if (storageMode === 'oss') {
+                            const directResult = await uploadFileDirect(file, {
+                              onProgress: (percent) => {
+                                setEditDialogUploadProgress(`正在上传 ${file.name}... ${percent}%`);
+                              },
+                            });
+                            uploadData = {
+                              url: directResult.fileUrl,
+                              originalName: file.name,
+                              type: file.type.startsWith('image/') ? 'image' : 'video',
+                            };
+                          } else {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            const response = await fetch('/api/upload', {
+                              method: 'POST',
+                              body: formData,
+                            });
+                            if (!response.ok) {
+                              throw new Error('上传失败');
+                            }
+                            uploadData = await response.json();
+                          }
+                          
+                          if (uploadData && uploadData.url) {
+                            setEditDialogUploadedFiles(prev => [...prev, {
+                              url: uploadData.url,
+                              originalName: file.name,
+                              type: file.type.startsWith('image/') ? 'image' : 'video',
+                            }]);
+                          }
+                        } catch (error) {
+                          console.error(`上传文件 ${file.name} 失败:`, error);
+                        }
+                      }
+                      
+                      setEditDialogUploading(false);
+                      setEditDialogUploadProgress('');
+                      if (e.target) {
+                        e.target.value = '';
+                      }
+                    }}
+                    className="hidden"
+                    id="edit-dialog-upload"
+                    disabled={editDialogUploading || loading}
+                  />
+                  <label
+                    htmlFor="edit-dialog-upload"
+                    className={`cursor-pointer flex flex-col items-center gap-2 ${editDialogUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                  >
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                    <div className="text-sm text-muted-foreground">
+                      {editDialogUploading ? (
+                        <div>{editDialogUploadProgress || '上传中...'}</div>
+                      ) : (
+                        <>
+                          点击或拖拽文件到此处上传
+                          <br />
+                          <span className="text-xs">支持图片和视频文件</span>
+                        </>
+                      )}
+                    </div>
+                  </label>
+                </div>
+
+                {/* 已上传文件列表 */}
+                {editDialogUploadedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">已上传文件 ({editDialogUploadedFiles.length})</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {editDialogUploadedFiles.map((file, index) => {
+                        const previewUrl = file.url.startsWith('http')
+                          ? file.url
+                          : storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/'
+                          ? `${normalizedCdnBase.replace(/\/+$/, '')}${file.url}`
+                          : file.url;
+                        const isThumbnail = index === 0;
+                        return (
+                          <div
+                            key={index}
+                            className={`relative group border rounded overflow-hidden ${
+                              isThumbnail ? 'border-primary ring-2 ring-primary' : 'border-border'
+                            }`}
+                          >
+                            <div className="aspect-video relative bg-muted">
+                              {file.type === 'image' ? (
+                                <img
+                                  src={previewUrl}
+                                  alt={file.originalName}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <video
+                                  src={previewUrl}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                />
+                              )}
+                              {isThumbnail && (
+                                <div className="absolute top-0 left-0 bg-primary text-primary-foreground px-1 py-0.5 text-xs">
+                                  预览图
+                                </div>
+                              )}
+                            </div>
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <div className="flex gap-1">
+                                {!isThumbnail && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditDialogUploadedFiles(prev => {
+                                        const newFiles = [...prev];
+                                        const [selectedFile] = newFiles.splice(index, 1);
+                                        return [selectedFile, ...newFiles];
+                                      });
+                                    }}
+                                    className="p-1 bg-white/90 rounded hover:bg-white"
+                                    title="设为预览图"
+                                  >
+                                    <Star className="h-4 w-4 text-yellow-600" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditDialogUploadedFiles(prev => prev.filter((_, i) => i !== index));
+                                  }}
+                                  className="p-1 bg-white/90 rounded hover:bg-white"
+                                  title="删除"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate">
+                              {file.originalName}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <DialogFooter>
@@ -2966,6 +3233,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               onClick={() => {
                 setEditDialogOpen(false);
                 setEditingAssetInDialog(null);
+                setEditDialogUploadedFiles([]);
               }}
               disabled={loading}
             >
@@ -3011,6 +3279,24 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                     ? editingAssetInDialog.tags
                     : [];
 
+                  // ✅ 如果上传了新文件，使用新文件的URL；否则使用原有文件
+                  let thumbnail: string | undefined = editingAssetInDialog.thumbnail?.trim();
+                  let src: string | undefined = editingAssetInDialog.src?.trim();
+                  let gallery: string[] | undefined = editingAssetInDialog.gallery;
+                  
+                  // 检查是否有新上传的文件（通过比较文件列表）
+                  // 如果文件列表不为空，使用文件列表中的URL
+                  if (editDialogUploadedFiles.length > 0) {
+                    thumbnail = editDialogUploadedFiles[0].url;
+                    src = editDialogUploadedFiles[0].url;
+                    gallery = editDialogUploadedFiles.map(f => f.url);
+                  } else {
+                    // 如果没有新上传的文件，保持原有值
+                    thumbnail = editingAssetInDialog.thumbnail?.trim() || undefined;
+                    src = editingAssetInDialog.src?.trim() || undefined;
+                    gallery = editingAssetInDialog.gallery;
+                  }
+
                   const payload = {
                     id: editingAssetInDialog.id,
                     name: editingAssetInDialog.name.trim(),
@@ -3022,9 +3308,9 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                     engineVersion: editingAssetInDialog.engineVersion.trim(),
                     guangzhouNas: editingAssetInDialog.guangzhouNas?.trim() || undefined,
                     shenzhenNas: editingAssetInDialog.shenzhenNas?.trim() || undefined,
-                    thumbnail: editingAssetInDialog.thumbnail?.trim() || undefined,
-                    src: editingAssetInDialog.src?.trim() || undefined,
-                    gallery: editingAssetInDialog.gallery,
+                    thumbnail: thumbnail || undefined,
+                    src: src || undefined,
+                    gallery: gallery,
                   };
 
                   const response = await fetch(`/api/assets/${editingAssetInDialog.id}`, {

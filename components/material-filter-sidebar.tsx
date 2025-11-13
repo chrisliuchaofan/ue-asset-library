@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback, useEffect } from 'react';
+import { useState, useTransition, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -109,13 +109,18 @@ export function MaterialFilterSidebar({
 
   const selectedType = searchParams.get('type') || '';
   const selectedTag = searchParams.get('tag') || '';
-  const selectedQualities = searchParams.get('qualities')?.split(',').filter(Boolean) || [];
+  // 使用 useMemo 稳定数组引用，避免每次渲染都创建新数组
+  const selectedQualities = useMemo(
+    () => searchParams.get('qualities')?.split(',').filter(Boolean) || [],
+    [searchParams]
+  );
 
-  const syncedFilters: MaterialFilterSnapshot = {
+  // 使用 useMemo 稳定 syncedFilters 对象引用，避免不必要的重新创建
+  const syncedFilters: MaterialFilterSnapshot = useMemo(() => ({
     type: selectedType || null,
     tag: selectedTag || null,
     qualities: selectedQualities,
-  };
+  }), [selectedType, selectedTag, selectedQualities]);
 
   const areSnapshotsEqual = useCallback((a: MaterialFilterSnapshot, b: MaterialFilterSnapshot) => {
     if (a.type !== b.type || a.tag !== b.tag) return false;
@@ -125,29 +130,28 @@ export function MaterialFilterSidebar({
 
   const [localFilters, setLocalFilters] = useState<MaterialFilterSnapshot>(syncedFilters);
 
+  // 使用 useRef 存储 onOptimisticFiltersChange，避免作为依赖项导致循环
+  const onOptimisticFiltersChangeRef = useRef(onOptimisticFiltersChange);
+  useEffect(() => {
+    onOptimisticFiltersChangeRef.current = onOptimisticFiltersChange;
+  }, [onOptimisticFiltersChange]);
+
   useEffect(() => {
     if (isPending) {
       return;
     }
-    let shouldClear = false;
     setLocalFilters((prev) => {
       if (areSnapshotsEqual(prev, syncedFilters)) {
         return prev;
       }
-      shouldClear = true;
+      // 延迟清除乐观更新，确保 URL 已完全同步且服务器请求可以开始
+      // 使用 requestAnimationFrame 确保在下一个渲染周期清除，避免闪烁
+      requestAnimationFrame(() => {
+        onOptimisticFiltersChangeRef.current?.(null);
+      });
       return syncedFilters;
     });
-    // 延迟清除乐观更新，确保 URL 已完全同步且服务器请求可以开始
-    // 使用 requestAnimationFrame 确保在下一个渲染周期清除，避免闪烁
-    if (shouldClear) {
-      const frameId = requestAnimationFrame(() => {
-        onOptimisticFiltersChange?.(null);
-      });
-      return () => {
-        cancelAnimationFrame(frameId);
-      };
-    }
-  }, [syncedFilters.type, syncedFilters.tag, syncedFilters.qualities.join('|'), isPending, onOptimisticFiltersChange, areSnapshotsEqual]);
+  }, [syncedFilters, isPending, areSnapshotsEqual]);
 
   const updateParams = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());

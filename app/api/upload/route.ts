@@ -45,8 +45,14 @@ export async function POST(request: Request) {
 
     // 验证文件大小
     if (fileSize > FILE_UPLOAD_LIMITS.MAX_FILE_SIZE) {
+      // 格式化文件大小显示（大于1GB显示为GB，否则显示为MB）
+      const maxSizeMB = FILE_UPLOAD_LIMITS.MAX_FILE_SIZE / 1024 / 1024;
+      const maxSizeGB = FILE_UPLOAD_LIMITS.MAX_FILE_SIZE / 1024 / 1024 / 1024;
+      const sizeDisplay = maxSizeGB >= 1 
+        ? `${maxSizeGB.toFixed(1)}GB` 
+        : `${maxSizeMB}MB`;
       return NextResponse.json({ 
-        message: `文件大小超过限制（最大 ${FILE_UPLOAD_LIMITS.MAX_FILE_SIZE / 1024 / 1024}MB）` 
+        message: `文件大小超过限制（最大 ${sizeDisplay}）` 
       }, { status: 400 });
     }
 
@@ -81,7 +87,55 @@ export async function POST(request: Request) {
     }
 
     // 检查文件是否已存在（通过 hash）
-    // 这里需要检查已上传的文件，暂时先上传，后续可以通过 manifest 检查
+    // 先检查资产库中是否存在相同 hash 的文件
+    try {
+      const { readFile } = await import('fs/promises');
+      const { join } = await import('path');
+      const { ManifestSchema } = await import('@/data/manifest.schema');
+      
+      const manifestPath = join(process.cwd(), 'data', 'manifest.json');
+      const manifestContent = await readFile(manifestPath, 'utf-8');
+      const manifest = ManifestSchema.parse(JSON.parse(manifestContent));
+
+      // 在所有资产中查找匹配的 hash
+      const existingAsset = manifest.assets.find((asset) => asset.hash === fileHash);
+      
+      if (existingAsset && existingAsset.src) {
+        // 找到重复文件，直接返回已有文件的 URL，不实际上传
+        // 获取图片尺寸（如果可能）
+        let width: number | undefined;
+        let height: number | undefined;
+        
+        if (isImage) {
+          try {
+            const metadata = await sharp(buffer).metadata();
+            width = metadata.width;
+            height = metadata.height;
+          } catch (error) {
+            // 图片尺寸读取失败不影响，静默处理
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          url: existingAsset.src,
+          fileName: fileName,
+          originalName: fileName,
+          type: isImage ? 'image' : 'video',
+          size: fileSize,
+          fileSize: fileSize,
+          width,
+          height,
+          duration: undefined, // 视频时长需要额外工具获取
+          hash: fileHash,
+          isDuplicate: true, // 标记为重复文件
+          existingAssetName: existingAsset.name, // 已有资产名称
+        });
+      }
+    } catch (error) {
+      // 检查重复文件失败不影响上传流程，继续正常上传
+      console.warn('检查重复文件失败，继续上传流程:', error);
+    }
 
     // 生成唯一文件名（保留原始扩展名大小写）
     const timestamp = Date.now();
@@ -159,10 +213,11 @@ export async function POST(request: Request) {
       originalName: fileName,
       type: isImage ? 'image' : 'video',
       size: fileSize,
+      fileSize: fileSize, // 统一命名：文件大小（字节数）
       width,
       height,
       duration, // 视频时长需要额外工具获取，这里暂时为 undefined
-      hash: fileHash, // 返回文件 hash
+      hash: fileHash, // 返回文件 hash（SHA256），用于重复检测
     });
   } catch (error) {
     // 错误日志在生产环境也保留

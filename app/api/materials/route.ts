@@ -49,6 +49,8 @@ export async function POST(request: Request) {
       src: parsed.data.src,
       gallery: parsed.data.gallery,
       filesize: parsed.data.filesize,
+      fileSize: parsed.data.fileSize, // 统一命名：文件大小（字节数）
+      hash: parsed.data.hash, // 文件内容的 SHA256 哈希值，用于重复检测
       width: parsed.data.width,
       height: parsed.data.height,
       duration: parsed.data.duration,
