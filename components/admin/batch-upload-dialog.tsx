@@ -721,7 +721,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
           let thumbnailUrl: string | undefined;
           let srcUrl: string | undefined;
           const galleryUrls: string[] = [];
-          const uploadedFilesList: Array<{ url: string; originalName: string; type: 'image' | 'video' }> = []; // 保存所有上传的文件
+          const uploadedFilesList: Array<{ url: string; originalName: string; type: 'image' | 'video'; hash?: string; fileSize?: number }> = []; // 保存所有上传的文件（包含 hash 和 fileSize）
 
           // 支持的图片和视频扩展名（已在上面定义，这里不需要重复定义）
 
