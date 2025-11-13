@@ -1,5 +1,23 @@
 // 项目常量定义
 
+// 项目列表（固定列表，3个项目）
+export const PROJECTS = [
+  '项目A', // 三冰
+  '项目B', // 次神
+  '项目C', // 造化
+] as const;
+
+export type Project = typeof PROJECTS[number];
+
+// 项目密码配置（支持中文密码）
+// 密码就是项目名：项目A=三冰，项目B=次神，项目C=造化
+// 可以通过环境变量覆盖，格式：PROJECT_PASSWORDS={"项目A":"三冰","项目B":"次神"}
+export const PROJECT_PASSWORDS: Record<Project, string> = {
+  '项目A': process.env.NEXT_PUBLIC_PROJECT_A_PASSWORD || '三冰',
+  '项目B': process.env.NEXT_PUBLIC_PROJECT_B_PASSWORD || '次神',
+  '项目C': process.env.NEXT_PUBLIC_PROJECT_C_PASSWORD || '造化',
+};
+
 // 文件上传限制
 export const FILE_UPLOAD_LIMITS = {
   MAX_FILE_SIZE: 200 * 1024 * 1024, // 200MB

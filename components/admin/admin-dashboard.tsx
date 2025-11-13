@@ -31,6 +31,7 @@ import { uploadFileDirect } from '@/lib/client/direct-upload';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { getOptimizedImageUrl, getClientAssetUrl } from '@/lib/utils';
+import { PROJECTS } from '@/lib/constants';
 
 type StorageMode = 'local' | 'oss';
 
@@ -72,6 +73,7 @@ const ASSET_COLUMNS = [
 interface FormState {
   name: string;
   type: string; // 资产类型：角色、场景等
+  project: string; // 项目
   style: string; // 风格：逗号分隔的字符串
   tags: string; // 标签：逗号分隔的字符串
   source: string; // 来源
@@ -90,6 +92,7 @@ interface FormState {
 const initialFormState: FormState = {
   name: '',
   type: '角色',
+  project: '',
   style: '',
   tags: '',
   source: '',
@@ -485,6 +488,9 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       if (!form.engineVersion.trim()) {
         throw new Error('版本不能为空');
       }
+      if (!form.project) {
+        throw new Error('项目不能为空');
+      }
       if (!form.guangzhouNas.trim() && !form.shenzhenNas.trim()) {
         throw new Error('广州NAS和深圳NAS至少需要填写一个');
       }
@@ -504,6 +510,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       const payload = {
         name: form.name.trim(),
         type: form.type,
+        project: form.project,
         style: style,
         tags: form.tags
           .split(',')
@@ -616,6 +623,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
     setForm({
       name: asset.name,
       type: asset.type,
+      project: asset.project || '',
       style: styleValue,
       tags: asset.tags.join(', '),
       source: asset.source || '',
@@ -810,8 +818,10 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       const assetType = form.type.trim();
 
       const payload = {
+        id: editingAssetId,
         name: form.name.trim(),
         type: assetType,
+        project: form.project || undefined,
         style: style,
         tags: form.tags
           .split(',')
@@ -2817,6 +2827,23 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <label className="text-sm font-medium">项目<span className="text-red-500">*</span></label>
+                  <select
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={editingAssetInDialog.project || ''}
+                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, project: e.target.value as any })}
+                    disabled={loading}
+                    required
+                  >
+                    <option value="">请选择项目</option>
+                    {PROJECTS.map((project) => (
+                      <option key={project} value={project}>
+                        {project}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
                   <label className="text-sm font-medium">风格（逗号分隔，可新增）</label>
                   <Input
                     placeholder="写实, 二次元"
@@ -2969,8 +2996,10 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                     : [];
 
                   const payload = {
+                    id: editingAssetInDialog.id,
                     name: editingAssetInDialog.name.trim(),
                     type: editingAssetInDialog.type.trim(),
+                    project: editingAssetInDialog.project || undefined,
                     style: style,
                     tags: tags,
                     source: editingAssetInDialog.source.trim(),

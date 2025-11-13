@@ -6,6 +6,7 @@ export interface MaterialFilterOptions {
   type?: string | null;
   tag?: string | null;
   qualities?: string[];
+  project?: string | null;
 }
 
 interface MaterialIndex {
@@ -13,6 +14,7 @@ interface MaterialIndex {
   byType: Map<string, Material[]>;
   byTag: Map<string, Material[]>;
   byQuality: Map<string, Material[]>;
+  byProject: Map<string, Material[]>;
 }
 
 const indexCache = createLRUCache<string, MaterialIndex>(8);
@@ -29,6 +31,7 @@ function ensureIndex(materials: Material[]): MaterialIndex {
   const byType = new Map<string, Material[]>();
   const byTag = new Map<string, Material[]>();
   const byQuality = new Map<string, Material[]>();
+  const byProject = new Map<string, Material[]>();
 
   for (const material of materials) {
     byType.set(material.type, [...(byType.get(material.type) ?? []), material]);
@@ -36,6 +39,9 @@ function ensureIndex(materials: Material[]): MaterialIndex {
     material.quality.forEach((quality) => {
       byQuality.set(quality, [...(byQuality.get(quality) ?? []), material]);
     });
+    if (material.project) {
+      byProject.set(material.project, [...(byProject.get(material.project) ?? []), material]);
+    }
   }
 
   const index: MaterialIndex = {
@@ -43,6 +49,7 @@ function ensureIndex(materials: Material[]): MaterialIndex {
     byType,
     byTag,
     byQuality,
+    byProject,
   };
 
   indexCache.set(key, index);
@@ -76,6 +83,10 @@ export function getMaterialsIndex(materials: Material[]) {
     if (options.qualities && options.qualities.length > 0) {
       const qualityList = options.qualities.flatMap((quality) => index.byQuality.get(quality) ?? []);
       candidateLists.push(qualityList);
+    }
+
+    if (options.project) {
+      candidateLists.push(index.byProject.get(options.project) ?? []);
     }
 
     let candidates: Material[];

@@ -20,6 +20,7 @@ const MaterialQuerySchema = z.object({
   type: z.string().optional(),
   tag: z.string().optional(),
   qualities: z.array(z.string()).optional(),
+  project: z.string().optional(),
   limit: z.number().int().positive().optional(),
 });
 
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
           materials: [],
           total: 0,
           returned: 0,
-          summary: { total: 0, types: {}, tags: {}, qualities: {} },
+          summary: { total: 0, types: {}, tags: {}, qualities: {}, projects: {} },
           cache: 'aborted',
         });
       }
@@ -52,11 +53,18 @@ export async function POST(request: Request) {
     }
 
     const { limit, ...filters } = parsed.data;
+    
+    // 项目过滤是必填的，如果没有提供项目参数，默认使用项目A（三冰）
+    if (!filters.project) {
+      filters.project = '项目A';
+    }
+    
     const normalizedFilters: MaterialFilterOptions = {
       keyword: filters.keyword,
       type: filters.type ?? undefined,
       tag: filters.tag ?? undefined,
       qualities: filters.qualities ?? undefined,
+      project: filters.project ?? undefined,
     };
 
     const cacheKey = createHash('sha1').update(JSON.stringify(normalizedFilters)).digest('hex');
@@ -132,14 +140,14 @@ export async function POST(request: Request) {
       err?.message?.includes?.('connect ETIMEDOUT')
     ) {
       console.warn('素材筛选接口网络错误，返回空结果:', err?.message || err?.code);
-      return NextResponse.json({
-        materials: [],
-        total: 0,
-        returned: 0,
-        summary: { total: 0, types: {}, tags: {}, qualities: {} },
-        cache: 'error',
-        message: '网络连接超时，请稍后重试',
-      }, { status: 200 }); // 返回 200 而不是 500，避免前端显示错误页面
+        return NextResponse.json({
+          materials: [],
+          total: 0,
+          returned: 0,
+          summary: { total: 0, types: {}, tags: {}, qualities: {}, projects: {} },
+          cache: 'error',
+          message: '网络连接超时，请稍后重试',
+        }, { status: 200 }); // 返回 200 而不是 500，避免前端显示错误页面
     }
     
     const message = error instanceof Error ? error.message : '素材筛选失败';
@@ -148,7 +156,7 @@ export async function POST(request: Request) {
       materials: [], 
       total: 0, 
       returned: 0,
-      summary: { total: 0, types: {}, tags: {}, qualities: {} },
+      summary: { total: 0, types: {}, tags: {}, qualities: {}, projects: {} },
       cache: 'error',
     }, { status: 200 }); // 返回 200，让前端处理空状态
   }

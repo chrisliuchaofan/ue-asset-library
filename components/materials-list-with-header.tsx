@@ -46,13 +46,14 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
   const selectedType = searchParams.get('type') || null;
   const selectedTag = searchParams.get('tag') || null;
   const selectedQualities = searchParams.get('qualities')?.split(',').filter(Boolean) ?? [];
+  const selectedProject = searchParams.get('project') || null;
   const filtersKey = useMemo(
     () =>
-      [keyword, selectedType ?? '', selectedTag ?? '', selectedQualities.join('|')].join('::'),
-    [keyword, selectedType, selectedTag, selectedQualities]
+      [keyword, selectedType ?? '', selectedTag ?? '', selectedQualities.join('|'), selectedProject ?? ''].join('::'),
+    [keyword, selectedType, selectedTag, selectedQualities, selectedProject]
   );
   const hasServerFilters =
-    Boolean(keyword) || Boolean(selectedType) || Boolean(selectedTag) || selectedQualities.length > 0;
+    Boolean(keyword) || Boolean(selectedType) || Boolean(selectedTag) || selectedQualities.length > 0 || Boolean(selectedProject);
 
   const [mounted, setMounted] = useState(false);
   const [officeLocation, setOfficeLocation] = useOfficeLocation();
@@ -114,6 +115,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
         type: selectedType || undefined,
         tag: selectedTag || undefined,
         qualities: selectedQualities.length > 0 ? selectedQualities : undefined,
+        project: selectedProject || undefined,
       };
 
       const start = performance.now();
@@ -165,7 +167,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [filtersKey, keyword, selectedQualities, selectedTag, selectedType, hasServerFilters, optimisticFilters]);
+  }, [filtersKey, keyword, selectedQualities, selectedTag, selectedType, selectedProject, hasServerFilters, optimisticFilters]);
 
   const portal = mounted ? document.getElementById('header-actions-portal') : null;
 

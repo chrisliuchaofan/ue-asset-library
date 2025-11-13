@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { SearchBox } from '@/components/search-box';
+import { ProjectSelector } from '@/components/project-selector';
 import { MaterialsPageShell } from '@/components/materials-page-shell';
 import { getAllMaterials, getMaterialsSummary } from '@/lib/materials-data';
 import type { Metadata } from 'next';
@@ -25,9 +26,14 @@ export default async function MaterialsPage() {
           </div>
 
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="pointer-events-auto w-full max-w-xs px-4 sm:max-w-md sm:px-0">
+            <div className="pointer-events-auto flex w-full max-w-2xl items-center gap-2 px-4 sm:px-0">
+              <div className="flex-1 max-w-xs sm:max-w-md">
+                <Suspense>
+                  <SearchBox />
+                </Suspense>
+              </div>
               <Suspense>
-                <SearchBox />
+                <ProjectSelector type="materials" />
               </Suspense>
             </div>
           </div>

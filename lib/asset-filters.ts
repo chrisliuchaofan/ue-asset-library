@@ -7,6 +7,7 @@ export interface AssetFilterOptions {
   styles?: string[];
   sources?: string[];
   versions?: string[];
+  projects?: string[];
 }
 
 function normalizeArray(values?: string[]): string[] {
@@ -15,7 +16,7 @@ function normalizeArray(values?: string[]): string[] {
 }
 
 export function filterAssetsByOptions(assets: Asset[], options: AssetFilterOptions): Asset[] {
-  const { keyword, tags, types, styles, sources, versions } = options;
+  const { keyword, tags, types, styles, sources, versions, projects } = options;
 
   const normalizedKeyword = keyword?.trim().toLowerCase() ?? '';
   const normalizedTags = normalizeArray(tags);
@@ -23,6 +24,7 @@ export function filterAssetsByOptions(assets: Asset[], options: AssetFilterOptio
   const normalizedStyles = normalizeArray(styles);
   const normalizedSources = normalizeArray(sources);
   const normalizedVersions = normalizeArray(versions);
+  const normalizedProjects = normalizeArray(projects);
 
   if (
     !normalizedKeyword &&
@@ -30,7 +32,8 @@ export function filterAssetsByOptions(assets: Asset[], options: AssetFilterOptio
     normalizedTypes.length === 0 &&
     normalizedStyles.length === 0 &&
     normalizedSources.length === 0 &&
-    normalizedVersions.length === 0
+    normalizedVersions.length === 0 &&
+    normalizedProjects.length === 0
   ) {
     return assets;
   }
@@ -77,6 +80,10 @@ export function filterAssetsByOptions(assets: Asset[], options: AssetFilterOptio
 
     if (normalizedVersions.length > 0) {
       if (!asset.engineVersion || !normalizedVersions.includes(asset.engineVersion)) return false;
+    }
+
+    if (normalizedProjects.length > 0) {
+      if (!asset.project || !normalizedProjects.includes(asset.project)) return false;
     }
 
     return true;

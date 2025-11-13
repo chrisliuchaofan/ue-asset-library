@@ -123,6 +123,7 @@ export interface AssetsSummary {
   styles: Record<string, number>;
   sources: Record<string, number>;
   versions: Record<string, number>;
+  projects: Record<string, number>;
 }
 
 export function getAssetsSummary(assets: Asset[]): AssetsSummary {
@@ -133,6 +134,7 @@ export function getAssetsSummary(assets: Asset[]): AssetsSummary {
     styles: {},
     sources: {},
     versions: {},
+    projects: {},
   };
 
   for (const asset of assets) {
@@ -149,6 +151,9 @@ export function getAssetsSummary(assets: Asset[]): AssetsSummary {
     }
     if (asset.engineVersion) {
       summary.versions[asset.engineVersion] = (summary.versions[asset.engineVersion] ?? 0) + 1;
+    }
+    if (asset.project) {
+      summary.projects[asset.project] = (summary.projects[asset.project] ?? 0) + 1;
     }
   }
 
