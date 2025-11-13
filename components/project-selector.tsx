@@ -85,7 +85,21 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
         return;
       }
 
-      const expectedPassword = PROJECT_PASSWORDS[pendingProject as keyof typeof PROJECT_PASSWORDS];
+      // 优先使用 localStorage 中保存的密码，如果没有则使用默认密码
+      let expectedPassword = PROJECT_PASSWORDS[pendingProject as keyof typeof PROJECT_PASSWORDS];
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('project_passwords');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed[pendingProject]) {
+              expectedPassword = parsed[pendingProject];
+            }
+          } catch {
+            // 如果解析失败，使用默认密码
+          }
+        }
+      }
       
       // 支持中文密码，直接比较字符串
       if (password === expectedPassword) {

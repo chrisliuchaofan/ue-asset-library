@@ -119,6 +119,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   
   // 搜索和筛选状态
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [filterProject, setFilterProject] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('');
   const [filterTag, setFilterTag] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -850,7 +851,10 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
   // 筛选素材
   const filteredMaterials = useMemo(() => {
-    let filtered = materials;
+    // 先按项目过滤
+    let filtered = filterProject 
+      ? materials.filter((material) => material.project === filterProject)
+      : materials;
 
     if (searchKeyword.trim()) {
       const keyword = searchKeyword.toLowerCase();
@@ -885,7 +889,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     }
 
     return sorted;
-  }, [materials, searchKeyword, filterType, filterTag, sortKey, sortDirection, nameCollator]);
+  }, [materials, filterProject, searchKeyword, filterType, filterTag, sortKey, sortDirection, nameCollator]);
 
   // 分页显示（每页显示12条）
   const totalPages = useMemo(() => {
@@ -901,7 +905,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   // 当筛选条件变化时，重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchKeyword, filterType, filterTag]);
+  }, [searchKeyword, filterProject, filterType, filterTag]);
 
   // 预览图悬停状态
   const [hoveredPreview, setHoveredPreview] = useState<{
@@ -1753,6 +1757,18 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   className="pl-10 border-gray-300 bg-white text-gray-900"
                 />
               </div>
+              <select
+                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
+                value={filterProject || ''}
+                onChange={(e) => setFilterProject(e.target.value || null)}
+              >
+                <option value="">全部项目</option>
+                {PROJECTS.map((project) => (
+                  <option key={project} value={project}>
+                    {project}
+                  </option>
+                ))}
+              </select>
               <select
                 className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
                 value={filterType}

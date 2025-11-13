@@ -227,6 +227,12 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
       return;
     }
 
+    // 检查项目是否已选择
+    if (!selectedProject) {
+      setError('请先选择项目');
+      return;
+    }
+
     setUploading(true);
     setError(null);
     setProgress('正在读取ZIP文件...');
@@ -767,10 +773,15 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
+        if (!selectedProject) {
+          setError('请先选择项目');
+          e.target.value = ''; // 清空文件选择
+          return;
+        }
         handleZipUpload(file);
       }
     },
-    [handleZipUpload]
+    [handleZipUpload, selectedProject]
   );
 
   // 删除待确认的资产
@@ -1302,6 +1313,31 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
         ) : (
           // 上传界面
           <div className="space-y-4">
+          {/* 项目选择 - 优先选择 */}
+          <div className="space-y-2 p-4 border rounded-lg bg-blue-50/50">
+            <Label htmlFor="batch-project-select" className="text-sm font-medium">
+              选择项目 <span className="text-red-500">*</span>
+            </Label>
+            <select
+              id="batch-project-select"
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              disabled={uploading}
+              required
+              className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">请选择项目（必填）</option>
+              {PROJECTS.map((project) => (
+                <option key={project} value={project}>
+                  {project}
+                </option>
+              ))}
+            </select>
+            {!selectedProject && (
+              <p className="text-xs text-red-500 mt-1">请先选择项目才能继续上传</p>
+            )}
+          </div>
+
           {/* 下载模板 */}
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div>
@@ -1330,11 +1366,13 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
             />
             <label
               htmlFor="batch-upload-zip"
-              className="cursor-pointer flex flex-col items-center gap-2"
+              className={`cursor-pointer flex flex-col items-center gap-2 ${!selectedProject ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <FileArchive className="h-8 w-8 text-muted-foreground" />
               <div className="text-sm text-muted-foreground w-full">
-                {uploading ? (
+                {!selectedProject ? (
+                  <div className="text-center text-red-500">请先选择项目</div>
+                ) : uploading ? (
                   <div className="space-y-2 w-full">
                     <div className="text-center">{progress || '上传中...'}</div>
                     {uploadProgressPercent > 0 && (
