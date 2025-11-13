@@ -21,6 +21,8 @@ interface AssetsListProps {
   keyword?: string;
   filterDurationMs?: number | null;
   isFetching?: boolean;
+  compactMode?: boolean | Map<string, boolean>; // 可以是全局布尔值或每个卡片的Map
+  onCompactModeToggle?: (assetId: string) => void;
 }
 
 function AssetsListContent({
@@ -33,14 +35,33 @@ function AssetsListContent({
   keyword,
   filterDurationMs,
   isFetching = false,
+  compactMode = false,
+  onCompactModeToggle,
 }: AssetsListProps) {
   // 早期返回必须在所有 hooks 之前，避免 React Hooks 规则违反
-  if (assets.length === 0) {
-    return <EmptyState />;
-  }
+  // 注意：这个检查必须在所有 hooks 调用之前
+  const isEmpty = assets.length === 0;
 
+  // 获取单个卡片的紧凑模式状态
+  const getAssetCompactMode = useCallback((assetId: string): boolean => {
+    if (typeof compactMode === 'boolean') {
+      return compactMode;
+    }
+    if (compactMode instanceof Map) {
+      return compactMode.get(assetId) ?? false;
+    }
+    return false;
+  }, [compactMode]);
+
+  // 使用 useState 跟踪是否已 mounted，避免 hydration 不匹配
+  const [isMounted, setIsMounted] = useState(false);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const scrollElement = scrollContainerRef?.current ?? null;
+  
+  // 在客户端 mounted 后设置标志
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   // 框选相关状态
   const [isSelecting, setIsSelecting] = useState(false);
@@ -89,14 +110,60 @@ function AssetsListContent({
 
   // 使用 useMemo 缓存视图模式指标计算
   // 根据容器宽度动态计算列数，保持间距不小于5px
+  // 注意：在未 mounted 时使用固定的默认值，避免 hydration 不匹配
   const { cardWidth, estimatedRowHeight, columns, horizontalGap } = useMemo(() => {
     const containerPadding = 48; // 左右各24px
-    const minCardWidth = 240; // 最小卡片宽度
     const minGap = 5; // 最小间距
     
-    const availableWidth = containerWidth > 0 
-      ? containerWidth - containerPadding
-      : (typeof window !== 'undefined' ? window.innerWidth : 1920) - containerPadding;
+    // 在未 mounted 或 containerWidth 为 0 时，使用固定的默认值避免 hydration 不匹配
+    // 服务器端和客户端首次渲染时都使用相同的默认值
+    if (!isMounted || containerWidth === 0) {
+      // 使用固定的默认值，确保服务器端和客户端一致
+      const defaultAvailableWidth = 1920 - containerPadding; // 默认使用 1920px 宽度
+      const defaultMinCardWidth = 200; // 默认最小卡片宽度
+      const defaultMaxColumns = Math.floor((defaultAvailableWidth + minGap) / (defaultMinCardWidth + minGap));
+      const defaultColumns = Math.max(1, defaultMaxColumns);
+      const defaultTotalGapWidth = (defaultColumns - 1) * minGap;
+      const defaultRemainingWidth = defaultAvailableWidth - defaultTotalGapWidth;
+      const defaultCardWidth = Math.max(defaultMinCardWidth, Math.floor(defaultRemainingWidth / defaultColumns));
+      
+      let defaultHeight: number;
+      switch (viewMode) {
+        case 'thumbnail':
+          defaultHeight = Math.floor(defaultCardWidth * 0.875);
+          break;
+        case 'grid':
+          defaultHeight = defaultCardWidth;
+          break;
+        case 'classic':
+        default:
+          defaultHeight = Math.floor(defaultCardWidth * 1.25);
+          break;
+      }
+      
+      return {
+        cardWidth: defaultCardWidth,
+        estimatedRowHeight: defaultHeight,
+        columns: defaultColumns,
+        horizontalGap: minGap
+      };
+    }
+    
+    // 已 mounted 且有实际容器宽度时，使用动态计算
+    // 根据屏幕大小动态调整最小卡片宽度
+    const getMinCardWidth = () => {
+      if (typeof window === 'undefined') return 200;
+      const width = window.innerWidth;
+      if (width < 640) return 140; // 手机：更小的卡片
+      if (width < 768) return 160; // 小屏：较小卡片
+      if (width < 1024) return 180; // 平板：中等卡片
+      if (width < 1280) return 200; // 笔记本：标准卡片
+      if (width < 1536) return 220; // 大屏：较大卡片
+      return 240; // 超大屏：最大卡片
+    };
+    const minCardWidth = getMinCardWidth();
+    
+    const availableWidth = containerWidth - containerPadding;
     
     // 计算最多能放多少个卡片（考虑最小宽度和最小间距）
     // 公式：availableWidth >= columns * minCardWidth + (columns - 1) * minGap
@@ -154,7 +221,7 @@ function AssetsListContent({
       columns: calculatedColumns,
       horizontalGap: actualGap
     };
-  }, [viewMode, containerWidth]);
+  }, [viewMode, containerWidth, isMounted]);
 
   // 垂直间距
   const verticalGap = 12;
@@ -477,13 +544,16 @@ function AssetsListContent({
                 priority={absoluteIndex < PAGINATION.PRIORITY_IMAGES_COUNT}
                 officeLocation={officeLocation}
                 viewMode={viewMode}
+                cardWidth={cardWidth}
+                compactMode={getAssetCompactMode(asset.id)}
+                onCompactModeToggle={onCompactModeToggle ? () => onCompactModeToggle(asset.id) : undefined}
               />
             </div>
           );
         })}
       </div>
     );
-  }, [assets, columns, cardWidth, verticalGap, horizontalGap, isSelecting, checkIntersection, selectedAssetIds, keyword, onToggleSelection, officeLocation, viewMode]);
+  }, [assets, columns, cardWidth, verticalGap, horizontalGap, isSelecting, checkIntersection, selectedAssetIds, keyword, onToggleSelection, officeLocation, viewMode, getAssetCompactMode, onCompactModeToggle]);
 
   const shouldRenderVirtual = scrollElement !== null && containerWidth > 0;
 
@@ -501,6 +571,11 @@ function AssetsListContent({
     });
     return () => cancelAnimationFrame(id);
   }, [assets.length, filterDurationMs, columns, rowCount, shouldRenderVirtual]);
+
+  // 在所有 hooks 之后检查空状态
+  if (isEmpty) {
+    return <EmptyState />;
+  }
 
   if (!shouldRenderVirtual) {
     return (
@@ -534,6 +609,9 @@ function AssetsListContent({
                 priority={index < PAGINATION.PRIORITY_IMAGES_COUNT}
                 officeLocation={officeLocation}
                 viewMode={viewMode}
+                cardWidth={cardWidth}
+                compactMode={getAssetCompactMode(asset.id)}
+                onCompactModeToggle={onCompactModeToggle ? () => onCompactModeToggle(asset.id) : undefined}
               />
             </div>
           );

@@ -79,6 +79,103 @@ export function getAllProjects(): string[] {
   return [...PROJECTS];
 }
 
+// 描述文字默认值
+export const DEFAULT_DESCRIPTIONS = {
+  // 项目密码验证对话框
+  projectPasswordDialogTitle: '项目密码验证',
+  projectPasswordDialogDescription: '请输入 {project} 的密码以切换项目',
+  projectPasswordInputPlaceholder: '请输入密码（支持中文）',
+  projectPasswordDialogCancel: '取消',
+  projectPasswordDialogConfirm: '确认',
+  
+  // 空状态
+  emptyStateTitle: '未找到资产',
+  emptyStateDescription: '尝试调整搜索关键词或筛选条件',
+  
+  // 资产计数
+  assetsCountPrefix: '找到',
+  assetsCountSuffix: '个资产',
+  assetsCountZero: '找到 0 个资产',
+} as const;
+
+// 描述文字类型
+export type DescriptionKey = keyof typeof DEFAULT_DESCRIPTIONS;
+
+// 获取描述文字（支持自定义）
+export function getDescription(key: DescriptionKey, replacements?: Record<string, string>): string {
+  if (typeof window === 'undefined') {
+    // 服务器端使用默认值
+    let text: string = String(DEFAULT_DESCRIPTIONS[key]);
+    if (replacements) {
+      Object.entries(replacements).forEach(([placeholder, value]) => {
+        text = text.replace(`{${placeholder}}`, value);
+      });
+    }
+    return text;
+  }
+  
+  // 客户端：尝试从 localStorage 加载自定义值
+  const stored = localStorage.getItem('custom_descriptions');
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed[key]) {
+        let text: string = String(parsed[key]);
+        if (replacements) {
+          Object.entries(replacements).forEach(([placeholder, value]) => {
+            text = text.replace(`{${placeholder}}`, value);
+          });
+        }
+        return text;
+      }
+    } catch {
+      // 解析失败，使用默认值
+    }
+  }
+  
+  // 使用默认值
+  let text: string = String(DEFAULT_DESCRIPTIONS[key]);
+  if (replacements) {
+    Object.entries(replacements).forEach(([placeholder, value]) => {
+      text = text.replace(`{${placeholder}}`, value);
+    });
+  }
+  return text;
+}
+
+// 保存描述文字
+export function saveDescriptions(descriptions: Partial<Record<DescriptionKey, string>>): void {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const stored = localStorage.getItem('custom_descriptions');
+    const existing = stored ? JSON.parse(stored) : {};
+    const updated = { ...existing, ...descriptions };
+    localStorage.setItem('custom_descriptions', JSON.stringify(updated));
+  } catch (error) {
+    console.error('保存描述文字失败:', error);
+  }
+}
+
+// 获取所有描述文字（包括自定义）
+export function getAllDescriptions(): Record<DescriptionKey, string> {
+  if (typeof window === 'undefined') {
+    return { ...DEFAULT_DESCRIPTIONS };
+  }
+  
+  const stored = localStorage.getItem('custom_descriptions');
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      return { ...DEFAULT_DESCRIPTIONS, ...parsed };
+    } catch {
+      return { ...DEFAULT_DESCRIPTIONS };
+    }
+  }
+  
+  return { ...DEFAULT_DESCRIPTIONS };
+}
+
 // 文件上传限制
 export const FILE_UPLOAD_LIMITS = {
   MAX_FILE_SIZE: 200 * 1024 * 1024, // 200MB

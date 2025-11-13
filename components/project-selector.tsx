@@ -1,9 +1,9 @@
 'use client';
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { useCallback, useTransition, useState, useEffect, useRef } from 'react';
+import { useCallback, useTransition, useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { PROJECTS, PROJECT_PASSWORDS, getAllProjects, getProjectDisplayName, getProjectPassword } from '@/lib/constants';
+import { PROJECTS, PROJECT_PASSWORDS, getAllProjects, getProjectDisplayName, getProjectPassword, getDescription } from '@/lib/constants';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -222,9 +222,9 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>项目密码验证</DialogTitle>
+            <DialogTitle>{useMemo(() => getDescription('projectPasswordDialogTitle'), [])}</DialogTitle>
             <DialogDescription>
-              请输入 {pendingProject} 的密码以切换项目
+              {useMemo(() => getDescription('projectPasswordDialogDescription', { project: pendingProject || '' }), [pendingProject])}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handlePasswordSubmit}>
@@ -232,7 +232,7 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
               <div className="space-y-2">
                 <Input
                   type="text"
-                  placeholder="请输入密码（支持中文）"
+                  placeholder={useMemo(() => getDescription('projectPasswordInputPlaceholder'), [])}
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -255,9 +255,9 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
                   setError('');
                 }}
               >
-                取消
+                {useMemo(() => getDescription('projectPasswordDialogCancel'), [])}
               </Button>
-              <Button type="submit">确认</Button>
+              <Button type="submit">{useMemo(() => getDescription('projectPasswordDialogConfirm'), [])}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
