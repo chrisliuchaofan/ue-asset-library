@@ -415,12 +415,14 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
               const matchedFiles = allFileNames.filter((fileName) => {
                 if (zipContent.files[fileName].dir) return false;
                 const baseName = fileName.replace(/^.*[\\/]/, '').toLowerCase(); // 获取文件名（不含路径）
-                const baseNameWithoutExt = baseName.replace(/\.(jpg|jpeg|png|gif|webp|bmp|svg|mp4|webm|mov|avi|mkv)$/i, '');
                 
                 // 检查是否是图片或视频文件
                 const isImage = imageExtensions.some(ext => baseName.endsWith(ext));
                 const isVideo = videoExtensions.some(ext => baseName.endsWith(ext));
                 if (!isImage && !isVideo) return false;
+                
+                // 去除扩展名，获取基础文件名
+                const baseNameWithoutExt = baseName.replace(/\.(jpg|jpeg|png|gif|webp|bmp|svg|mp4|webm|mov|avi|mkv)$/i, '');
                 
                 // 提取文件名关键部分（去除前缀数字、后缀如-image、-image2等）
                 // 例如："3-251010_支_034卧龙凤雏_三冰_方-image" -> "251010_支_034卧龙凤雏_三冰_方"
@@ -430,6 +432,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                   .replace(/[-_]?image\d*$/i, '') // 去除 -image、-image2 等后缀
                   .replace(/[-_]?preview\d*$/i, '') // 去除 -preview、-preview2 等后缀
                   .replace(/[-_]?thumb\d*$/i, '') // 去除 -thumb、-thumb2 等后缀
+                  .replace(/[-_]?video\d*$/i, '') // 去除 -video、-video2 等后缀
                   .trim();
                 
                 // 多种匹配策略：
@@ -437,19 +440,54 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                 // 2. 文件名包含资产名称的关键部分
                 // 3. 资产名称包含文件名的关键部分
                 // 4. 文件名去除扩展名后直接包含资产名称
+                // 5. 直接匹配：文件名（不含扩展名）完全等于资产名称（忽略大小写）
                 const exactMatch = baseNameKey === assetNameKey;
                 const nameInFile = baseNameKey.includes(assetNameKey) || baseName.includes(assetNameKey);
                 const fileInName = assetNameKey.includes(baseNameKey);
                 const directMatch = baseNameWithoutExt.includes(assetNameKey);
+                const exactNameMatch = baseNameWithoutExt === assetName.toLowerCase().trim();
                 
-                return exactMatch || nameInFile || fileInName || directMatch;
+                const isMatched = exactMatch || nameInFile || fileInName || directMatch || exactNameMatch;
+                
+                // 调试日志：记录匹配过程
+                if (process.env.NODE_ENV === 'development' && isMatched) {
+                  console.log(`[批量上传] 文件匹配成功:`, {
+                    fileName,
+                    baseName,
+                    baseNameWithoutExt,
+                    baseNameKey,
+                    assetName,
+                    assetNameKey,
+                    isImage,
+                    isVideo,
+                    matchType: exactMatch ? 'exactMatch' : 
+                              exactNameMatch ? 'exactNameMatch' :
+                              nameInFile ? 'nameInFile' :
+                              fileInName ? 'fileInName' : 'directMatch'
+                  });
+                }
+                
+                return isMatched;
               });
               
               if (matchedFiles.length > 0) {
-                // 自定义排序：确保没有数字后缀的文件排在前面（如 image.jpg 优先于 image2.jpg）
+                // 自定义排序：
+                // 1. 优先显示图片文件（用于thumbnail）
+                // 2. 然后显示视频文件（用于src或gallery）
+                // 3. 没有数字后缀的文件排在前面（如 image.jpg 优先于 image2.jpg）
                 matchedFiles.sort((a, b) => {
                   const nameA = a.replace(/^.*[\\/]/, '').toLowerCase();
                   const nameB = b.replace(/^.*[\\/]/, '').toLowerCase();
+                  
+                  // 检查文件类型
+                  const isImageA = imageExtensions.some(ext => nameA.endsWith(ext));
+                  const isImageB = imageExtensions.some(ext => nameB.endsWith(ext));
+                  const isVideoA = videoExtensions.some(ext => nameA.endsWith(ext));
+                  const isVideoB = videoExtensions.some(ext => nameB.endsWith(ext));
+                  
+                  // 优先排序：图片 > 视频
+                  if (isImageA && !isImageB) return -1;
+                  if (!isImageA && isImageB) return 1;
                   
                   // 提取基础名称（去除扩展名和数字后缀）
                   const baseA = nameA.replace(/\.(jpg|jpeg|png|gif|webp|bmp|svg|mp4|webm|mov|avi|mkv)$/i, '');
@@ -478,11 +516,26 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                   return nameA.localeCompare(nameB, 'zh-CN');
                 });
                 filesToProcess = matchedFiles;
-                setProgress(`为资产 "${assetName}" 自动找到 ${matchedFiles.length} 个匹配文件: ${matchedFiles.join(', ')}`);
+                
+                // 统计匹配的文件类型
+                const imageCount = matchedFiles.filter(f => {
+                  const name = f.replace(/^.*[\\/]/, '').toLowerCase();
+                  return imageExtensions.some(ext => name.endsWith(ext));
+                }).length;
+                const videoCount = matchedFiles.filter(f => {
+                  const name = f.replace(/^.*[\\/]/, '').toLowerCase();
+                  return videoExtensions.some(ext => name.endsWith(ext));
+                }).length;
+                
+                setProgress(`为资产 "${assetName}" 自动找到 ${matchedFiles.length} 个匹配文件 (${imageCount}个图片, ${videoCount}个视频): ${matchedFiles.map(f => f.replace(/^.*[\\/]/, '')).join(', ')}`);
               } else {
                 // 如果没有找到匹配文件，输出调试信息
-                console.warn(`[批量上传] 未找到匹配文件，资产名称: "${assetName}"，ZIP中的文件:`, 
-                  allFileNames.filter(f => !zipContent.files[f].dir).slice(0, 10));
+                console.warn(`[批量上传] 未找到匹配文件，资产名称: "${assetName}"，资产名称关键部分: "${assetNameKey}"，ZIP中的文件:`, 
+                  allFileNames.filter(f => !zipContent.files[f].dir).slice(0, 20).map(f => {
+                    const baseName = f.replace(/^.*[\\/]/, '').toLowerCase();
+                    const baseNameWithoutExt = baseName.replace(/\.(jpg|jpeg|png|gif|webp|bmp|svg|mp4|webm|mov|avi|mkv)$/i, '');
+                    return `${f} (baseName: ${baseNameWithoutExt})`;
+                  }));
               }
             }
           }

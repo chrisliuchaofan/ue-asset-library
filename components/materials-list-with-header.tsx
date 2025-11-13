@@ -54,6 +54,15 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
   );
   const hasServerFilters =
     Boolean(keyword) || Boolean(selectedType) || Boolean(selectedTag) || selectedQualities.length > 0 || Boolean(selectedProject);
+  
+  // 使用 useMemo 缓存 payload，避免在 effect 中重复计算
+  const queryPayload = useMemo(() => ({
+    keyword: keyword || undefined,
+    type: selectedType || undefined,
+    tag: selectedTag || undefined,
+    qualities: selectedQualities.length > 0 ? selectedQualities : undefined,
+    project: selectedProject || undefined,
+  }), [keyword, selectedType, selectedTag, selectedQualities, selectedProject]);
 
   const [mounted, setMounted] = useState(false);
   const [officeLocation, setOfficeLocation] = useOfficeLocation();
@@ -92,6 +101,11 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
 
   // 服务器请求：当 URL 更新且没有乐观更新时发起
   useEffect(() => {
+    // 组件未挂载时不执行
+    if (!mounted) {
+      return;
+    }
+
     if (!hasServerFilters) {
       if (!optimisticFilters) {
         setDisplayMaterials(baseMaterialsRef.current);
@@ -106,68 +120,62 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
       return;
     }
 
-    // 防抖：延迟300ms执行，如果用户在300ms内再次改变筛选条件，取消之前的请求
+    // 防抖：延迟500ms执行，如果用户在500ms内再次改变筛选条件，取消之前的请求
     const timeoutId = setTimeout(() => {
       const controller = new AbortController();
       const requestId = ++latestRequestId.current;
-      const payload = {
-        keyword: keyword || undefined,
-        type: selectedType || undefined,
-        tag: selectedTag || undefined,
-        qualities: selectedQualities.length > 0 ? selectedQualities : undefined,
-        project: selectedProject || undefined,
-      };
 
       const start = performance.now();
       // 只有在没有乐观更新时才显示加载状态，避免闪烁
       setIsFetching(true);
       fetch('/api/materials/query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const message = await res.text();
-          throw new Error(message || '筛选请求失败');
-        }
-        return res.json() as Promise<{ materials: Material[] }>;
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queryPayload),
+        signal: controller.signal,
       })
-      .then(({ materials: nextMaterials }) => {
-        if (latestRequestId.current !== requestId) {
-          return;
-        }
-        const duration = performance.now() - start;
-        setBaseMaterials(nextMaterials);
-        baseMaterialsRef.current = nextMaterials;
-        // 只有在请求成功时才更新显示，保持流畅过渡
-        setDisplayMaterials(nextMaterials);
-        setFilterDuration(duration);
-      })
-      .catch((error) => {
-        if (error.name === 'AbortError') return;
-        console.error('素材筛选接口错误:', error);
-        // 请求失败时，恢复显示 baseMaterials
-        if (latestRequestId.current === requestId) {
-          setDisplayMaterials(baseMaterialsRef.current);
-        }
-      })
-      .finally(() => {
-        if (latestRequestId.current === requestId) {
-          setIsFetching(false);
-        }
-      });
+        .then(async (res) => {
+          if (!res.ok) {
+            const message = await res.text();
+            throw new Error(message || '筛选请求失败');
+          }
+          return res.json() as Promise<{ materials: Material[] }>;
+        })
+        .then(({ materials: nextMaterials }) => {
+          // 检查请求是否已被取消
+          if (latestRequestId.current !== requestId) {
+            return;
+          }
+          const duration = performance.now() - start;
+          setBaseMaterials(nextMaterials);
+          baseMaterialsRef.current = nextMaterials;
+          // 只有在请求成功时才更新显示，保持流畅过渡
+          setDisplayMaterials(nextMaterials);
+          setFilterDuration(duration);
+        })
+        .catch((error) => {
+          if (error.name === 'AbortError') return;
+          console.error('素材筛选接口错误:', error);
+          // 请求失败时，恢复显示 baseMaterials
+          if (latestRequestId.current === requestId) {
+            setDisplayMaterials(baseMaterialsRef.current);
+          }
+        })
+        .finally(() => {
+          if (latestRequestId.current === requestId) {
+            setIsFetching(false);
+          }
+        });
 
       return () => {
         controller.abort();
       };
-    }, 300); // 300ms 防抖延迟
+    }, 500); // 增加到500ms防抖延迟，减少频繁请求
 
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [filtersKey, keyword, selectedQualities, selectedTag, selectedType, selectedProject, hasServerFilters, optimisticFilters]);
+  }, [filtersKey, mounted, hasServerFilters, optimisticFilters, queryPayload]); // 使用 queryPayload 减少依赖项
 
   const portal = mounted ? document.getElementById('header-actions-portal') : null;
 

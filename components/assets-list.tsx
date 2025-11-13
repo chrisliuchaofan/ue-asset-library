@@ -382,121 +382,122 @@ function AssetsListContent({
     setSelectionEnd(null);
   }, [isSelecting, assets, checkIntersection, onToggleSelection, selectionStart, selectionEnd]);
 
+  // 使用 useCallback 缓存事件处理函数，减少重新绑定
+  const handleMouseDown = useCallback((e: MouseEvent) => {
+    // 只处理左键点击，且不在按钮或其他交互元素上
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('button') ||
+      target.closest('a') ||
+      target.closest('[role="button"]') ||
+      target.closest('input') ||
+      target.closest('select') ||
+      target.closest('textarea')
+    ) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 鼠标按下：点击了交互元素，跳过');
+      }
+      return;
+    }
+
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (!containerRect) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 鼠标按下：容器不存在');
+      }
+      return;
+    }
+
+    const x = e.clientX;
+    const y = e.clientY;
+
+    // 检查点击是否在容器内
+    if (
+      x >= containerRect.left &&
+      x <= containerRect.right &&
+      y >= containerRect.top &&
+      y <= containerRect.bottom
+    ) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 鼠标按下：开始潜在框选', { x, y });
+      }
+      // 先设置为潜在框选状态，等待鼠标移动
+      setIsPotentialSelection(true);
+      setSelectionStart({ x, y });
+      setSelectionEnd({ x, y });
+      // 防止框选时触发文本选择
+      e.preventDefault();
+    } else {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 鼠标按下：点击在容器外');
+      }
+    }
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isPotentialSelection && !isSelecting) return;
+    
+    if (!selectionStart) return;
+    
+    // 计算鼠标移动的距离
+    const deltaX = Math.abs(e.clientX - selectionStart.x);
+    const deltaY = Math.abs(e.clientY - selectionStart.y);
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    
+    // 只有当移动距离超过阈值时，才开始真正的框选
+    if (isPotentialSelection && distance >= MIN_DRAG_DISTANCE) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 鼠标移动：开始真正的框选', { distance, MIN_DRAG_DISTANCE });
+      }
+      setIsPotentialSelection(false);
+      setIsSelecting(true);
+    }
+    
+    if (isSelecting || (isPotentialSelection && distance >= MIN_DRAG_DISTANCE)) {
+      // 防止框选时触发文本选择
+      e.preventDefault();
+      setSelectionEnd({ x: e.clientX, y: e.clientY });
+    }
+  }, [isPotentialSelection, isSelecting, selectionStart]);
+
+  const handleMouseUp = useCallback((e: MouseEvent) => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[框选调试] 鼠标抬起', { isPotentialSelection, isSelecting });
+    }
+    
+    if (isPotentialSelection) {
+      // 如果只是点击（没有拖动），不执行任何操作
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 只是点击，取消框选');
+      }
+      setIsPotentialSelection(false);
+      setSelectionStart(null);
+      setSelectionEnd(null);
+      return;
+    }
+    
+    if (isSelecting) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[框选调试] 框选结束，调用 handleSelectionEnd');
+      }
+      e.preventDefault();
+      handleSelectionEnd();
+    }
+  }, [isPotentialSelection, isSelecting, handleSelectionEnd]);
+
+  const handleSelectStart = useCallback((e: Event) => {
+    if (isSelecting || isPotentialSelection) {
+      e.preventDefault();
+    }
+  }, [isSelecting, isPotentialSelection]);
+
   // 鼠标事件处理
   useEffect(() => {
     if (!scrollElement || !onToggleSelection) return;
 
-    const handleMouseDown = (e: MouseEvent) => {
-      // 只处理左键点击，且不在按钮或其他交互元素上
-      if (e.button !== 0) return;
-      const target = e.target as HTMLElement;
-      if (
-        target.closest('button') ||
-        target.closest('a') ||
-        target.closest('[role="button"]') ||
-        target.closest('input') ||
-        target.closest('select') ||
-        target.closest('textarea')
-      ) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[框选调试] 鼠标按下：点击了交互元素，跳过');
-        }
-        return;
-      }
-
-      const containerRect = containerRef.current?.getBoundingClientRect();
-      if (!containerRect) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[框选调试] 鼠标按下：容器不存在');
-        }
-        return;
-      }
-
-      const x = e.clientX;
-      const y = e.clientY;
-
-      // 检查点击是否在容器内
-      if (
-        x >= containerRect.left &&
-        x <= containerRect.right &&
-        y >= containerRect.top &&
-        y <= containerRect.bottom
-      ) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[框选调试] 鼠标按下：开始潜在框选', { x, y });
-        }
-        // 先设置为潜在框选状态，等待鼠标移动
-        setIsPotentialSelection(true);
-        setSelectionStart({ x, y });
-        setSelectionEnd({ x, y });
-        // 防止框选时触发文本选择
-        e.preventDefault();
-      } else {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[框选调试] 鼠标按下：点击在容器外');
-        }
-      }
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isPotentialSelection && !isSelecting) return;
-      
-      if (!selectionStart) return;
-      
-      // 计算鼠标移动的距离
-      const deltaX = Math.abs(e.clientX - selectionStart.x);
-      const deltaY = Math.abs(e.clientY - selectionStart.y);
-      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-      
-      // 只有当移动距离超过阈值时，才开始真正的框选
-      if (isPotentialSelection && distance >= MIN_DRAG_DISTANCE) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[框选调试] 鼠标移动：开始真正的框选', { distance, MIN_DRAG_DISTANCE });
-        }
-        setIsPotentialSelection(false);
-        setIsSelecting(true);
-      }
-      
-      if (isSelecting || (isPotentialSelection && distance >= MIN_DRAG_DISTANCE)) {
-        // 防止框选时触发文本选择
-        e.preventDefault();
-        setSelectionEnd({ x: e.clientX, y: e.clientY });
-      }
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[框选调试] 鼠标抬起', { isPotentialSelection, isSelecting });
-      }
-      
-      if (isPotentialSelection) {
-        // 如果只是点击（没有拖动），不执行任何操作
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[框选调试] 只是点击，取消框选');
-        }
-        setIsPotentialSelection(false);
-        setSelectionStart(null);
-        setSelectionEnd(null);
-        return;
-      }
-      
-      if (isSelecting) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[框选调试] 框选结束，调用 handleSelectionEnd');
-        }
-        e.preventDefault();
-        handleSelectionEnd();
-      }
-    };
-
-    const handleSelectStart = (e: Event) => {
-      if (isSelecting || isPotentialSelection) {
-        e.preventDefault();
-      }
-    };
-
     scrollElement.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mousemove', handleMouseMove, { passive: false });
     document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('selectstart', handleSelectStart);
 
@@ -506,7 +507,7 @@ function AssetsListContent({
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('selectstart', handleSelectStart);
     };
-  }, [scrollElement, isSelecting, isPotentialSelection, selectionStart, handleSelectionEnd, onToggleSelection]);
+  }, [scrollElement, onToggleSelection, handleMouseDown, handleMouseMove, handleMouseUp, handleSelectStart]);
 
   // 使用 useCallback 缓存 renderGridRow 函数，避免每次渲染都重新创建
   const renderGridRow = useCallback((rowIndex: number) => {

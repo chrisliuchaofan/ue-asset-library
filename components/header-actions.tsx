@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import Link from 'next/link';
 import { ShoppingCart, Home, Package, LayoutGrid } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { CartDialog } from '@/components/cart-dialog';
 import { OfficeSelector } from '@/components/office-selector';
+
+// 动态导入 CartDialog，只在需要时加载
+const CartDialog = lazy(() => import('@/components/cart-dialog').then(mod => ({ default: mod.CartDialog })));
 import type { Asset } from '@/data/manifest.schema';
 import type { OfficeLocation } from '@/lib/nas-utils';
 import { usePathname } from 'next/navigation';
@@ -87,13 +89,15 @@ export function HeaderActions({
       </div>
 
       {hasCart && (
-        <CartDialog
-          open={showCartDialog}
-          onOpenChange={setShowCartDialog}
-          selectedAssets={selectedAssets}
-          onRemove={onRemoveAsset}
-          onClear={onClearAssets}
-        />
+        <Suspense fallback={null}>
+          <CartDialog
+            open={showCartDialog}
+            onOpenChange={setShowCartDialog}
+            selectedAssets={selectedAssets}
+            onRemove={onRemoveAsset}
+            onClear={onClearAssets}
+          />
+        </Suspense>
       )}
     </>
   );
