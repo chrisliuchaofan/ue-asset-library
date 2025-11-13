@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { HeroSection } from '@/components/hero-section';
+import { AnimatedHero } from '@/components/AnimatedHero';
 
 // 动态导入星系组件，禁用 SSR
 const GalaxyBackground = dynamic(
@@ -32,8 +32,8 @@ export default function HomePage() {
         transparent={true}
       />
       
-      {/* 内容层 */}
-      <HeroSection />
+      {/* 内容层 - 使用新的 AnimatedHero 组件 */}
+      <AnimatedHero />
     </div>
   );
 }
