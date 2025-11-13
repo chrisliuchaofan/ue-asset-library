@@ -268,6 +268,43 @@ export async function getAllMaterials(): Promise<Material[]> {
   return materials;
 }
 
+/**
+ * Lightweight check: returns the total count of materials without loading full data.
+ * Used for fast-path optimization when the library is empty.
+ */
+export async function getMaterialsCount(): Promise<number> {
+  // Check cache first
+  const cached = readMaterialsCache(MATERIALS_CACHE_KEY);
+  if (cached !== null) {
+    return cached.length;
+  }
+
+  // If not cached, we can optimize for empty files
+  if (STORAGE_MODE === 'local') {
+    try {
+      // Quick check: if file doesn't exist or is very small, likely empty
+      const stats = await fs.stat(materialsPath).catch(() => null);
+      if (!stats || stats.size < 20) {
+        // File doesn't exist or is too small to contain materials (less than "{"materials":[]}")
+        writeMaterialsCache(MATERIALS_CACHE_KEY, []);
+        return 0;
+      }
+    } catch {
+      // File doesn't exist
+      writeMaterialsCache(MATERIALS_CACHE_KEY, []);
+      return 0;
+    }
+  } else {
+    // OSS mode: cache will help, but we still need to read the file
+    // The cache check above should handle most cases
+    // If cache miss, we'll read the file (which is still faster than full getAllMaterials for empty files)
+  }
+
+  // If we get here, we need to read the full file (but cache will help)
+  const materials = await readMaterials();
+  return materials.length;
+}
+
 export interface MaterialsSummary {
   total: number;
   types: Record<string, number>;

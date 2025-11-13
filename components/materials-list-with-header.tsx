@@ -101,6 +101,15 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
       return;
     }
 
+    // Fast path: if library is empty, skip all queries
+    if (summary.total === 0) {
+      console.log('[MaterialsListWithHeader] Empty library fast path: skipping query request');
+      setDisplayMaterials([]);
+      setIsFetching(false);
+      setFilterDuration(null);
+      return;
+    }
+
     if (!hasServerFilters) {
       if (!optimisticFilters) {
         setDisplayMaterials(baseMaterialsRef.current);
@@ -132,6 +141,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
       const start = performance.now();
       // 只有在没有乐观更新时才显示加载状态，避免闪烁
       setIsFetching(true);
+      console.log('[MaterialsListWithHeader] Full list request (totalCount > 0)');
       fetch('/api/materials/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -179,7 +189,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [filtersKey, mounted, hasServerFilters, optimisticFilters, keyword, selectedType, selectedTag, selectedQualities, selectedProject]); // 使用 filtersKey 和原始值作为依赖项，避免对象引用问题
+  }, [filtersKey, mounted, hasServerFilters, optimisticFilters, keyword, selectedType, selectedTag, selectedQualities, selectedProject, summary.total]); // 使用 filtersKey 和原始值作为依赖项，避免对象引用问题
 
   const portal = mounted ? document.getElementById('header-actions-portal') : null;
 

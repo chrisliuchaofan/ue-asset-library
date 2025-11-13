@@ -10,6 +10,8 @@ import {
   getAllSources,
   getAllEngineVersions,
 } from '@/lib/data';
+import { getAssetsCount } from '@/lib/storage';
+import type { Asset } from '@/data/manifest.schema';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -34,14 +36,41 @@ export const revalidate = 60; // 60 秒重新验证
 export const dynamic = 'auto'; // 允许静态生成
 
 export default async function AssetsPage() {
-  const [allAssets, tags, types, styles, sources, engineVersions] = await Promise.all([
-    getAllAssets(),
-    getAllTags(),
-    getAllTypes(),
-    getAllStyles(),
-    getAllSources(),
-    getAllEngineVersions(),
-  ]);
+  // Fast path: check count first
+  const start = Date.now();
+  const totalCount = await getAssetsCount();
+  const countCheckDuration = Date.now() - start;
+  
+  console.log(`[AssetsPage] Fast path check: totalCount=${totalCount}, durationMs=${countCheckDuration}`);
+  
+  let allAssets: Asset[];
+  let tags: string[];
+  let types: string[];
+  let styles: string[];
+  let sources: string[];
+  let engineVersions: string[];
+  
+  if (totalCount === 0) {
+    // Empty library fast path: skip full queries
+    console.log('[AssetsPage] Empty library fast path: skipping full getAllAssets() and filter queries');
+    allAssets = [];
+    tags = [];
+    types = [];
+    styles = [];
+    sources = [];
+    engineVersions = [];
+  } else {
+    // Has data: load full assets list and filters
+    console.log(`[AssetsPage] Has data (${totalCount} assets): loading full list and filters`);
+    [allAssets, tags, types, styles, sources, engineVersions] = await Promise.all([
+      getAllAssets(),
+      getAllTags(),
+      getAllTypes(),
+      getAllStyles(),
+      getAllSources(),
+      getAllEngineVersions(),
+    ]);
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
