@@ -987,11 +987,18 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   
   // 智能缩放预览区域高度
   // 注意：这里需要先判断视图模式，所以使用 viewMode 而不是 isClassic/isGrid
+  // 经典模式：预览区域和缩略图区域各占一半高度（减去间距）
+  const spacing = 8; // 两个区域之间的间距
   const previewAreaHeight = viewMode === 'classic'
-    ? Math.floor(classicHeight - compactHeight - 8) // 减去缩略图区域和间距
+    ? Math.floor((classicHeight - spacing) / 2) // 预览区域占一半
     : viewMode === 'grid'
     ? gridHeight // 宫格模式使用整个卡片高度
     : Math.floor(cardWidth * 0.5625 * sizeMultiplier); // 缩略图模式：16:9比例 (9/16 = 0.5625)
+  
+  // 经典模式的缩略图区域高度（与预览区域相同）
+  const classicThumbnailHeight = viewMode === 'classic'
+    ? Math.floor((classicHeight - spacing) / 2) // 缩略图区域占一半
+    : compactHeight; // 非经典模式使用原来的 compactHeight
   
   const primaryTags = Array.isArray(asset.tags) ? asset.tags : [];
   const combinedTags = primaryTags;
@@ -1009,7 +1016,12 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
             "group relative flex flex-col rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition hover:shadow-lg dark:border-white/[0.08] dark:bg-white/[0.04]",
             isClassic ? "overflow-hidden" : "overflow-visible"
           )}
-          style={{ width: '100%', height: isGrid ? gridHeight : (isClassic ? classicHeight : compactHeight) }}
+          style={{ 
+            width: '100%', 
+            height: isGrid ? gridHeight : (isClassic ? classicHeight : compactHeight),
+            // 经典模式：确保两个区域之间有间距
+            ...(isClassic ? { gap: `${spacing}px` } : {})
+          }}
         >
           {isGrid ? (
             // 宫格图预览：直接显示缩略图网格，不显示预览图区域，1:1方形
@@ -1465,7 +1477,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           {isClassic && (
             <div 
               className="overflow-hidden rounded-b-xl"
-              style={{ height: compactHeight }}
+              style={{ height: classicThumbnailHeight }}
               onMouseEnter={() => setIsHoveringThumbnails(true)}
               onMouseLeave={() => {
                 setIsHoveringThumbnails(false);
