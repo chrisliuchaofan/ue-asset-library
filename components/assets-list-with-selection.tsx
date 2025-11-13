@@ -211,6 +211,10 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     () => (searchParams.get('versions')?.split(',').filter(Boolean) ?? []).sort(),
     [searchParams]
   );
+  const selectedProjects = useMemo(
+    () => (searchParams.get('projects')?.split(',').filter(Boolean) ?? []).sort(),
+    [searchParams]
+  );
 
   const filtersKey = useMemo(() => {
     return [
@@ -220,8 +224,9 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       selectedTags.join('|'),
       selectedSources.join('|'),
       selectedVersions.join('|'),
+      selectedProjects.join('|'),
     ].join('::');
-  }, [keyword, selectedTypes, selectedStyles, selectedTags, selectedSources, selectedVersions]);
+  }, [keyword, selectedTypes, selectedStyles, selectedTags, selectedSources, selectedVersions, selectedProjects]);
 
   const hasServerFilters =
     keyword.trim() !== '' ||
@@ -229,9 +234,10 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     selectedStyles.length > 0 ||
     selectedTags.length > 0 ||
     selectedSources.length > 0 ||
-    selectedVersions.length > 0;
+    selectedVersions.length > 0 ||
+    selectedProjects.length > 0;
 
-  // 乐观本地过滤，确保交互即时响应
+    // 乐观本地过滤，确保交互即时响应
   useEffect(() => {
     if (!optimisticFilters) {
       return;
@@ -244,12 +250,13 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       tags: optimisticFilters.tags,
       sources: optimisticFilters.sources,
       versions: optimisticFilters.versions,
+      projects: selectedProjects.length > 0 ? selectedProjects : undefined,
     });
     const duration = performance.now() - start;
     setDisplayAssets(preview);
     setFilterDurationMs(duration);
     setIsFetching(true);
-  }, [assets, keyword, optimisticFilters]);
+  }, [assets, keyword, optimisticFilters, selectedProjects]);
 
   // 没有筛选条件时使用初始数据
   useEffect(() => {
@@ -282,6 +289,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
         tags: selectedTags,
         sources: selectedSources,
         versions: selectedVersions,
+        projects: selectedProjects,
       };
 
       const start = performance.now();
@@ -331,6 +339,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     selectedTags,
     selectedTypes,
     selectedVersions,
+    selectedProjects,
   ]);
 
   const headerPortal = mounted ? document.getElementById('header-actions-portal') : null;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PROJECTS } from '@/lib/constants';
 
 // 默认资产类型列表
 export const DEFAULT_ASSET_TYPES = [
@@ -17,10 +18,14 @@ export const DEFAULT_ASSET_TYPES = [
 // 资产类型枚举（业务类型）- 使用默认值，但可以通过manifest中的allowedTypes动态扩展
 export const AssetTypeEnum = z.enum(DEFAULT_ASSET_TYPES);
 
+// 项目枚举
+export const ProjectEnum = z.enum(PROJECTS);
+
 export const AssetSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: AssetTypeEnum, // 资产类型：角色、场景等
+  project: ProjectEnum, // 项目：必填
   style: z.union([z.string(), z.array(z.string())]).optional(), // 风格：字符串或字符串数组
   tags: z.array(z.string()), // 标签：字符串数组
   source: z.string().optional(), // 来源：字符串
@@ -47,6 +52,7 @@ export const AssetCreateSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, '名称不能为空'),
   type: AssetTypeEnum,
+  project: ProjectEnum, // 项目：必填
   style: z.union([z.string(), z.array(z.string())]).optional(),
   tags: z.array(z.string()).min(1, '至少需要一个标签'),
   source: z.string().min(1, '来源不能为空'),
@@ -73,6 +79,7 @@ export const AssetUpdateSchema = z.object({
   id: z.string(),
   name: z.string().min(1, '名称不能为空').optional(),
   type: AssetTypeEnum.optional(),
+  project: ProjectEnum.optional(), // 项目：可选更新
   style: z.union([z.string(), z.array(z.string())]).optional(),
   tags: z.array(z.string()).min(1, '至少需要一个标签').optional(),
   source: z.string().min(1, '来源不能为空').optional(),

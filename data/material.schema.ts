@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PROJECTS } from '@/lib/constants';
 
 // 素材类型枚举
 export const MaterialTypeEnum = z.enum(['UE视频', 'AE视频', '混剪', 'AI视频', '图片']);
@@ -9,10 +10,14 @@ export const MaterialTagEnum = z.enum(['爆款', '优质', '达标']);
 // 素材质量枚举
 export const MaterialQualityEnum = z.enum(['高品质', '常规', '迭代']);
 
+// 项目枚举
+export const ProjectEnum = z.enum(PROJECTS);
+
 export const MaterialSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: MaterialTypeEnum, // 类型：UE视频、AE视频、混剪、AI视频、图片
+  project: ProjectEnum, // 项目：必填
   tag: MaterialTagEnum, // 标签：爆款、优质、达标（单选）
   quality: z.array(MaterialQualityEnum), // 质量：高品质、常规、迭代（多选）
   thumbnail: z.string(),
@@ -34,6 +39,7 @@ export const MaterialCreateSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, '名称不能为空'),
   type: MaterialTypeEnum,
+  project: ProjectEnum, // 项目：必填
   tag: MaterialTagEnum,
   quality: z.array(MaterialQualityEnum).min(1, '至少需要选择一个质量'),
   thumbnail: z.string().optional(),
@@ -49,6 +55,7 @@ export const MaterialUpdateSchema = z.object({
   id: z.string(),
   name: z.string().min(1, '名称不能为空').optional(),
   type: MaterialTypeEnum.optional(),
+  project: ProjectEnum.optional(), // 项目：可选更新
   tag: MaterialTagEnum.optional(),
   quality: z.array(MaterialQualityEnum).min(1, '至少需要选择一个质量').optional(),
   thumbnail: z.string().optional(),

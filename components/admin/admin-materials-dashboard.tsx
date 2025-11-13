@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, Tags, CheckSquare, Edit } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { PROJECTS } from '@/lib/constants';
 import { MaterialsTagsManagementDialog } from './materials-tags-management-dialog';
 import { MaterialsBatchEditDialog } from './materials-batch-edit-dialog';
 import {
@@ -65,6 +66,7 @@ const MATERIAL_COLUMNS = [
 interface FormState {
   name: string;
   type: 'UE视频' | 'AE视频' | '混剪' | 'AI视频' | '图片';
+  project: '项目A' | '项目B' | '项目C' | '';
   tag: '爆款' | '优质' | '达标';
   quality: ('高品质' | '常规' | '迭代')[];
   thumbnail: string;
@@ -79,6 +81,7 @@ interface FormState {
 const initialFormState: FormState = {
   name: '',
   type: 'UE视频',
+  project: '',
   tag: '达标',
   quality: ['常规'],
   thumbnail: '',
@@ -1256,10 +1259,14 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       if (form.quality.length === 0) {
         throw new Error('至少需要选择一个质量');
       }
+      if (!form.project) {
+        throw new Error('项目不能为空');
+      }
 
       const payload = {
         name: form.name.trim(),
         type: form.type,
+        project: form.project,
         tag: form.tag,
         quality: form.quality,
         thumbnail: form.thumbnail || undefined,
@@ -1351,6 +1358,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     setForm({
       name: material.name,
       type: material.type,
+      project: material.project || '',
       tag: material.tag,
       quality: material.quality,
       thumbnail: material.thumbnail || '',
@@ -1474,8 +1482,10 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       }
 
       const payload = {
+        id: editingMaterialId,
         name: form.name.trim(),
         type: form.type,
+        project: form.project || undefined,
         tag: form.tag,
         quality: form.quality,
         thumbnail: form.thumbnail || undefined,
@@ -2276,6 +2286,23 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
               </select>
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">项目 <span className="text-red-500">*</span></label>
+              <select
+                className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
+                value={form.project}
+                onChange={(e) => setForm((prev) => ({ ...prev, project: e.target.value as any }))}
+                disabled={loading}
+                required
+              >
+                <option value="">请选择项目</option>
+                {PROJECTS.map((project) => (
+                  <option key={project} value={project}>
+                    {project}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">标签 <span className="text-red-500">*</span></label>
               <select
                 className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
@@ -2438,6 +2465,23 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   </select>
                 </div>
                 <div className="space-y-2">
+                  <label className="text-sm font-medium">项目 <span className="text-red-500">*</span></label>
+                  <select
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={editingMaterialInDialog.project || ''}
+                    onChange={(e) => setEditingMaterialInDialog({ ...editingMaterialInDialog, project: e.target.value as any })}
+                    disabled={loading}
+                    required
+                  >
+                    <option value="">请选择项目</option>
+                    {PROJECTS.map((project) => (
+                      <option key={project} value={project}>
+                        {project}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
                   <label className="text-sm font-medium">标签 <span className="text-red-500">*</span></label>
                   <select
                     className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -2566,8 +2610,10 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   }
 
                   const payload: any = {
+                    id: editingMaterialInDialog.id,
                     name: editingMaterialInDialog.name.trim(),
                     type: editingMaterialInDialog.type,
+                    project: editingMaterialInDialog.project || undefined,
                     tag: editingMaterialInDialog.tag,
                     quality: editingMaterialInDialog.quality,
                     thumbnail: editingMaterialInDialog.thumbnail?.trim() || undefined,

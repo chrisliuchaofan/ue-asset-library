@@ -231,6 +231,7 @@ export interface MaterialsSummary {
   types: Record<string, number>;
   tags: Record<string, number>;
   qualities: Record<string, number>;
+  projects: Record<string, number>;
 }
 
 export function getMaterialsSummary(materials: Material[]): MaterialsSummary {
@@ -239,6 +240,7 @@ export function getMaterialsSummary(materials: Material[]): MaterialsSummary {
     types: {},
     tags: {},
     qualities: {},
+    projects: {},
   };
 
   for (const material of materials) {
@@ -247,6 +249,9 @@ export function getMaterialsSummary(materials: Material[]): MaterialsSummary {
     material.quality.forEach((quality) => {
       summary.qualities[quality] = (summary.qualities[quality] ?? 0) + 1;
     });
+    if (material.project) {
+      summary.projects[material.project] = (summary.projects[material.project] ?? 0) + 1;
+    }
   }
 
   return summary;
@@ -260,6 +265,7 @@ export async function getMaterialById(id: string): Promise<Material | null> {
 export async function createMaterial(input: {
   name: string;
   type: 'UE视频' | 'AE视频' | '混剪' | 'AI视频' | '图片';
+  project: '项目A' | '项目B' | '项目C';
   tag: '爆款' | '优质' | '达标';
   quality: ('高品质' | '常规' | '迭代')[];
   thumbnail?: string;
@@ -286,6 +292,7 @@ export async function createMaterial(input: {
     id: generateUUID(),
     name: nameTrimmed,
     type: input.type,
+    project: input.project,
     tag: input.tag,
     quality: input.quality,
     thumbnail: input.thumbnail || input.src || '',

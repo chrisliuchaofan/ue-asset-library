@@ -23,6 +23,7 @@ const AssetQuerySchema = z.object({
   styles: z.array(z.string()).optional(),
   sources: z.array(z.string()).optional(),
   versions: z.array(z.string()).optional(),
+  projects: z.array(z.string()).optional(),
   limit: z.number().int().positive().optional(),
 });
 
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
           assets: [],
           total: 0,
           returned: 0,
-          summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {} },
+          summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {}, projects: {} },
           cache: 'aborted',
         });
       }
@@ -55,6 +56,11 @@ export async function POST(request: Request) {
     }
 
     const { limit, ...filters } = parsed.data;
+
+    // 项目过滤是必填的，如果没有提供项目参数，默认使用项目A（三冰）
+    if (!filters.projects || filters.projects.length === 0) {
+      filters.projects = ['项目A'];
+    }
 
     const cacheKey = createHash('sha1')
       .update(JSON.stringify(filters))
@@ -132,14 +138,14 @@ export async function POST(request: Request) {
       err?.message?.includes?.('connect ETIMEDOUT')
     ) {
       console.warn('资产筛选接口网络错误，返回空结果:', err?.message || err?.code);
-      return NextResponse.json({
-        assets: [],
-        total: 0,
-        returned: 0,
-        summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {} },
-        cache: 'error',
-        message: '网络连接超时，请稍后重试',
-      }, { status: 200 }); // 返回 200 而不是 500，避免前端显示错误页面
+        return NextResponse.json({
+          assets: [],
+          total: 0,
+          returned: 0,
+          summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {}, projects: {} },
+          cache: 'error',
+          message: '网络连接超时，请稍后重试',
+        }, { status: 200 }); // 返回 200 而不是 500，避免前端显示错误页面
     }
     
     const message = error instanceof Error ? error.message : '资产筛选失败';
@@ -148,7 +154,7 @@ export async function POST(request: Request) {
       assets: [], 
       total: 0, 
       returned: 0,
-      summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {} },
+      summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {}, projects: {} },
       cache: 'error',
     }, { status: 200 }); // 返回 200，让前端处理空状态
   }

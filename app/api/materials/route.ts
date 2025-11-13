@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     const material = await createMaterial({
       name: parsed.data.name,
       type: parsed.data.type,
+      project: parsed.data.project,
       tag: parsed.data.tag,
       quality: parsed.data.quality,
       thumbnail: parsed.data.thumbnail,

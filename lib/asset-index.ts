@@ -9,6 +9,7 @@ interface AssetIndex {
   byStyle: Map<string, Asset[]>;
   bySource: Map<string, Asset[]>;
   byVersion: Map<string, Asset[]>;
+  byProject: Map<string, Asset[]>;
 }
 
 const indexCache = createLRUCache<string, AssetIndex>(8);
@@ -27,6 +28,7 @@ function ensureIndex(assets: Asset[]): AssetIndex {
   const byStyle = new Map<string, Asset[]>();
   const bySource = new Map<string, Asset[]>();
   const byVersion = new Map<string, Asset[]>();
+  const byProject = new Map<string, Asset[]>();
 
   for (const asset of assets) {
     // 类型
@@ -52,6 +54,11 @@ function ensureIndex(assets: Asset[]): AssetIndex {
     if (asset.engineVersion) {
       byVersion.set(asset.engineVersion, [...(byVersion.get(asset.engineVersion) ?? []), asset]);
     }
+
+    // 项目
+    if (asset.project) {
+      byProject.set(asset.project, [...(byProject.get(asset.project) ?? []), asset]);
+    }
   }
 
   const index: AssetIndex = {
@@ -61,6 +68,7 @@ function ensureIndex(assets: Asset[]): AssetIndex {
     byStyle,
     bySource,
     byVersion,
+    byProject,
   };
 
   indexCache.set(cacheKey, index);
@@ -110,6 +118,12 @@ export function getAssetsIndex(assets: Asset[]) {
     if (options.versions && options.versions.length > 0) {
       candidateLists.push(
         options.versions.flatMap((version) => index.byVersion.get(version) ?? [])
+      );
+    }
+
+    if (options.projects && options.projects.length > 0) {
+      candidateLists.push(
+        options.projects.flatMap((project) => index.byProject.get(project) ?? [])
       );
     }
 

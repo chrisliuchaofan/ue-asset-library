@@ -10,6 +10,7 @@ import JSZip from 'jszip';
 import Papa from 'papaparse';
 import type { Asset, AssetCreateInput } from '@/data/manifest.schema';
 import { uploadFileDirect } from '@/lib/client/direct-upload';
+import { PROJECTS } from '@/lib/constants';
 
 interface BatchUploadDialogProps {
   open: boolean;
@@ -124,6 +125,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
   const [creating, setCreating] = useState(false); // 是否正在创建资产
   const [editingAsset, setEditingAsset] = useState<PendingAsset | null>(null); // 正在编辑的资产
   const [allowedTypes, setAllowedTypes] = useState<string[]>([]); // 允许的资产类型列表（实时获取）
+  const [selectedProject, setSelectedProject] = useState<string>(''); // 选中的项目
 
   // 获取CDN base（与admin-dashboard保持一致）
   const normalizedCdnBase = useMemo(() => {
@@ -783,6 +785,12 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
       return;
     }
 
+    // 验证项目是否已选择
+    if (!selectedProject) {
+      setError('请先选择项目');
+      return;
+    }
+
     setCreating(true);
     setError(null);
     setResults([]);
@@ -804,6 +812,9 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
       try {
         // 移除临时字段，但保留_previewImage作为thumbnail（如果thumbnail为空）
         const { _tempId, _previewImage, _error, ...assetData } = asset as any;
+        
+        // 添加项目字段
+        assetData.project = selectedProject;
         
         // 确保thumbnail和src至少有一个有值（与单个上传逻辑一致）
         // 如果thumbnail为空，使用_previewImage或src
@@ -828,6 +839,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
             _previewImage,
             '原始asset.thumbnail': asset.thumbnail,
             '原始asset.src': asset.src,
+            project: assetData.project,
           });
         }
 
@@ -982,6 +994,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
     setProgress('');
     setUploadProgressPercent(0);
     setEditingAsset(null);
+    setSelectedProject('');
   }, []);
 
   // 保存编辑后的资产
@@ -1238,13 +1251,35 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
             )}
 
             {/* 操作按钮 */}
+            {/* 项目选择 */}
+            <div className="space-y-2 border-t pt-4">
+              <Label htmlFor="batch-project-select" className="text-sm font-medium">
+                选择项目 <span className="text-red-500">*</span>
+              </Label>
+              <select
+                id="batch-project-select"
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                disabled={creating}
+                required
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">请选择项目</option>
+                {PROJECTS.map((project) => (
+                  <option key={project} value={project}>
+                    {project}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={handleReset} disabled={creating}>
                 取消
               </Button>
               <Button 
                 onClick={handleConfirmCreate} 
-                disabled={creating || pendingAssets.length === 0 || pendingAssets.every(a => !!(a as any)._error)}
+                disabled={creating || pendingAssets.length === 0 || pendingAssets.every(a => !!(a as any)._error) || !selectedProject}
                 className="relative"
               >
                 {creating ? (
