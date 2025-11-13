@@ -152,5 +152,167 @@
   }
 }
 
+/* ============================================
+   Hero 专用动画样式
+   ============================================ */
+
+/* Hero 专用：标题进场动画 keyframes */
+@keyframes hero-title-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Hero 专用：标题文字扫光效果 keyframes */
+@keyframes hero-title-shine {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Hero 专用：星点 twinkle 效果 keyframes */
+@keyframes hero-star-twinkle {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Hero 专用：标题容器 */
+.hero-title {
+  opacity: 0;
+  transform: scale(0.96) translateY(8px);
+}
+
+.hero-title-visible {
+  animation: hero-title-fade-in 800ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Hero 专用：标题文字容器 */
+.hero-title-text {
+  position: relative;
+  display: inline-block;
+}
+
+.hero-title-base {
+  background: linear-gradient(to right, rgb(224 242 254), rgb(186 230 253), rgb(125 211 252));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(135, 206, 250, 0.3));
+}
+
+.hero-title-shine {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(173, 216, 230, 0.2) 25%,
+    rgba(135, 206, 250, 0.3) 50%,
+    rgba(173, 216, 230, 0.2) 75%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: hero-title-shine 25s linear infinite;
+  pointer-events: none;
+}
+
+/* Hero 专用：背景星点 */
+.hero-star {
+  opacity: 0.3;
+  animation: hero-star-twinkle 4s ease-in-out infinite;
+}
+
+/* Hero 专用：按钮样式 */
+.hero-button {
+  /* 默认状态：深色半透明背景 + 细边框 + 轻微圆角 */
+  background-color: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(207, 224, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 1px rgba(207, 224, 255, 0.2);
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hero-button:hover {
+  /* hover 状态：背景亮一点、边框亮一点、向上移动、增加阴影 */
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(207, 224, 255, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 0 2px rgba(207, 224, 255, 0.3);
+}
+
+.hero-button:active {
+  /* active 状态：按下时缩小 */
+  transform: translateY(-2px) scale(0.96);
+  transition-duration: 0.1s;
+}
+
+.hero-button:active:not(:hover) {
+  /* 按下但不在 hover 状态时 */
+  transform: scale(0.96);
+}
+
+/* Hero 专用：按钮图标动画 */
+.hero-button-icon {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hero-button:hover .hero-button-icon {
+  transform: rotate(3deg) scale(1.03);
+}
+
+/* Hero 专用：按钮文字动画 */
+.hero-button-text {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hero-button:hover .hero-button-text {
+  transform: scale(1.03);
+}
+
+/* Hero 专用：使用手册链接 */
+.hero-docs-link:hover {
+  color: rgb(226 232 240); /* slate-200 */
+}
+
+.hero-docs-text {
+  position: relative;
+}
+
+.hero-docs-text::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: rgb(226 232 240); /* slate-200 */
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.2s ease-out;
+}
+
+.hero-docs-link:hover .hero-docs-text::after {
+  transform: scaleX(1);
+}
+
 
 
