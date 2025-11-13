@@ -317,16 +317,40 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   }, [optimisticFilteredAssets]);
 
   // 没有筛选条件时使用初始数据
+  // 但如果有项目参数，需要根据项目筛选
   useEffect(() => {
     if (optimisticFilters) {
       return;
     }
+    // 检查是否有除了项目之外的其他筛选条件
+    const hasOtherFilters = 
+      keyword.trim() !== '' ||
+      selectedTypes.length > 0 ||
+      selectedStyles.length > 0 ||
+      selectedTags.length > 0 ||
+      selectedSources.length > 0 ||
+      selectedVersions.length > 0;
+    
+    // 如果没有其他筛选条件，但有项目参数，使用客户端筛选
+    if (!hasOtherFilters && selectedProjects.length > 0) {
+      const start = performance.now();
+      const filtered = assetsIndex.filter({
+        projects: selectedProjects,
+      });
+      const duration = performance.now() - start;
+      setDisplayAssets(filtered);
+      setFilterDurationMs(duration);
+      setIsFetching(false);
+      return;
+    }
+    
+    // 如果没有任何筛选条件，使用初始数据
     if (!hasServerFilters) {
       setDisplayAssets(assets);
       setFilterDurationMs(null);
       setIsFetching(false);
     }
-  }, [assets, hasServerFilters, optimisticFilters]);
+  }, [assets, hasServerFilters, optimisticFilters, selectedProjects, assetsIndex, keyword, selectedTypes, selectedStyles, selectedTags, selectedSources, selectedVersions]);
 
   // 服务端筛选 - 添加防抖优化，减少频繁请求
   useEffect(() => {
