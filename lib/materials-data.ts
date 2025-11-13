@@ -29,10 +29,18 @@ const MATERIALS_CACHE_TTL_MS = (() => {
   return Math.max(0, parsed);
 })();
 
+// 优化：空结果的缓存时间更长（5分钟），因为空结果通常不会很快变化
+const EMPTY_RESULT_CACHE_TTL_MS = 300_000; // 5分钟
+
 function readMaterialsCache(key: string): Material[] | null {
   const cached = MATERIALS_CACHE.get(key);
   if (!cached) return null;
-  if (Date.now() - cached.timestamp > MATERIALS_CACHE_TTL_MS) {
+  
+  // 优化：空结果使用更长的缓存时间
+  const isEmpty = cached.materials.length === 0;
+  const ttl = isEmpty ? EMPTY_RESULT_CACHE_TTL_MS : MATERIALS_CACHE_TTL_MS;
+  
+  if (Date.now() - cached.timestamp > ttl) {
     return null;
   }
   return cached.materials;
@@ -147,11 +155,11 @@ async function readOssMaterials(): Promise<Material[]> {
       return [];
     }
 
-    // 添加超时处理
+    // 优化：缩短超时时间，快速失败。如果文件不存在，应该快速返回而不是等待
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
         reject(new Error('ETIMEDOUT: 连接 OSS 超时'));
-      }, 10000); // 10秒超时
+      }, 2000); // 2秒超时，快速失败
     });
 
     const getPromise = client.get(MATERIALS_MANIFEST_FILE);
