@@ -11,13 +11,22 @@ import { type Material } from '@/data/material.schema';
 import { cn, highlightText, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
+type ThumbSize = 'small' | 'medium' | 'large';
+
 interface MaterialCardGalleryProps {
   material: Material;
   keyword?: string;
   priority?: boolean;
+  thumbSize?: ThumbSize;
 }
 
-export function MaterialCardGallery({ material, keyword, priority = false }: MaterialCardGalleryProps) {
+const thumbSizeClass: Record<ThumbSize, string> = {
+  small: 'w-24 h-16',
+  medium: 'w-40 h-24',
+  large: 'w-60 h-36',
+};
+
+export function MaterialCardGallery({ material, keyword, priority = false, thumbSize = 'medium' }: MaterialCardGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [enlarged, setEnlarged] = useState(false);
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
@@ -415,8 +424,10 @@ export function MaterialCardGallery({ material, keyword, priority = false }: Mat
       >
         {/* 预览区域 */}
         <div
-          className="relative w-full overflow-hidden bg-muted flex items-center justify-center cursor-pointer"
-          style={{ height: previewAreaHeight }}
+          className={cn(
+            "relative overflow-hidden bg-muted flex items-center justify-center cursor-pointer",
+            thumbSizeClass[thumbSize]
+          )}
           onDoubleClick={handleDoubleClick}
           onMouseEnter={() => setIsHoveringPreview(true)}
           onMouseLeave={() => setIsHoveringPreview(false)}

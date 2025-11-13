@@ -13,6 +13,8 @@ import { type OfficeLocation } from '@/lib/nas-utils';
 import { createPortal } from 'react-dom';
 import { AssetDetailDialog } from '@/components/asset-detail-dialog';
 
+type ThumbSize = 'small' | 'medium' | 'large';
+
 interface AssetCardGalleryProps {
   asset: Asset;
   keyword?: string;
@@ -24,6 +26,7 @@ interface AssetCardGalleryProps {
   cardWidth?: number; // 卡片宽度（从父组件传入，用于响应式布局）
   compactMode?: boolean; // 紧凑模式
   onCompactModeToggle?: () => void; // 切换紧凑模式
+  thumbSize?: ThumbSize; // 缩略图尺寸
 }
 
 interface ThumbnailPreviewPopoverProps {
@@ -179,12 +182,21 @@ const ThumbnailPreviewPopover = memo(function ThumbnailPreviewPopover({ position
   return createPortal(popoverContent, document.body);
 });
 
-export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou', viewMode, cardWidth: propCardWidth, compactMode = false, onCompactModeToggle }: AssetCardGalleryProps) {
+const thumbSizeClass: Record<ThumbSize, string> = {
+  small: 'w-24 h-16',
+  medium: 'w-40 h-24',
+  large: 'w-60 h-36',
+};
+
+export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou', viewMode, cardWidth: propCardWidth, compactMode = false, onCompactModeToggle, thumbSize = 'medium' }: AssetCardGalleryProps) {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEnlarged, setIsEnlarged] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
+  const [isHoveringCard, setIsHoveringCard] = useState(false);
+  const [showTextInfo, setShowTextInfo] = useState(false);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isHoveringThumbnails, setIsHoveringThumbnails] = useState(false);
   const [hoveredThumbnailIndex, setHoveredThumbnailIndex] = useState<number | null>(null);
   const [hoveredThumbnailPreview, setHoveredThumbnailPreview] = useState<{ 
@@ -1007,20 +1019,99 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   const secondaryRowText = [asset.type, ...combinedTags].filter(Boolean).join(' · ');
   const secondaryRowHtml = highlightText(secondaryRowText, keyword || '');
 
+  // 在缩略图模式下，如果使用 thumbSize，直接使用 thumbSize 的宽度
+  // 注意：cardWidth 已经从父组件根据 thumbSize 计算好了，这里直接使用即可
+  const actualCardWidth = cardWidth;
+  
+  // 调试信息
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production' && viewMode === 'thumbnail') {
+      console.log('[AssetCardGallery] thumbSize:', thumbSize, 'cardWidth:', cardWidth, 'actualCardWidth:', actualCardWidth);
+    }
+  }, [thumbSize, cardWidth, actualCardWidth, viewMode]);
+  
+  // 缩略图模式下，处理文字信息和按钮的显示/隐藏（延迟显示）
+  const isThumbnailMode = viewMode === 'thumbnail';
+  const [showOverlayContent, setShowOverlayContent] = useState(true); // 默认显示
+  const overlayTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  useEffect(() => {
+    if (isThumbnailMode) {
+      if (isHoveringCard) {
+        // 悬浮时立即显示（清除之前的隐藏定时器）
+        if (overlayTimeoutRef.current) {
+          clearTimeout(overlayTimeoutRef.current);
+          overlayTimeoutRef.current = null;
+        }
+        setShowOverlayContent(true);
+      } else {
+        // 离开时延迟隐藏
+        overlayTimeoutRef.current = setTimeout(() => {
+          setShowOverlayContent(false);
+        }, 300); // 300ms 延迟
+      }
+    } else {
+      // 非缩略图模式时始终显示
+      setShowOverlayContent(true);
+    }
+    
+    return () => {
+      if (overlayTimeoutRef.current) {
+        clearTimeout(overlayTimeoutRef.current);
+        overlayTimeoutRef.current = null;
+      }
+    };
+  }, [isThumbnailMode, isHoveringCard]);
+  
+  // 最小视图时，处理文字信息的显示/隐藏（延迟显示）
+  const isSmallView = viewMode === 'thumbnail' && thumbSize === 'small';
+  
+  useEffect(() => {
+    if (isSmallView) {
+      if (isHoveringCard) {
+        // 悬浮时延迟显示文字信息
+        hoverTimeoutRef.current = setTimeout(() => {
+          setShowTextInfo(true);
+        }, 300); // 300ms 延迟
+      } else {
+        // 离开时立即隐藏
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+          hoverTimeoutRef.current = null;
+        }
+        setShowTextInfo(false);
+      }
+    } else {
+      // 非最小视图时始终显示
+      setShowTextInfo(true);
+    }
+    
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+    };
+  }, [isSmallView, isHoveringCard]);
+
   return (
     <>
       <div
         className={(isClassic || isGrid) ? 'space-y-2' : undefined}
-        style={{ width: cardWidth }}
+        style={viewMode === 'thumbnail' ? { width: 'fit-content' } : { width: actualCardWidth }}
+        onMouseEnter={() => setIsHoveringCard(true)}
+        onMouseLeave={() => setIsHoveringCard(false)}
       >
         <Card
           className={cn(
             "group relative flex flex-col rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition hover:shadow-lg dark:border-white/[0.08] dark:bg-white/[0.04]",
-            isClassic ? "overflow-hidden" : "overflow-visible"
+            isClassic ? "overflow-hidden" : "overflow-visible",
+            // 在缩略图模式下，Card 宽度由 thumbSizeClass 控制
+            viewMode === 'thumbnail' && thumbSizeClass[thumbSize]
           )}
           style={{ 
-            width: '100%', 
-            height: isGrid ? gridHeight : (isClassic ? classicHeight : compactHeight),
+            width: viewMode === 'thumbnail' ? 'auto' : '100%', 
+            height: isGrid ? gridHeight : (isClassic ? classicHeight : (viewMode === 'thumbnail' ? 'auto' : compactHeight)),
             // 经典模式：确保两个区域之间有间距
             ...(isClassic ? { gap: `${spacing}px` } : {})
           }}
@@ -1218,12 +1309,16 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           ) : (
             <div
               className={cn(
-                'relative w-full overflow-hidden cursor-pointer',
-                isOverlayMode ? 'rounded-xl h-full' : 'rounded-t-xl flex items-center justify-center', // 缩略图模式：铺满高度；经典模式：居中
+                'relative overflow-hidden cursor-pointer',
+                isOverlayMode ? 'rounded-xl' : 'rounded-t-xl', // 缩略图模式：不设置 flex；经典模式：居中
                 previewBackgroundClass,
-                !isClassic && !isOverlayMode && previewAspectClass // 非经典模式且非缩略图模式使用aspect类
+                !isClassic && !isOverlayMode && previewAspectClass, // 非经典模式且非缩略图模式使用aspect类
+                // 只在缩略图模式（thumbnail）时应用 thumbSize，其他模式保持原有尺寸逻辑
+                viewMode === 'thumbnail' && thumbSizeClass[thumbSize],
+                // 经典模式需要 flex 居中
+                isClassic && 'flex items-center justify-center'
               )}
-              style={isClassic ? { height: previewAreaHeight } : (isOverlayMode ? { height: '100%' } : undefined)} // 缩略图模式铺满高度
+              style={isClassic ? { height: previewAreaHeight, width: '100%' } : (isOverlayMode && viewMode === 'thumbnail' ? { minWidth: 'fit-content', minHeight: 'fit-content' } : (isOverlayMode ? { width: '100%' } : undefined))} // 缩略图模式设置 minWidth/minHeight 确保容器有尺寸
               onDoubleClick={handleDoubleClick}
               onMouseEnter={() => setIsHoveringPreview(true)}
               onMouseLeave={() => setIsHoveringPreview(false)}
@@ -1265,6 +1360,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 priority={priority}
                 fetchPriority={priority ? 'high' : 'auto'}
                 unoptimized={currentUrl.includes('x-oss-process=image')}
+                style={viewMode === 'thumbnail' ? { objectFit: 'contain' } : undefined}
                 onError={(e) => {
                   if (process.env.NODE_ENV !== 'production') {
                     console.error('图片加载失败:', currentUrl);
@@ -1291,15 +1387,24 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
               />
             )}
 
-            {!currentUrl && (
-              <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+            {!currentUrl && !currentIsVideo && (
+              <div className={cn(
+                "flex items-center justify-center text-xs text-muted-foreground",
+                viewMode === 'thumbnail' ? thumbSizeClass[thumbSize] : "h-full w-full"
+              )}>
                 无预览
               </div>
             )}
 
             {isOverlayMode && (
               <>
-                <div className="pointer-events-none absolute left-0 bottom-0 right-0 z-20 bg-gradient-to-t from-black/70 via-black/40 to-transparent" style={{ padding: '8px 12px' }}>
+                <div 
+                  className={cn(
+                    "pointer-events-none absolute left-0 bottom-0 right-0 z-20 bg-gradient-to-t from-black/70 via-black/40 to-transparent transition-opacity duration-200",
+                    !showOverlayContent && "opacity-0"
+                  )}
+                  style={{ padding: '8px 12px' }}
+                >
                   <div className="truncate text-xs font-semibold text-white">{asset.name}</div>
                   {!compactMode && (
                     <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-white/80">
@@ -1318,12 +1423,22 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                     </div>
                   )}
                 </div>
-                <div className="pointer-events-none absolute right-1.5 top-1.5 z-50 flex gap-0.5">
+                <div 
+                  className={cn(
+                    "pointer-events-none absolute right-1.5 top-1.5 z-50 flex gap-0.5 transition-opacity duration-200",
+                    !showOverlayContent && "opacity-0"
+                  )}
+                >
                   {renderActionButtons()}
                 </div>
                 {/* 紧凑/完整显示切换按钮 */}
                 {onCompactModeToggle && (
-                  <div className="pointer-events-none absolute left-1.5 top-1.5 z-50">
+                  <div 
+                    className={cn(
+                      "pointer-events-none absolute left-1.5 top-1.5 z-50 transition-opacity duration-200",
+                      !showOverlayContent && "opacity-0"
+                    )}
+                  >
                     <Button
                       type="button"
                       variant="ghost"
@@ -1633,7 +1748,13 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
         </Card>
 
         {(isClassic || isGrid) && (
-          <div className={cn("space-y-1 px-1", compactMode && "space-y-0.5")}>
+          <div 
+            className={cn(
+              "space-y-1 px-1 transition-opacity duration-200",
+              compactMode && "space-y-0.5",
+              isSmallView && !showTextInfo && "opacity-0 pointer-events-none"
+            )}
+          >
             <Link href={`/assets/${asset.id}`} className="block">
               <h3
                 ref={nameRef}
@@ -1651,6 +1772,28 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 dangerouslySetInnerHTML={{ __html: secondaryRowHtml }}
               />
             )}
+          </div>
+        )}
+        
+        {/* 缩略图模式下，最小视图时也显示文字信息（悬浮时） */}
+        {viewMode === 'thumbnail' && !isClassic && !isGrid && (
+          <div 
+            className={cn(
+              "absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-gradient-to-t from-black/90 via-black/70 to-transparent transition-opacity duration-200 pointer-events-none",
+              isSmallView && !showTextInfo && "opacity-0"
+            )}
+          >
+            <Link href={`/assets/${asset.id}`} className="block pointer-events-auto">
+              <h3
+                className="text-xs font-semibold text-white truncate mb-0.5"
+                style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+                dangerouslySetInnerHTML={{ __html: highlightedName }}
+              />
+            </Link>
+            <p
+              className="text-[10px] text-white/80 truncate"
+              dangerouslySetInnerHTML={{ __html: secondaryRowHtml }}
+            />
           </div>
         )}
       </div>
@@ -1770,6 +1913,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     prevProps.priority === nextProps.priority &&
     prevProps.viewMode === nextProps.viewMode &&
     prevProps.officeLocation === nextProps.officeLocation &&
-    prevProps.keyword === nextProps.keyword
+    prevProps.keyword === nextProps.keyword &&
+    prevProps.thumbSize === nextProps.thumbSize
   );
 });

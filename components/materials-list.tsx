@@ -8,11 +8,14 @@ import { type Material } from '@/data/material.schema';
 import { PAGINATION } from '@/lib/constants';
 import Link from 'next/link';
 
+type ThumbSize = 'small' | 'medium' | 'large';
+
 interface MaterialsListProps {
   materials: Material[];
+  thumbSize?: ThumbSize;
 }
 
-function MaterialsListContent({ materials }: MaterialsListProps) {
+function MaterialsListContent({ materials, thumbSize = 'medium' }: MaterialsListProps) {
   const searchParams = useSearchParams();
   const page = parseInt(searchParams.get('page') || '1', 10);
   // 性能优化：减少初始每页显示数量，提升首屏性能
@@ -44,6 +47,7 @@ function MaterialsListContent({ materials }: MaterialsListProps) {
             key={material.id}
             material={material}
             priority={index < PAGINATION.PRIORITY_IMAGES_COUNT}
+            thumbSize={thumbSize}
           />
         ))}
       </div>
