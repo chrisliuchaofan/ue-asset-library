@@ -69,13 +69,18 @@ export async function POST(request: Request) {
 
     const cacheKey = createHash('sha1').update(JSON.stringify(normalizedFilters)).digest('hex');
     const cached = materialsQueryCache.get(cacheKey);
+    // 优化：检查缓存时，如果结果为空且缓存时间较短，延长缓存时间（空结果通常不会很快变化）
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       const limited = typeof limit === 'number' ? cached.materials.slice(0, limit) : cached.materials;
+      // 优化：如果结果为空，直接返回空summary，不需要遍历计算
+      const summary = cached.materials.length === 0
+        ? { total: 0, types: {}, tags: {}, qualities: {}, projects: {} }
+        : getMaterialsSummary(cached.materials);
       const response = NextResponse.json({
         materials: limited,
         total: cached.total,
         returned: limited.length,
-        summary: getMaterialsSummary(cached.materials),
+        summary,
         cache: 'hit',
       });
       response.headers.set('X-Materials-Query-Cache', 'hit');
@@ -86,6 +91,28 @@ export async function POST(request: Request) {
     const manifestStart = Date.now();
     const materials = await getAllMaterials();
     const manifestDuration = Date.now() - manifestStart;
+
+    // 优化：如果数据为空，直接返回空结果，不需要构建索引和筛选
+    if (materials.length === 0) {
+      const emptyResult = {
+        materials: [],
+        total: 0,
+        returned: 0,
+        summary: { total: 0, types: {}, tags: {}, qualities: {}, projects: {} },
+        cache: 'miss',
+      };
+      materialsQueryCache.set(cacheKey, {
+        timestamp: Date.now(),
+        materials: [],
+        total: 0,
+      });
+      const response = NextResponse.json(emptyResult);
+      response.headers.set('X-Materials-Query-Total', (Date.now() - requestStart).toString());
+      response.headers.set('X-Materials-Query-Manifest', manifestDuration.toString());
+      response.headers.set('X-Materials-Query-Filter', '0');
+      response.headers.set('X-Materials-Query-Cache', 'miss');
+      return response;
+    }
 
     const index = getMaterialsIndex(materials);
 
@@ -111,11 +138,16 @@ export async function POST(request: Request) {
       returned: limited.length,
     });
 
+    // 优化：如果结果为空，直接返回空summary，不需要遍历计算
+    const summary = filtered.length === 0
+      ? { total: 0, types: {}, tags: {}, qualities: {}, projects: {} }
+      : getMaterialsSummary(filtered);
+
     const response = NextResponse.json({
       materials: limited,
       total: filtered.length,
       returned: limited.length,
-      summary: getMaterialsSummary(filtered),
+      summary,
       cache: 'miss',
     });
     response.headers.set('X-Materials-Query-Total', totalDuration.toString());
