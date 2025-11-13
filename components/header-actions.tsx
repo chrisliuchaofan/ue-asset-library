@@ -2,7 +2,7 @@
 
 import { useState, lazy, Suspense } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, Home, Package, LayoutGrid } from 'lucide-react';
+import { ShoppingCart, Home, Library, Box } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { OfficeSelector } from '@/components/office-selector';
 
@@ -38,7 +38,8 @@ export function HeaderActions({
   const showOfficeSelector = onAssetsPage;
   const switchTarget = onAssetsPage ? '/materials' : '/assets';
   const switchLabel = onAssetsPage ? '去素材页' : '去资产页';
-  const SwitchIcon = onAssetsPage ? LayoutGrid : Package;
+  // 使用首页的图标：去资产页用 Library，去素材页用 Box
+  const SwitchIcon = onAssetsPage ? Box : Library;
 
   const hasCart = onRemoveAsset && onClearAssets;
   const cartCount = selectedAssets.length;
