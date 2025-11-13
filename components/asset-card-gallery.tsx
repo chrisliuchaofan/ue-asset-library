@@ -190,6 +190,8 @@ const thumbSizeClass: Record<ThumbSize, string> = {
 
 export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword, isSelected, onToggleSelection, priority = false, officeLocation = 'guangzhou', viewMode, cardWidth: propCardWidth, compactMode = false, onCompactModeToggle, thumbSize = 'medium' }: AssetCardGalleryProps) {
   const router = useRouter();
+  // 使用 useState 跟踪是否已 mounted，避免 hydration 不匹配
+  const [isMounted, setIsMounted] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEnlarged, setIsEnlarged] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
@@ -197,6 +199,11 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   const [isHoveringCard, setIsHoveringCard] = useState(false);
   const [showTextInfo, setShowTextInfo] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 在客户端 mounted 后设置标志
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const [isHoveringThumbnails, setIsHoveringThumbnails] = useState(false);
   const [hoveredThumbnailIndex, setHoveredThumbnailIndex] = useState<number | null>(null);
   const [hoveredThumbnailPreview, setHoveredThumbnailPreview] = useState<{ 
@@ -226,14 +233,22 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     const fallbackImages = [asset.thumbnail, asset.src].filter(Boolean);
     return rawGallery.length > 0 ? rawGallery : fallbackImages;
   }, [asset.gallery, asset.thumbnail, asset.src]);
-  
-  // 使用 useMemo 缓存高亮文本，避免每次渲染都重新计算
-  const highlightedName = useMemo(
-    () => highlightText(asset.name, keyword || ''),
-    [asset.name, keyword]
+
+  const gallerySignature = useMemo(
+    () => galleryUrls.join('|'),
+    [galleryUrls]
   );
 
-  // 判断单个 URL 是否为视频
+  const prevViewModeRef = useRef(viewMode);
+  const prevGallerySignatureRef = useRef<string | null>(null);
+  const thumbnailInitializedRef = useRef(false);
+  
+  // 初始化 prevGallerySignatureRef，确保在首次渲染时设置
+  if (prevGallerySignatureRef.current === null) {
+    prevGallerySignatureRef.current = gallerySignature;
+  }
+  
+  // 判断单个 URL 是否为视频（需要在 firstVideoIndexForDisplay 之前定义）
   const isVideoUrl = useCallback((url: string): boolean => {
     if (!url) return false;
     const lowerUrl = url.toLowerCase();
@@ -245,6 +260,23 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
       lowerUrl.includes('.mkv')
     );
   }, []);
+  
+  // 使用 useMemo 缓存索引计算，需要在 useEffect 之前定义
+  const firstVideoIndexForDisplay = useMemo(
+    () => galleryUrls.findIndex((url) => isVideoUrl(url)),
+    [galleryUrls, isVideoUrl]
+  );
+  
+  const firstImageIndexForDisplay = useMemo(
+    () => galleryUrls.findIndex((url) => !isVideoUrl(url)),
+    [galleryUrls, isVideoUrl]
+  );
+  
+  // 使用 useMemo 缓存高亮文本，避免每次渲染都重新计算
+  const highlightedName = useMemo(
+    () => highlightText(asset.name, keyword || ''),
+    [asset.name, keyword]
+  );
 
   const imageUrls = useMemo(
     () => galleryUrls.filter((url) => !isVideoUrl(url)),
@@ -472,35 +504,60 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
 
   // 根据视图模式调整当前索引（缩略图优先展示视频）
   useEffect(() => {
-    if (galleryUrls.length === 0) {
+    const total = galleryUrls.length;
+    const viewModeChanged = prevViewModeRef.current !== viewMode;
+    const galleryChanged = prevGallerySignatureRef.current !== gallerySignature;
+
+    const updateRefs = () => {
+      prevViewModeRef.current = viewMode;
+      prevGallerySignatureRef.current = gallerySignature;
+    };
+
+    if (total === 0) {
       if (currentIndex !== 0) {
         setCurrentIndex(0);
       }
+      thumbnailInitializedRef.current = false;
+      updateRefs();
       return;
     }
 
-    const maxIndex = galleryUrls.length - 1;
+    const maxIndex = total - 1;
     if (currentIndex > maxIndex) {
-      setCurrentIndex(0);
+      setCurrentIndex(maxIndex);
+      updateRefs();
       return;
     }
 
     if (viewMode === 'thumbnail') {
-      const firstVideoIndex = galleryUrls.findIndex((url) => isVideoUrl(url));
-      const targetIndex = firstVideoIndex >= 0 ? firstVideoIndex : 0;
-      if (currentIndex !== targetIndex) {
-        setCurrentIndex(targetIndex);
+      if (viewModeChanged) {
+        thumbnailInitializedRef.current = false;
       }
-      return;
+
+      if (!thumbnailInitializedRef.current || galleryChanged) {
+        const targetIndex = firstVideoIndexForDisplay >= 0 ? firstVideoIndexForDisplay : 0;
+        if (currentIndex !== targetIndex) {
+          setCurrentIndex(targetIndex);
+        }
+        thumbnailInitializedRef.current = true;
+        updateRefs();
+        return;
+      }
+    } else if (viewMode === 'grid') {
+      thumbnailInitializedRef.current = false;
+      if ((viewModeChanged || galleryChanged) && firstImageIndexForDisplay >= 0) {
+        if (currentIndex !== firstImageIndexForDisplay) {
+          setCurrentIndex(firstImageIndexForDisplay);
+        }
+        updateRefs();
+        return;
+      }
+    } else {
+      thumbnailInitializedRef.current = false;
     }
 
-    if (viewMode === 'grid') {
-      const firstImageIndex = galleryUrls.findIndex((url) => !isVideoUrl(url));
-      if (firstImageIndex >= 0 && currentIndex !== firstImageIndex) {
-        setCurrentIndex(firstImageIndex);
-      }
-    }
-  }, [currentIndex, galleryUrls, isVideoUrl, viewMode]);
+    updateRefs();
+  }, [viewMode, gallerySignature, galleryUrls.length, currentIndex, firstVideoIndexForDisplay, firstImageIndexForDisplay]);
 
   // 使用 useMemo 缓存索引计算，避免每次渲染都重新计算
   const validIndex = useMemo(
@@ -508,27 +565,25 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     [galleryUrls.length, currentIndex]
   );
   
-  const firstVideoIndexForDisplay = useMemo(
-    () => galleryUrls.findIndex((url) => isVideoUrl(url)),
-    [galleryUrls, isVideoUrl]
-  );
-  
-  const firstImageIndexForDisplay = useMemo(
-    () => galleryUrls.findIndex((url) => !isVideoUrl(url)),
-    [galleryUrls, isVideoUrl]
-  );
-  
   const isClassic = viewMode === 'classic';
   const isGrid = viewMode === 'grid';
   const isOverlayMode = !isClassic && !isGrid;
+  // 根据 thumbSize 派生 isCompact：small 尺寸使用紧凑布局
+  const isCompact = thumbSize === 'small';
   
   const displayIndex = useMemo(
-    () =>
-      viewMode === 'grid' && isHoveringPreview && firstVideoIndexForDisplay >= 0
-        ? firstVideoIndexForDisplay
-        : firstImageIndexForDisplay >= 0
-        ? firstImageIndexForDisplay
-        : validIndex,
+    () => {
+      // 宫格模式：悬浮时优先显示视频
+      if (viewMode === 'grid' && isHoveringPreview && firstVideoIndexForDisplay >= 0) {
+        return firstVideoIndexForDisplay;
+      }
+      // 经典模式和缩略图模式：使用 validIndex（基于 currentIndex），允许用户通过左右按钮切换图片
+      if (viewMode === 'classic' || viewMode === 'thumbnail') {
+        return validIndex;
+      }
+      // 其他模式：优先显示第一张图片，如果没有图片则使用 validIndex
+      return firstImageIndexForDisplay >= 0 ? firstImageIndexForDisplay : validIndex;
+    },
     [viewMode, isHoveringPreview, firstVideoIndexForDisplay, firstImageIndexForDisplay, validIndex]
   );
   // 优化图片宽度：根据视图模式和优先级使用更小的尺寸以减少网络流量
@@ -602,8 +657,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   );
   
   const showNavigation = useMemo(
-    () => (isClassic || isGrid) && galleryUrls.length > 1,
-    [isClassic, isGrid, galleryUrls.length]
+    () => (isClassic || isGrid || viewMode === 'thumbnail') && galleryUrls.length > 1,
+    [isClassic, isGrid, viewMode, galleryUrls.length]
   );
   
   const showIndicators = showNavigation;
@@ -981,7 +1036,9 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   };
 
   // 使用传入的卡片宽度，如果没有则使用默认值
-  const cardWidth = propCardWidth || 240;
+  // 始终使用传入的 propCardWidth，确保所有卡片使用相同的宽度计算逻辑
+  const defaultCardWidth = 240;
+  const cardWidth = propCardWidth || defaultCardWidth;
   
   // 根据紧凑模式调整卡片尺寸
   const sizeMultiplier = compactMode ? 0.75 : 1; // 紧凑模式缩小25%
@@ -1111,7 +1168,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           )}
           style={{ 
             width: viewMode === 'thumbnail' ? 'auto' : '100%', 
-            height: isGrid ? gridHeight : (isClassic ? classicHeight : (viewMode === 'thumbnail' ? 'auto' : compactHeight)),
+            height: isGrid ? `${gridHeight}px` : (isClassic ? `${classicHeight}px` : (viewMode === 'thumbnail' ? 'auto' : `${compactHeight}px`)),
             // 经典模式：确保两个区域之间有间距
             ...(isClassic ? { gap: `${spacing}px` } : {})
           }}
@@ -1119,8 +1176,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           {isGrid ? (
             // 宫格图预览：直接显示缩略图网格，不显示预览图区域，1:1方形
             <div 
-              className="overflow-hidden rounded-t-xl rounded-b-xl"
-              style={{ height: gridHeight }}
+              className="relative overflow-hidden rounded-t-xl rounded-b-xl"
+              style={{ height: `${gridHeight}px` }}
               onMouseEnter={() => setIsHoveringThumbnails(true)}
               onMouseLeave={() => {
                 setIsHoveringThumbnails(false);
@@ -1281,7 +1338,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 {renderActionButtons()}
               </div>
               {totalPages > 1 && (
-                <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <div className="pointer-events-auto absolute bottom-2 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 text-xs text-muted-foreground">
                   <Button
                     type="button"
                     variant="ghost"
@@ -1322,6 +1379,21 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
               onDoubleClick={handleDoubleClick}
               onMouseEnter={() => setIsHoveringPreview(true)}
               onMouseLeave={() => setIsHoveringPreview(false)}
+              onClick={(e) => {
+                // 检查是否点击了导航按钮区域
+                const target = e.target as HTMLElement;
+                const navContainer = target.closest('[class*="z-[60]"]');
+                if (navContainer) {
+                  // 如果点击在导航按钮区域内，不处理预览区域的点击
+                  return;
+                }
+                // 检查是否点击了按钮
+                const clickedButton = target.closest('button');
+                if (clickedButton) {
+                  return;
+                }
+                // 预览区域的点击由外层点击区域处理，这里不做任何处理
+              }}
             >
             {galleryUrls.map((url, index) => {
               if (!isVideoUrl(url)) {
@@ -1398,72 +1470,128 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
 
             {isOverlayMode && (
               <>
-                <div 
-                  className={cn(
-                    "pointer-events-none absolute left-0 bottom-0 right-0 z-20 bg-gradient-to-t from-black/70 via-black/40 to-transparent transition-opacity duration-200",
-                    !showOverlayContent && "opacity-0"
-                  )}
-                  style={{ padding: '8px 12px' }}
-                >
-                  <div className="truncate text-xs font-semibold text-white">{asset.name}</div>
-                  {!compactMode && (
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-white/80">
-                      <span className="font-medium text-white/90">{asset.type}</span>
-                      {displayTags.map((tag: string) => (
-                        <span
-                          key={tag}
-                          className="rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] leading-none text-white"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {remainingTagCount > 0 && (
-                        <span className="text-[9px] text-white/70">+{remainingTagCount}</span>
+                {isCompact ? (
+                  // 紧凑模式（small）：只显示一行标题、左上角加入清单按钮和右上角查看详情按钮
+                  <>
+                    <div 
+                      className={cn(
+                        "pointer-events-none absolute left-0 bottom-0 right-0 z-[40] bg-gradient-to-t from-black/80 via-black/60 to-transparent transition-opacity duration-200",
+                        !showOverlayContent && "opacity-0"
+                      )}
+                      style={{ padding: '6px 8px' }}
+                    >
+                      <div className="truncate text-xs font-semibold text-white">{asset.name}</div>
+                    </div>
+                    {/* 右上角：加入清单按钮和查看详情按钮 */}
+                    <div 
+                      className={cn(
+                        "pointer-events-none absolute right-1 top-1 z-[70] flex gap-1 transition-opacity duration-200",
+                        !showOverlayContent && "opacity-0"
+                      )}
+                    >
+                      {/* 加入清单按钮 */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title={selectionButtonTitle}
+                        aria-pressed={isSelected}
+                        onClick={handleSelectionButtonClick}
+                        className={cn(
+                          "pointer-events-auto h-6 w-6 rounded-full bg-transparent transition flex-shrink-0 flex items-center justify-center border-0 shadow-none",
+                          isSelected 
+                            ? 'text-primary hover:text-primary' 
+                            : 'text-white hover:text-white'
+                        )}
+                      >
+                        {isSelected ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                        <span className="sr-only">{selectionButtonTitle}</span>
+                      </Button>
+                      {/* 查看详情按钮 */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title="查看详情"
+                        onClick={handleDetailButtonClick}
+                        className="pointer-events-auto h-6 w-6 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center"
+                      >
+                        <Eye className="h-3 w-3" />
+                        <span className="sr-only">查看详情</span>
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  // 非紧凑模式（medium/large）：保持原有布局
+                  <>
+                    <div 
+                      className={cn(
+                        "pointer-events-none absolute left-0 bottom-0 right-0 z-[40] bg-gradient-to-t from-black/70 via-black/40 to-transparent transition-opacity duration-200",
+                        !showOverlayContent && "opacity-0"
+                      )}
+                      style={{ padding: '8px 12px' }}
+                    >
+                      <div className="truncate text-xs font-semibold text-white">{asset.name}</div>
+                      {!compactMode && (
+                        <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-white/80">
+                          <span className="font-medium text-white/90">{asset.type}</span>
+                          {displayTags.map((tag: string) => (
+                            <span
+                              key={tag}
+                              className="rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] leading-none text-white"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {remainingTagCount > 0 && (
+                            <span className="text-[9px] text-white/70">+{remainingTagCount}</span>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-                <div 
-                  className={cn(
-                    "pointer-events-none absolute right-1.5 top-1.5 z-50 flex gap-0.5 transition-opacity duration-200",
-                    !showOverlayContent && "opacity-0"
-                  )}
-                >
-                  {renderActionButtons()}
-                </div>
-                {/* 紧凑/完整显示切换按钮 */}
-                {onCompactModeToggle && (
-                  <div 
-                    className={cn(
-                      "pointer-events-none absolute left-1.5 top-1.5 z-50 transition-opacity duration-200",
-                      !showOverlayContent && "opacity-0"
-                    )}
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onCompactModeToggle();
-                      }}
-                      className="pointer-events-auto h-6 w-6 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center"
-                      title={compactMode ? '切换到完整显示' : '切换到紧凑显示'}
-                    >
-                      {compactMode ? (
-                        <Maximize2 className="h-3 w-3" />
-                      ) : (
-                        <Minimize2 className="h-3 w-3" />
+                    <div 
+                      className={cn(
+                        "pointer-events-none absolute right-1.5 top-1.5 z-50 flex gap-0.5 transition-opacity duration-200",
+                        !showOverlayContent && "opacity-0"
                       )}
-                    </Button>
-                  </div>
+                    >
+                      {renderActionButtons()}
+                    </div>
+                    {/* 紧凑/完整显示切换按钮 */}
+                    {onCompactModeToggle && (
+                      <div 
+                        className={cn(
+                          "pointer-events-none absolute left-1.5 top-1.5 z-50 transition-opacity duration-200",
+                          !showOverlayContent && "opacity-0"
+                        )}
+                      >
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onCompactModeToggle();
+                          }}
+                          className="pointer-events-auto h-6 w-6 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center"
+                          title={compactMode ? '切换到完整显示' : '切换到紧凑显示'}
+                        >
+                          {compactMode ? (
+                            <Maximize2 className="h-3 w-3" />
+                          ) : (
+                            <Minimize2 className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
 
             {currentIsVideo && (
-              <div className={`absolute ${isOverlayMode ? 'left-1.5 top-1.5' : 'left-2 top-2'} z-20 rounded-full bg-black/70 ${isOverlayMode ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[10px]'} font-semibold uppercase tracking-wide text-white`}>
+              <div className={`absolute ${isOverlayMode ? (isCompact ? 'left-1 top-1' : 'left-1.5 top-1.5') : 'left-2 top-2'} z-20 rounded-full bg-black/70 ${isOverlayMode ? (isCompact ? 'px-1 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[9px]') : 'px-2 py-0.5 text-[10px]'} font-semibold uppercase tracking-wide text-white`}>
                 视频
               </div>
             )}
@@ -1471,7 +1599,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
             {showNavigation && (
               <>
                 <div
-                  className="absolute left-0 top-0 bottom-0 z-20 flex w-1/3 cursor-pointer items-center justify-start pl-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                  className="absolute left-0 top-0 bottom-0 z-[60] flex w-1/3 cursor-pointer items-center justify-start pl-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 pointer-events-auto"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1479,9 +1607,9 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   }}
                 >
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-full border-white/60 bg-background/80 hover:bg-background"
+                    className="h-8 w-8 rounded-full border-0 bg-transparent hover:bg-transparent pointer-events-auto relative z-[60] shadow-none"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -1493,7 +1621,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   </Button>
                 </div>
                 <div
-                  className="absolute right-0 top-0 bottom-0 z-20 flex w-1/3 cursor-pointer items-center justify-end pr-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                  className="absolute right-0 top-0 bottom-0 z-[60] flex w-1/3 cursor-pointer items-center justify-end pr-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 pointer-events-auto"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1501,9 +1629,9 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   }}
                 >
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-full border-white/60 bg-background/80 hover:bg-background"
+                    className="h-8 w-8 rounded-full border-0 bg-transparent hover:bg-transparent pointer-events-auto relative z-[60] shadow-none"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -1535,6 +1663,24 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
               className="absolute inset-0 z-0 cursor-pointer"
               onClick={(e) => {
                 const target = e.target as HTMLElement;
+                
+                // 首先检查是否点击了导航按钮区域（z-[60]）- 优先检查，确保导航按钮的点击不被拦截
+                // 检查点击位置是否在导航按钮区域内（左侧或右侧各占1/3）
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+                const isInLeftNavArea = clickX < rect.width / 3;
+                const isInRightNavArea = clickX > (rect.width * 2) / 3;
+                
+                if (isInLeftNavArea || isInRightNavArea) {
+                  // 如果点击在导航按钮区域内，检查是否真的点击了导航按钮
+                  const navContainer = target.closest('[class*="z-[60]"]');
+                  if (navContainer) {
+                    // 如果点击在导航按钮区域内，立即返回，不处理卡片点击
+                    // 不调用 stopPropagation，让导航按钮自己的事件处理
+                    return;
+                  }
+                }
                 
                 // 检查点击的元素是否是按钮或按钮内的元素
                 // 使用更严格的检查，确保按钮点击不会被拦截
@@ -1569,6 +1715,11 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                     return;
                   }
                   
+                  // 如果当前元素在导航按钮区域内，不处理
+                  if (currentElement.classList.toString().includes('z-[60]')) {
+                    return;
+                  }
+                  
                   // 跳过图片和视频元素，继续向上查找
                   if (currentElement.tagName === 'IMG' || currentElement.tagName === 'VIDEO') {
                     currentElement = currentElement.parentElement;
@@ -1593,8 +1744,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
 
           {isClassic && (
             <div 
-              className="overflow-hidden rounded-b-xl"
-              style={{ height: classicThumbnailHeight }}
+              className="relative overflow-hidden rounded-b-xl"
+              style={{ height: `${classicThumbnailHeight}px` }}
               onMouseEnter={() => setIsHoveringThumbnails(true)}
               onMouseLeave={() => {
                 setIsHoveringThumbnails(false);
@@ -1686,7 +1837,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 {renderActionButtons()}
               </div>
               {totalPages > 1 && (
-                <div className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <div className="pointer-events-auto absolute bottom-2 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 text-xs text-muted-foreground">
                   <Button
                     type="button"
                     variant="ghost"
@@ -1772,28 +1923,6 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 dangerouslySetInnerHTML={{ __html: secondaryRowHtml }}
               />
             )}
-          </div>
-        )}
-        
-        {/* 缩略图模式下，最小视图时也显示文字信息（悬浮时） */}
-        {viewMode === 'thumbnail' && !isClassic && !isGrid && (
-          <div 
-            className={cn(
-              "absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-gradient-to-t from-black/90 via-black/70 to-transparent transition-opacity duration-200 pointer-events-none",
-              isSmallView && !showTextInfo && "opacity-0"
-            )}
-          >
-            <Link href={`/assets/${asset.id}`} className="block pointer-events-auto">
-              <h3
-                className="text-xs font-semibold text-white truncate mb-0.5"
-                style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
-                dangerouslySetInnerHTML={{ __html: highlightedName }}
-              />
-            </Link>
-            <p
-              className="text-[10px] text-white/80 truncate"
-              dangerouslySetInnerHTML={{ __html: secondaryRowHtml }}
-            />
           </div>
         )}
       </div>
