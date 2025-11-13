@@ -271,12 +271,40 @@ async function findDuplicates(
   // 方法2：下载文件计算 hash（最准确但最慢）
   else if (useHash) {
     console.log('  正在计算文件 hash（这可能需要一些时间）...');
+    console.log('  ⚠️  注意：文件会下载到内存计算 hash，不会保存到磁盘');
+    console.log(`  总共需要处理 ${files.length} 个文件\n`);
+    
     let processed = 0;
+    const startTime = Date.now();
+    let lastProgressTime = startTime;
     
     for (const file of files) {
       processed++;
-      if (processed % 10 === 0) {
-        console.log(`  已处理 ${processed}/${files.length} 个文件...`);
+      const now = Date.now();
+      
+      // 每10个文件显示一次进度，或每5秒显示一次
+      if (processed % 10 === 0 || now - lastProgressTime >= 5000) {
+        const elapsed = (now - startTime) / 1000; // 秒
+        const rate = processed / elapsed; // 文件/秒
+        const remaining = files.length - processed;
+        const estimatedSeconds = remaining / rate;
+        const estimatedMinutes = Math.floor(estimatedSeconds / 60);
+        const estimatedSecondsRemainder = Math.floor(estimatedSeconds % 60);
+        
+        const progressPercent = Math.round((processed / files.length) * 100);
+        const downloadedMB = files.slice(0, processed).reduce((sum, f) => sum + f.size, 0) / (1024 * 1024);
+        
+        console.log(`  📊 进度: ${processed}/${files.length} (${progressPercent}%)`);
+        console.log(`  ⏱️  已用时间: ${Math.floor(elapsed / 60)}分${Math.floor(elapsed % 60)}秒`);
+        console.log(`  📥 已下载: ${downloadedMB.toFixed(2)} MB`);
+        console.log(`  ⚡ 速度: ${rate.toFixed(2)} 文件/秒`);
+        if (estimatedSeconds > 0 && !isNaN(estimatedSeconds) && isFinite(estimatedSeconds)) {
+          console.log(`  ⏳ 预计剩余: ${estimatedMinutes}分${estimatedSecondsRemainder}秒\n`);
+        } else {
+          console.log(`  ⏳ 预计剩余: 计算中...\n`);
+        }
+        
+        lastProgressTime = now;
       }
       
       const hash = await calculateFileHash(client, file.name);
@@ -290,6 +318,13 @@ async function findDuplicates(
         groups.get(key)!.push(file);
       }
     }
+    
+    const totalTime = (Date.now() - startTime) / 1000;
+    const totalMB = files.reduce((sum, f) => sum + f.size, 0) / (1024 * 1024);
+    console.log(`\n✅ Hash 计算完成！`);
+    console.log(`   总耗时: ${Math.floor(totalTime / 60)}分${Math.floor(totalTime % 60)}秒`);
+    console.log(`   总下载: ${totalMB.toFixed(2)} MB`);
+    console.log(`   平均速度: ${(files.length / totalTime).toFixed(2)} 文件/秒\n`);
   }
   // 方法3：文件名+大小（快速但不准确）
   else {
