@@ -112,6 +112,10 @@ function AssetsListContent({
     });
   }
 
+  // 在未 mounted 时，强制使用固定的默认值，确保服务器端和客户端首次渲染一致
+  const effectiveThumbSize = (!isMounted || containerWidth === 0) ? 'medium' : thumbSize;
+  const effectiveViewMode = (!isMounted || containerWidth === 0) ? 'classic' : viewMode;
+  
   // 使用 useMemo 缓存视图模式指标计算
   // 根据容器宽度动态计算列数，保持间距不小于5px
   // 注意：在未 mounted 时使用固定的默认值，避免 hydration 不匹配
@@ -121,11 +125,11 @@ function AssetsListContent({
     
     // 在缩略图模式下，根据 thumbSize 确定最小卡片宽度
     const getThumbSizeWidth = () => {
-      if (viewMode !== 'thumbnail') return null;
+      if (effectiveViewMode !== 'thumbnail') return null;
       const thumbWidths = { small: 96, medium: 160, large: 240 };
-      const width = thumbWidths[thumbSize];
+      const width = thumbWidths[effectiveThumbSize];
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[AssetsList] thumbSize:', thumbSize, 'width:', width, 'viewMode:', viewMode);
+        console.log('[AssetsList] thumbSize:', effectiveThumbSize, 'width:', width, 'viewMode:', effectiveViewMode, 'isMounted:', isMounted);
       }
       return width;
     };
@@ -144,7 +148,7 @@ function AssetsListContent({
       const defaultCardWidth = Math.max(defaultMinCardWidth, Math.floor(defaultRemainingWidth / defaultColumns));
       
       let defaultHeight: number;
-      switch (viewMode) {
+      switch (effectiveViewMode) {
         case 'thumbnail':
           defaultHeight = thumbSizeWidth ? Math.floor(thumbSizeWidth * 0.6) : Math.floor(defaultCardWidth * 0.875);
           break;
@@ -236,12 +240,12 @@ function AssetsListContent({
     }
     
     let estimatedHeight: number;
-    switch (viewMode) {
+    switch (effectiveViewMode) {
       case 'thumbnail':
         // 在缩略图模式下，如果有 thumbSize，使用对应的比例
         if (thumbSizeWidth) {
           const thumbHeights = { small: 64, medium: 96, large: 144 };
-          estimatedHeight = thumbHeights[thumbSize];
+          estimatedHeight = thumbHeights[effectiveThumbSize];
         } else {
           estimatedHeight = Math.floor(actualCardWidth * 0.875); // 16:9 比例
         }
@@ -261,7 +265,7 @@ function AssetsListContent({
       columns: calculatedColumns,
       horizontalGap: actualGap
     };
-  }, [viewMode, containerWidth, isMounted, thumbSize]);
+  }, [effectiveViewMode, containerWidth, isMounted, effectiveThumbSize]);
 
   // 垂直间距
   const verticalGap = 12;
@@ -554,11 +558,22 @@ function AssetsListContent({
     const startIndex = rowIndex * columns;
     const rowItems = assets.slice(startIndex, startIndex + columns);
 
+    // 在缩略图模式下，如果使用了 thumbSize，使用固定列宽；否则使用 minmax 自适应
+    const getThumbSizeWidth = () => {
+      if (effectiveViewMode !== 'thumbnail') return null;
+      const thumbWidths = { small: 96, medium: 160, large: 240 };
+      return thumbWidths[effectiveThumbSize];
+    };
+    const thumbSizeWidth = getThumbSizeWidth();
+    const gridTemplateColumns = thumbSizeWidth 
+      ? `repeat(${columns}, ${cardWidth}px)` // 缩略图模式：固定宽度
+      : `repeat(${columns}, minmax(${cardWidth}px, 1fr))`; // 其他模式：自适应宽度
+
     return (
       <div
         className="grid"
         style={{
-          gridTemplateColumns: `repeat(${columns}, minmax(${cardWidth}px, 1fr))`,
+          gridTemplateColumns,
           gap: `${verticalGap}px ${horizontalGap}px`,
         }}
       >
@@ -584,18 +599,18 @@ function AssetsListContent({
                 onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
                 priority={absoluteIndex < PAGINATION.PRIORITY_IMAGES_COUNT}
                 officeLocation={officeLocation}
-                viewMode={viewMode}
+                viewMode={effectiveViewMode}
                 cardWidth={cardWidth}
                 compactMode={getAssetCompactMode(asset.id)}
                 onCompactModeToggle={onCompactModeToggle ? () => onCompactModeToggle(asset.id) : undefined}
-                thumbSize={thumbSize}
+                thumbSize={effectiveThumbSize}
               />
             </div>
           );
         })}
       </div>
     );
-  }, [assets, columns, cardWidth, verticalGap, horizontalGap, isSelecting, checkIntersection, selectedAssetIds, keyword, onToggleSelection, officeLocation, viewMode, getAssetCompactMode, onCompactModeToggle, thumbSize]);
+  }, [assets, columns, cardWidth, verticalGap, horizontalGap, isSelecting, checkIntersection, selectedAssetIds, keyword, onToggleSelection, officeLocation, effectiveViewMode, getAssetCompactMode, onCompactModeToggle, effectiveThumbSize]);
 
   const shouldRenderVirtual = scrollElement !== null && containerWidth > 0;
 
@@ -650,11 +665,11 @@ function AssetsListContent({
                 onToggleSelection={onToggleSelection ? () => onToggleSelection(asset.id) : undefined}
                 priority={index < PAGINATION.PRIORITY_IMAGES_COUNT}
                 officeLocation={officeLocation}
-                viewMode={viewMode}
+                viewMode={effectiveViewMode}
                 cardWidth={cardWidth}
                 compactMode={getAssetCompactMode(asset.id)}
                 onCompactModeToggle={onCompactModeToggle ? () => onCompactModeToggle(asset.id) : undefined}
-                thumbSize={thumbSize}
+                thumbSize={effectiveThumbSize}
               />
             </div>
           );
@@ -715,6 +730,9 @@ export function AssetsList({
   keyword,
   filterDurationMs,
   isFetching,
+  compactMode,
+  onCompactModeToggle,
+  thumbSize,
 }: AssetsListProps) {
   return (
     <Suspense fallback={<AssetsListSkeleton />}>
@@ -728,6 +746,9 @@ export function AssetsList({
         keyword={keyword}
         filterDurationMs={filterDurationMs}
         isFetching={isFetching}
+        compactMode={compactMode}
+        onCompactModeToggle={onCompactModeToggle}
+        thumbSize={thumbSize}
       />
     </Suspense>
   );
