@@ -1,15 +1,135 @@
 'use client';
 
-import { useState, Children } from 'react';
+import { useState, Children, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { FolderOpen, Video, ChevronLeft, ChevronRight, Settings, Plus, List, ChevronDown, ChevronUp } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { FolderOpen, Video, ChevronLeft, ChevronRight, Settings, Plus, List, ChevronDown, ChevronUp, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AdminRefreshProvider } from './admin-refresh-context';
+import { PROJECTS, PROJECT_PASSWORDS } from '@/lib/constants';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
   storageMode: string;
   cdnBase: string;
+}
+
+interface SettingsSectionProps {
+  sidebarCollapsed: boolean;
+}
+
+function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const [projectPasswords, setProjectPasswords] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  // 从 localStorage 加载项目密码
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = localStorage.getItem('project_passwords');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setProjectPasswords(parsed);
+      } catch {
+        // 如果解析失败，使用默认值
+        setProjectPasswords(PROJECT_PASSWORDS);
+      }
+    } else {
+      // 如果没有存储的值，使用默认值
+      setProjectPasswords(PROJECT_PASSWORDS);
+    }
+  }, []);
+
+  const handlePasswordChange = (project: string, password: string) => {
+    setProjectPasswords((prev) => ({
+      ...prev,
+      [project]: password,
+    }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMessage(null);
+    try {
+      // 保存到 localStorage
+      localStorage.setItem('project_passwords', JSON.stringify(projectPasswords));
+      
+      // 更新全局配置（通过 window 对象）
+      if (typeof window !== 'undefined') {
+        (window as any).__PROJECT_PASSWORDS__ = projectPasswords;
+      }
+      
+      setMessage('密码设置已保存');
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      setMessage('保存失败，请重试');
+      setTimeout(() => setMessage(null), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-gray-200 p-2">
+      <button
+        onClick={() => !sidebarCollapsed && setSettingsExpanded(!settingsExpanded)}
+        className={cn(
+          'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100'
+        )}
+      >
+        <Settings className="h-5 w-5 shrink-0" />
+        {!sidebarCollapsed && (
+          <>
+            <span className="flex-1 text-left">设置</span>
+            {settingsExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronUp className="h-4 w-4" />
+            )}
+          </>
+        )}
+      </button>
+      {!sidebarCollapsed && settingsExpanded && (
+        <div className="mt-2 space-y-3 px-3 py-2">
+          <div className="space-y-2">
+            <div className="text-xs font-semibold text-gray-700">项目密码设置</div>
+            {PROJECTS.map((project) => (
+              <div key={project} className="space-y-1">
+                <Label htmlFor={`password-${project}`} className="text-xs text-gray-600">
+                  {project}
+                </Label>
+                <Input
+                  id={`password-${project}`}
+                  type="text"
+                  value={projectPasswords[project] || ''}
+                  onChange={(e) => handlePasswordChange(project, e.target.value)}
+                  placeholder="请输入密码"
+                  className="h-8 text-xs"
+                />
+              </div>
+            ))}
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              size="sm"
+              className="w-full h-8 text-xs"
+            >
+              <Save className="h-3 w-3 mr-1" />
+              {saving ? '保存中...' : '保存密码'}
+            </Button>
+            {message && (
+              <div className={`text-xs ${message.includes('失败') ? 'text-red-500' : 'text-green-500'}`}>
+                {message}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps) {
@@ -159,28 +279,8 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
           </div>
         </nav>
 
-        {/* 设置区域占位 */}
-        <div className="border-t border-gray-200 p-2">
-          <button
-            className={cn(
-              'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100'
-            )}
-          >
-            <Settings className="h-5 w-5 shrink-0" />
-            {!sidebarCollapsed && <span>设置</span>}
-          </button>
-          {!sidebarCollapsed && (
-            <div className="mt-2 px-3 py-2 text-xs text-gray-500">
-              {/* 设置区域占位内容 */}
-              <div className="space-y-1">
-                <div className="text-gray-400">• 存储配置</div>
-                <div className="text-gray-400">• 显示选项</div>
-                <div className="text-gray-400">• 导入导出</div>
-                <div className="text-gray-400">• 数据备份</div>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* 设置区域 */}
+        <SettingsSection sidebarCollapsed={sidebarCollapsed} />
       </aside>
 
       {/* 右侧内容区域 */}
