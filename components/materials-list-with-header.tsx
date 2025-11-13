@@ -11,6 +11,10 @@ import { Loader2 } from 'lucide-react';
 import type { MaterialFilterSnapshot } from '@/components/material-filter-sidebar';
 import type { MaterialsSummary } from '@/lib/materials-data';
 
+type ThumbSize = 'small' | 'medium' | 'large';
+
+const THUMB_SIZE_STORAGE_KEY = 'material-thumb-size';
+
 interface MaterialsListWithHeaderProps {
   materials: Material[];
   optimisticFilters?: MaterialFilterSnapshot | null;
@@ -41,6 +45,8 @@ function applyFilters(source: Material[], keyword: string, snapshot: MaterialFil
 }
 
 export function MaterialsListWithHeader({ materials, optimisticFilters, summary }: MaterialsListWithHeaderProps) {
+  // 使用默认值 'medium' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
+  const [thumbSize, setThumbSize] = useState<ThumbSize>('medium');
   const searchParams = useSearchParams();
   const keyword = searchParams.get('q') ?? '';
   const selectedType = searchParams.get('type') || null;
@@ -70,6 +76,17 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
 
   useEffect(() => {
     setMounted(true);
+    // 在客户端 mounted 后从 localStorage 读取 thumbSize
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(THUMB_SIZE_STORAGE_KEY) as ThumbSize | null;
+        if (stored === 'small' || stored === 'medium' || stored === 'large') {
+          setThumbSize(stored);
+        }
+      } catch {
+        // 忽略错误
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -191,6 +208,11 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
     };
   }, [filtersKey, mounted, hasServerFilters, optimisticFilters, keyword, selectedType, selectedTag, selectedQualities, selectedProject, summary.total]); // 使用 filtersKey 和原始值作为依赖项，避免对象引用问题
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(THUMB_SIZE_STORAGE_KEY, thumbSize);
+  }, [thumbSize]);
+
   const portal = mounted ? document.getElementById('header-actions-portal') : null;
 
   return (
@@ -207,9 +229,45 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
             </span>
           )}
         </div>
+        {/* 缩略图尺寸切换 */}
+        <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
+          <button
+            type="button"
+            className={`h-7 px-2 text-xs rounded transition-colors ${
+              thumbSize === 'small'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-transparent hover:bg-muted'
+            }`}
+            onClick={() => setThumbSize('small')}
+          >
+            小
+          </button>
+          <button
+            type="button"
+            className={`h-7 px-2 text-xs rounded transition-colors ${
+              thumbSize === 'medium'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-transparent hover:bg-muted'
+            }`}
+            onClick={() => setThumbSize('medium')}
+          >
+            中
+          </button>
+          <button
+            type="button"
+            className={`h-7 px-2 text-xs rounded transition-colors ${
+              thumbSize === 'large'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-transparent hover:bg-muted'
+            }`}
+            onClick={() => setThumbSize('large')}
+          >
+            大
+          </button>
+        </div>
       </div>
       <div className="relative">
-        <MaterialsList materials={displayMaterials} />
+        <MaterialsList materials={displayMaterials} thumbSize={thumbSize} />
         {isFetching && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/70 backdrop-blur-sm">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />

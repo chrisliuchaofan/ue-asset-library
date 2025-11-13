@@ -18,6 +18,7 @@ import {
 import { LayoutPanelTop, Film, Grid3x3, ChevronDown, ChevronUp } from 'lucide-react';
 import { getAssetsIndex } from '@/lib/asset-index';
 import { PAGINATION, getDescription } from '@/lib/constants';
+import { cn } from '@/lib/utils';
 
 interface AssetsListWithSelectionProps {
   assets: Asset[];
@@ -27,8 +28,57 @@ interface AssetsListWithSelectionProps {
 const SELECTED_ASSETS_STORAGE_KEY = 'selected-asset-ids';
 const VIEW_MODE_STORAGE_KEY = 'asset-view-mode';
 const COMPACT_MODE_STORAGE_KEY = 'asset-compact-mode';
+const THUMB_SIZE_STORAGE_KEY = 'asset-thumb-size';
 
 type ViewMode = 'classic' | 'thumbnail' | 'grid';
+type ThumbSize = 'small' | 'medium' | 'large';
+
+// 缩略图尺寸选择器组件
+function ThumbSizeSelector({ thumbSize, onThumbSizeChange }: { thumbSize: ThumbSize; onThumbSizeChange: (size: ThumbSize) => void }) {
+  const handleClick = useCallback((size: ThumbSize, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('[ThumbSize] 点击按钮，设置 thumbSize:', size, '当前值:', thumbSize);
+    if (size !== thumbSize) {
+      console.log('[ThumbSize] 状态将更新为:', size);
+      onThumbSizeChange(size);
+    } else {
+      console.log('[ThumbSize] 状态未改变，跳过更新');
+    }
+  }, [onThumbSizeChange, thumbSize]);
+
+  return (
+    <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
+      <Button
+        type="button"
+        variant={thumbSize === 'small' ? 'default' : 'ghost'}
+        size="sm"
+        className="h-7 px-2 text-xs"
+        onClick={(e) => handleClick('small', e)}
+      >
+        小
+      </Button>
+      <Button
+        type="button"
+        variant={thumbSize === 'medium' ? 'default' : 'ghost'}
+        size="sm"
+        className="h-7 px-2 text-xs"
+        onClick={(e) => handleClick('medium', e)}
+      >
+        中
+      </Button>
+      <Button
+        type="button"
+        variant={thumbSize === 'large' ? 'default' : 'ghost'}
+        size="sm"
+        className="h-7 px-2 text-xs"
+        onClick={(e) => handleClick('large', e)}
+      >
+        大
+      </Button>
+    </div>
+  );
+}
 
 // 从 localStorage 读取已选择的资产 ID
 function loadSelectedAssetIds(): Set<string> {
@@ -70,6 +120,8 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const [isFetching, setIsFetching] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  // 使用默认值 'medium' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
+  const [thumbSize, setThumbSize] = useState<ThumbSize>('medium');
   
   // 紧凑模式：使用Map存储每个卡片的紧凑状态（assetId -> boolean）
   const [compactModeMap, setCompactModeMap] = useState<Map<string, boolean>>(() => {
@@ -109,6 +161,17 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
   useEffect(() => {
     setMounted(true);
+    // 在客户端 mounted 后从 localStorage 读取 thumbSize
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(THUMB_SIZE_STORAGE_KEY) as ThumbSize | null;
+        if (stored === 'small' || stored === 'medium' || stored === 'large') {
+          setThumbSize(stored);
+        }
+      } catch {
+        // 忽略错误
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -123,6 +186,12 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     if (typeof window === 'undefined') return;
     localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    console.log('[ThumbSize] 保存到 localStorage:', thumbSize);
+    localStorage.setItem(THUMB_SIZE_STORAGE_KEY, thumbSize);
+  }, [thumbSize]);
 
   // 从 URL 参数读取页码
   useEffect(() => {
@@ -456,37 +525,46 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
               return `${getDescription('assetsCountPrefix')} ${displayAssets.length} ${getDescription('assetsCountSuffix')}`;
             }, [displayAssets.length])}
           </div>
-          <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground transition hover:bg-transparent"
-              >
-                {currentViewOption.icon}
-                <span className="hidden md:inline">{currentViewOption.label}</span>
-                {isDropdownOpen ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-44">
-              <DropdownMenuRadioGroup
-                value={viewMode}
-                onValueChange={(value) => handleViewModeChange(value as ViewMode)}
-              >
-                {viewModeOptions.map((option) => (
-                  <DropdownMenuRadioItem key={option.value} value={option.value} className="flex items-center gap-2 text-sm">
-                    {option.icon}
-                    <span className="text-sm">{option.label}</span>
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-2">
+            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground transition hover:bg-transparent"
+                >
+                  {currentViewOption.icon}
+                  <span className="hidden md:inline">{currentViewOption.label}</span>
+                  {isDropdownOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-44">
+                <DropdownMenuRadioGroup
+                  value={viewMode}
+                  onValueChange={(value) => handleViewModeChange(value as ViewMode)}
+                >
+                  {viewModeOptions.map((option) => (
+                    <DropdownMenuRadioItem key={option.value} value={option.value} className="flex items-center gap-2 text-sm">
+                      {option.icon}
+                      <span className="text-sm">{option.label}</span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {/* 缩略图尺寸切换 - 仅在缩略图模式下显示 */}
+            {viewMode === 'thumbnail' && (
+              <ThumbSizeSelector
+                thumbSize={thumbSize}
+                onThumbSizeChange={setThumbSize}
+              />
+            )}
+          </div>
         </div>
       </div>
       <div ref={scrollContainerRef} className="flex-1 overflow-auto px-3 pb-6 sm:px-5 lg:px-6">
@@ -502,6 +580,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
           isFetching={isFetching}
           compactMode={compactModeMap}
           onCompactModeToggle={handleCompactModeToggle}
+          thumbSize={thumbSize}
         />
         
         {/* 分页控件 */}

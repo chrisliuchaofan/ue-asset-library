@@ -11,6 +11,8 @@ import { PAGINATION } from '@/lib/constants';
 import { type OfficeLocation } from '@/lib/nas-utils';
 import { Loader2 } from 'lucide-react';
 
+type ThumbSize = 'small' | 'medium' | 'large';
+
 interface AssetsListProps {
   assets: Asset[];
   selectedAssetIds?: Set<string>;
@@ -23,6 +25,7 @@ interface AssetsListProps {
   isFetching?: boolean;
   compactMode?: boolean | Map<string, boolean>; // 可以是全局布尔值或每个卡片的Map
   onCompactModeToggle?: (assetId: string) => void;
+  thumbSize?: ThumbSize;
 }
 
 function AssetsListContent({
@@ -37,6 +40,7 @@ function AssetsListContent({
   isFetching = false,
   compactMode = false,
   onCompactModeToggle,
+  thumbSize = 'medium',
 }: AssetsListProps) {
   // 早期返回必须在所有 hooks 之前，避免 React Hooks 规则违反
   // 注意：这个检查必须在所有 hooks 调用之前
@@ -115,12 +119,24 @@ function AssetsListContent({
     const containerPadding = 48; // 左右各24px
     const minGap = 5; // 最小间距
     
+    // 在缩略图模式下，根据 thumbSize 确定最小卡片宽度
+    const getThumbSizeWidth = () => {
+      if (viewMode !== 'thumbnail') return null;
+      const thumbWidths = { small: 96, medium: 160, large: 240 };
+      const width = thumbWidths[thumbSize];
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[AssetsList] thumbSize:', thumbSize, 'width:', width, 'viewMode:', viewMode);
+      }
+      return width;
+    };
+    const thumbSizeWidth = getThumbSizeWidth();
+    
     // 在未 mounted 或 containerWidth 为 0 时，使用固定的默认值避免 hydration 不匹配
     // 服务器端和客户端首次渲染时都使用相同的默认值
     if (!isMounted || containerWidth === 0) {
       // 使用固定的默认值，确保服务器端和客户端一致
       const defaultAvailableWidth = 1920 - containerPadding; // 默认使用 1920px 宽度
-      const defaultMinCardWidth = 200; // 默认最小卡片宽度
+      const defaultMinCardWidth = thumbSizeWidth || 200; // 缩略图模式使用 thumbSize 宽度，否则使用默认值
       const defaultMaxColumns = Math.floor((defaultAvailableWidth + minGap) / (defaultMinCardWidth + minGap));
       const defaultColumns = Math.max(1, defaultMaxColumns);
       const defaultTotalGapWidth = (defaultColumns - 1) * minGap;
@@ -130,7 +146,7 @@ function AssetsListContent({
       let defaultHeight: number;
       switch (viewMode) {
         case 'thumbnail':
-          defaultHeight = Math.floor(defaultCardWidth * 0.875);
+          defaultHeight = thumbSizeWidth ? Math.floor(thumbSizeWidth * 0.6) : Math.floor(defaultCardWidth * 0.875);
           break;
         case 'grid':
           defaultHeight = defaultCardWidth;
@@ -152,6 +168,10 @@ function AssetsListContent({
     // 已 mounted 且有实际容器宽度时，使用动态计算
     // 根据屏幕大小动态调整最小卡片宽度
     const getMinCardWidth = () => {
+      // 在缩略图模式下，优先使用 thumbSize 宽度
+      if (thumbSizeWidth) {
+        return thumbSizeWidth;
+      }
       if (typeof window === 'undefined') return 200;
       const width = window.innerWidth;
       if (width < 640) return 140; // 手机：更小的卡片
@@ -171,40 +191,60 @@ function AssetsListContent({
     const maxColumns = Math.floor((availableWidth + minGap) / (minCardWidth + minGap));
     const calculatedColumns = Math.max(1, maxColumns); // 至少1列
     
-    // 根据实际列数计算间距和卡片宽度
-    // availableWidth = columns * cardWidth + (columns - 1) * gap
-    // 优先保证间距 >= minGap，然后分配剩余空间
-    // 如果有剩余空间，优先增加间距（因为间距太小不好看），然后再增加卡片宽度
-    const totalGapWidth = (calculatedColumns - 1) * minGap;
-    const remainingWidth = availableWidth - totalGapWidth;
-    const baseCardWidth = Math.max(minCardWidth, Math.floor(remainingWidth / calculatedColumns));
+    // 在缩略图模式下，如果使用了 thumbSize，直接使用 thumbSize 的宽度，不参与网格布局计算
+    let actualCardWidth: number;
+    let actualGap: number;
     
-    // 计算实际卡片宽度和间距
-    // 优先保证最小卡片宽度和最小间距
-    let actualCardWidth = baseCardWidth;
-    let actualGap = minGap;
-    
-    // 如果有剩余空间，先增加间距（最多到12px），然后再增加卡片宽度
-    if (calculatedColumns > 1) {
+    if (thumbSizeWidth) {
+      // 缩略图模式 + thumbSize：直接使用 thumbSize 宽度
+      actualCardWidth = thumbSizeWidth;
+      // 计算间距：尽量平均分配剩余空间
       const totalCardWidth = calculatedColumns * actualCardWidth;
       const remainingForGap = availableWidth - totalCardWidth;
-      const maxGap = 12; // 最大间距
-      const idealGap = Math.floor(remainingForGap / (calculatedColumns - 1));
+      if (calculatedColumns > 1 && remainingForGap > 0) {
+        actualGap = Math.min(12, Math.floor(remainingForGap / (calculatedColumns - 1)));
+      } else {
+        actualGap = minGap;
+      }
+    } else {
+      // 其他模式：使用原有的网格布局计算逻辑
+      const totalGapWidth = (calculatedColumns - 1) * minGap;
+      const remainingWidth = availableWidth - totalGapWidth;
+      const baseCardWidth = Math.max(minCardWidth, Math.floor(remainingWidth / calculatedColumns));
       
-      if (idealGap > minGap) {
-        // 有空间增加间距
-        actualGap = Math.min(maxGap, idealGap);
-        // 重新计算卡片宽度
-        const usedGapWidth = (calculatedColumns - 1) * actualGap;
-        const remainingForCards = availableWidth - usedGapWidth;
-        actualCardWidth = Math.max(minCardWidth, Math.floor(remainingForCards / calculatedColumns));
+      // 计算实际卡片宽度和间距
+      // 优先保证最小卡片宽度和最小间距
+      actualCardWidth = baseCardWidth;
+      actualGap = minGap;
+      
+      // 如果有剩余空间，先增加间距（最多到12px），然后再增加卡片宽度
+      if (calculatedColumns > 1) {
+        const totalCardWidth = calculatedColumns * actualCardWidth;
+        const remainingForGap = availableWidth - totalCardWidth;
+        const maxGap = 12; // 最大间距
+        const idealGap = Math.floor(remainingForGap / (calculatedColumns - 1));
+        
+        if (idealGap > minGap) {
+          // 有空间增加间距
+          actualGap = Math.min(maxGap, idealGap);
+          // 重新计算卡片宽度
+          const usedGapWidth = (calculatedColumns - 1) * actualGap;
+          const remainingForCards = availableWidth - usedGapWidth;
+          actualCardWidth = Math.max(minCardWidth, Math.floor(remainingForCards / calculatedColumns));
+        }
       }
     }
     
     let estimatedHeight: number;
     switch (viewMode) {
       case 'thumbnail':
-        estimatedHeight = Math.floor(actualCardWidth * 0.875); // 16:9 比例
+        // 在缩略图模式下，如果有 thumbSize，使用对应的比例
+        if (thumbSizeWidth) {
+          const thumbHeights = { small: 64, medium: 96, large: 144 };
+          estimatedHeight = thumbHeights[thumbSize];
+        } else {
+          estimatedHeight = Math.floor(actualCardWidth * 0.875); // 16:9 比例
+        }
         break;
       case 'grid':
         estimatedHeight = actualCardWidth; // 1:1 方形
@@ -221,7 +261,7 @@ function AssetsListContent({
       columns: calculatedColumns,
       horizontalGap: actualGap
     };
-  }, [viewMode, containerWidth, isMounted]);
+  }, [viewMode, containerWidth, isMounted, thumbSize]);
 
   // 垂直间距
   const verticalGap = 12;
@@ -548,13 +588,14 @@ function AssetsListContent({
                 cardWidth={cardWidth}
                 compactMode={getAssetCompactMode(asset.id)}
                 onCompactModeToggle={onCompactModeToggle ? () => onCompactModeToggle(asset.id) : undefined}
+                thumbSize={thumbSize}
               />
             </div>
           );
         })}
       </div>
     );
-  }, [assets, columns, cardWidth, verticalGap, horizontalGap, isSelecting, checkIntersection, selectedAssetIds, keyword, onToggleSelection, officeLocation, viewMode, getAssetCompactMode, onCompactModeToggle]);
+  }, [assets, columns, cardWidth, verticalGap, horizontalGap, isSelecting, checkIntersection, selectedAssetIds, keyword, onToggleSelection, officeLocation, viewMode, getAssetCompactMode, onCompactModeToggle, thumbSize]);
 
   const shouldRenderVirtual = scrollElement !== null && containerWidth > 0;
 
@@ -613,6 +654,7 @@ function AssetsListContent({
                 cardWidth={cardWidth}
                 compactMode={getAssetCompactMode(asset.id)}
                 onCompactModeToggle={onCompactModeToggle ? () => onCompactModeToggle(asset.id) : undefined}
+                thumbSize={thumbSize}
               />
             </div>
           );
