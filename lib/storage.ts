@@ -259,13 +259,18 @@ async function readLocalManifest(): Promise<{ assets: Asset[]; allowedTypes: str
       const manifest = ManifestSchema.parse(data);
       const parsedAssets = manifest.assets;
       
-      // 恢复原始类型（如果之前临时替换了）
+      // 恢复原始类型（如果之前临时替换了），并确保项目字段存在
       const finalAssets = parsedAssets.map((asset: any, index: number) => {
         const originalAsset = originalAssets[index];
+        let result = asset;
         if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
-          return { ...asset, type: originalAsset.type };
+          result = { ...asset, type: originalAsset.type };
         }
-        return asset;
+        // 如果项目为空或未定义，自动设置为项目A
+        if (!result.project) {
+          result = { ...result, project: '项目A' };
+        }
+        return result;
       });
       
       return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
@@ -289,13 +294,18 @@ async function readLocalManifest(): Promise<{ assets: Asset[]; allowedTypes: str
         const manifest = ManifestSchema.parse(data);
         const parsedAssets = manifest.assets;
         
-        // 恢复原始类型（如果之前临时替换了）
+        // 恢复原始类型（如果之前临时替换了），并确保项目字段存在
         const finalAssets = parsedAssets.map((asset: any, index: number) => {
           const originalAsset = originalAssets[index];
+          let result = asset;
           if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
-            return { ...asset, type: originalAsset.type };
+            result = { ...asset, type: originalAsset.type };
           }
-          return asset;
+          // 如果项目为空或未定义，自动设置为项目A
+          if (!result.project) {
+            result = { ...result, project: '项目A' };
+          }
+          return result;
         });
         
         return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
@@ -304,15 +314,23 @@ async function readLocalManifest(): Promise<{ assets: Asset[]; allowedTypes: str
       // 如果验证失败，尝试返回空数组或过滤有效数据
       console.error('Manifest数据格式验证失败:', parseError);
       if (data && Array.isArray(data.assets)) {
-        // 如果数据结构基本正确，尝试过滤有效数据
-        const validAssets = data.assets.filter((a: any) => {
-          try {
-            AssetSchema.parse(a);
-            return true;
-          } catch {
-            return false;
-          }
-        });
+        // 如果数据结构基本正确，尝试过滤有效数据，并确保项目字段存在
+        const validAssets = data.assets
+          .map((a: any) => {
+            // 如果项目为空或未定义，自动设置为项目A
+            if (!a.project) {
+              a = { ...a, project: '项目A' };
+            }
+            return a;
+          })
+          .filter((a: any) => {
+            try {
+              AssetSchema.parse(a);
+              return true;
+            } catch {
+              return false;
+            }
+          });
         return { assets: validAssets, allowedTypes: allowedTypes };
       }
       
@@ -360,18 +378,20 @@ async function readLocalManifestFull(): Promise<Manifest> {
         assetType = '其他'; // 临时替换
       }
       
-      return {
-        ...asset,
-        type: assetType,
-        tags: Array.isArray(assetTags)
-          ? assetTags
-          : typeof assetTags === 'string'
-          ? assetTags.split(',').map((t: string) => t.trim()).filter(Boolean)
-          : [],
-        // 为旧数据添加时间戳（使用当前时间作为默认值）
-        createdAt: asset.createdAt || now,
-        updatedAt: asset.updatedAt || asset.createdAt || now,
-      };
+        return {
+          ...asset,
+          type: assetType,
+          tags: Array.isArray(assetTags)
+            ? assetTags
+            : typeof assetTags === 'string'
+            ? assetTags.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : [],
+          // 为旧数据添加时间戳（使用当前时间作为默认值）
+          createdAt: asset.createdAt || now,
+          updatedAt: asset.updatedAt || asset.createdAt || now,
+          // 如果项目为空或未定义，自动设置为项目A
+          project: asset.project || '项目A',
+        };
     });
   }
   
@@ -383,13 +403,18 @@ async function readLocalManifestFull(): Promise<Manifest> {
   const manifest = ManifestSchema.parse(data);
   const parsedAssets = manifest.assets;
   
-  // 恢复原始类型（如果之前临时替换了）
+  // 恢复原始类型（如果之前临时替换了），并确保项目字段存在
   const finalAssets = parsedAssets.map((asset: any, index: number) => {
     const originalAsset = originalAssets[index];
+    let result = asset;
     if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
-      return { ...asset, type: originalAsset.type };
+      result = { ...asset, type: originalAsset.type };
     }
-    return asset;
+    // 如果项目为空或未定义，自动设置为项目A
+    if (!result.project) {
+      result = { ...result, project: '项目A' };
+    }
+    return result;
   });
   
   return { assets: finalAssets, allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES] };
@@ -478,6 +503,8 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
           // 为旧数据添加时间戳（使用当前时间作为默认值）
           createdAt: asset.createdAt || now,
           updatedAt: asset.updatedAt || asset.createdAt || now,
+          // 如果项目为空或未定义，自动设置为项目A
+          project: asset.project || '项目A',
         };
       });
     }
@@ -491,13 +518,18 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
       const manifest = ManifestSchema.parse(data);
       const parsedAssets = manifest.assets;
       
-      // 恢复原始类型（如果之前临时替换了）
+      // 恢复原始类型（如果之前临时替换了），并确保项目字段存在
       const finalAssets = parsedAssets.map((asset: any, index: number) => {
         const originalAsset = originalAssets[index];
+        let result = asset;
         if (originalAsset && originalAsset.type !== asset.type && allowedTypes.includes(originalAsset.type)) {
-          return { ...asset, type: originalAsset.type };
+          result = { ...asset, type: originalAsset.type };
         }
-        return asset;
+        // 如果项目为空或未定义，自动设置为项目A
+        if (!result.project) {
+          result = { ...result, project: '项目A' };
+        }
+        return result;
       });
 
       const manifestForCache: Manifest = {

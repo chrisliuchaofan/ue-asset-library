@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, Tags, CheckSquare, Edit } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { PROJECTS } from '@/lib/constants';
+import { PROJECTS, getAllProjects, getProjectDisplayName } from '@/lib/constants';
 import { MaterialsTagsManagementDialog } from './materials-tags-management-dialog';
 import { MaterialsBatchEditDialog } from './materials-batch-edit-dialog';
 import {
@@ -1763,9 +1763,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 onChange={(e) => setFilterProject(e.target.value || null)}
               >
                 <option value="">全部项目</option>
-                {PROJECTS.map((project) => (
+                {getAllProjects().map((project) => (
                   <option key={project} value={project}>
-                    {project}
+                    {getProjectDisplayName(project)}
                   </option>
                 ))}
               </select>
@@ -2311,9 +2311,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 required
               >
                 <option value="">请选择项目</option>
-                {PROJECTS.map((project) => (
+                {getAllProjects().map((project) => (
                   <option key={project} value={project}>
-                    {project}
+                    {getProjectDisplayName(project)}
                   </option>
                 ))}
               </select>

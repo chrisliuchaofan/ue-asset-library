@@ -10,7 +10,7 @@ import JSZip from 'jszip';
 import Papa from 'papaparse';
 import type { Asset, AssetCreateInput } from '@/data/manifest.schema';
 import { uploadFileDirect } from '@/lib/client/direct-upload';
-import { PROJECTS } from '@/lib/constants';
+import { PROJECTS, getAllProjects, getProjectDisplayName } from '@/lib/constants';
 
 interface BatchUploadDialogProps {
   open: boolean;
@@ -1276,9 +1276,9 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                 className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="">请选择项目</option>
-                {PROJECTS.map((project) => (
+                {getAllProjects().map((project) => (
                   <option key={project} value={project}>
-                    {project}
+                    {getProjectDisplayName(project)}
                   </option>
                 ))}
               </select>
@@ -1327,9 +1327,9 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
               className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">请选择项目（必填）</option>
-              {PROJECTS.map((project) => (
+              {getAllProjects().map((project) => (
                 <option key={project} value={project}>
-                  {project}
+                  {getProjectDisplayName(project)}
                 </option>
               ))}
             </select>

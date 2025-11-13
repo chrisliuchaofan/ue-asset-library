@@ -8,7 +8,7 @@ import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, FileArchive } from 
 import { BatchUploadDialog } from './batch-upload-dialog';
 import { uploadFileDirect } from '@/lib/client/direct-upload';
 import { useAdminRefresh } from './admin-refresh-context';
-import { PROJECTS } from '@/lib/constants';
+import { PROJECTS, getAllProjects, getProjectDisplayName } from '@/lib/constants';
 
 type StorageMode = 'local' | 'oss';
 
@@ -756,9 +756,9 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
                 className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="">请选择项目</option>
-                {PROJECTS.map((project) => (
+                {getAllProjects().map((project) => (
                   <option key={project} value={project}>
-                    {project}
+                    {getProjectDisplayName(project)}
                   </option>
                 ))}
               </select>
