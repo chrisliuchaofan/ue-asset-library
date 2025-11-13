@@ -11,6 +11,7 @@ import { highlightText, cn, getClientAssetUrl, getOptimizedImageUrl } from '@/li
 import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check, Maximize2, Minimize2 } from 'lucide-react';
 import { type OfficeLocation } from '@/lib/nas-utils';
 import { createPortal } from 'react-dom';
+import { AssetDetailDialog } from '@/components/asset-detail-dialog';
 
 interface AssetCardGalleryProps {
   asset: Asset;
@@ -182,6 +183,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isEnlarged, setIsEnlarged] = useState(false);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
   const [isHoveringThumbnails, setIsHoveringThumbnails] = useState(false);
   const [hoveredThumbnailIndex, setHoveredThumbnailIndex] = useState<number | null>(null);
@@ -674,9 +676,9 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      router.push(`/assets/${asset.id}`);
+      setIsDetailDialogOpen(true);
     },
-    [asset.id, router]
+    []
   );
 
   const renderActionButtons = () => {
@@ -1748,6 +1750,13 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           </div>
         </div>
       )}
+
+      {/* 资产详情弹窗 */}
+      <AssetDetailDialog
+        open={isDetailDialogOpen}
+        onOpenChange={setIsDetailDialogOpen}
+        asset={asset}
+      />
     </>
   );
 }, (prevProps, nextProps) => {

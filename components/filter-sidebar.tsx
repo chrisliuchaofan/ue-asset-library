@@ -201,7 +201,8 @@ export function FilterSidebar({
       onOptimisticFiltersChange?.(nextSnapshot);
 
       startTransition(() => {
-        router.push(`${pathname}?${params.toString()}`);
+        // 使用 replace 而不是 push，避免添加到历史记录，提升性能
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
       });
     },
     [router, pathname, searchParams, localFilters, onOptimisticFiltersChange, startTransition]
@@ -232,7 +233,8 @@ export function FilterSidebar({
     setLocalFilters(emptySnapshot);
     onOptimisticFiltersChange?.(emptySnapshot);
     startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`);
+      // 使用 replace 而不是 push，避免添加到历史记录，提升性能
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     });
   }, [onOptimisticFiltersChange, pathname, router, searchParams, startTransition]);
 
