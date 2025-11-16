@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 interface ProjectSelectorProps {
-  type?: 'assets' | 'materials';
+  type?: 'assets' | 'materials' | 'search';
 }
 
 export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
@@ -39,19 +39,19 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
   const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
 
   // 从URL参数获取当前选中的项目，如果没有则默认使用项目A（三冰）
-  const currentProject = type === 'assets' 
+  const currentProject = type === 'assets' || type === 'search'
     ? searchParams.get('projects')?.split(',')[0] || '项目A'
     : searchParams.get('project') || '项目A';
 
   // 如果URL中没有项目参数，自动设置默认项目A（三冰）
   useEffect(() => {
-    const hasProject = type === 'assets' 
+    const hasProject = type === 'assets' || type === 'search'
       ? searchParams.has('projects')
       : searchParams.has('project');
     
     if (!hasProject) {
       const params = new URLSearchParams(searchParams.toString());
-      if (type === 'assets') {
+      if (type === 'assets' || type === 'search') {
         params.set('projects', '项目A');
       } else {
         params.set('project', '项目A');
@@ -110,7 +110,7 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
         // 密码正确，切换项目
         const params = new URLSearchParams(searchParams.toString());
         
-        if (type === 'assets') {
+        if (type === 'assets' || type === 'search') {
           if (pendingProject) {
             params.set('projects', pendingProject);
           } else {
@@ -149,7 +149,7 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
         // 清除项目选择，不需要密码验证
         const params = new URLSearchParams(searchParams.toString());
         
-        if (type === 'assets') {
+        if (type === 'assets' || type === 'search') {
           params.delete('projects');
         } else {
           params.delete('project');

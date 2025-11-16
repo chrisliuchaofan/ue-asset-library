@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { Library, Box, BookOpen } from 'lucide-react';
 import clsx from 'clsx';
+import { SearchBox } from '@/components/search-box';
+import { HomeProjectSelector } from '@/components/home-project-selector';
 
 /**
  * AnimatedHero - 首页 Hero 组件
@@ -11,6 +13,7 @@ import clsx from 'clsx';
  */
 export function AnimatedHero() {
   const [mounted, setMounted] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [stars, setStars] = useState<Array<{
     id: number;
     top: string;
@@ -63,16 +66,32 @@ export function AnimatedHero() {
       <h1
         className={clsx(
           'hero-title text-5xl md:text-7xl font-extrabold tracking-[-0.02em] leading-[1.08]',
-          'relative inline-block mb-4',
+          'relative inline-block mb-6 whitespace-nowrap',
           mounted && 'hero-title-visible'
         )}
       >
         {/* Hero 专用：标题文字扫光效果 */}
-        <span className="hero-title-text relative inline-block">
+        <span className="hero-title-text relative inline-block whitespace-nowrap">
           <span className="hero-title-base">恒星资产库</span>
-          <span className="hero-title-shine">恒星资产库</span>
+          {/* 暂时禁用扫光动画，避免文字被截断 */}
+          {/* <span className="hero-title-shine">恒星资产库</span> */}
         </span>
       </h1>
+
+      {/* 搜索栏和项目选择 */}
+      <div className={clsx(
+        'w-full max-w-2xl mb-6 transition-opacity duration-500',
+        mounted ? 'opacity-100' : 'opacity-0'
+      )}>
+        <div className="flex items-center gap-3 w-full">
+          <div className="flex-1 min-w-0">
+            <SearchBox project={selectedProject} />
+          </div>
+          <div className="flex-shrink-0">
+            <HomeProjectSelector value={selectedProject || undefined} onChange={setSelectedProject} />
+          </div>
+        </div>
+      </div>
 
       {/* 按钮组 */}
       <div className="mt-4 flex items-center gap-4">

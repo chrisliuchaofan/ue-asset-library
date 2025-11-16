@@ -4,8 +4,13 @@ import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useCallback, useState, useTransition, useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 
-export function SearchBox() {
+interface SearchBoxProps {
+  project?: string | null;
+}
+
+export function SearchBox({ project }: SearchBoxProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -22,9 +27,27 @@ export function SearchBox() {
 
   const handleSearch = useCallback(
     (value: string) => {
+      const trimmedValue = value.trim();
+      
+      // 如果在主页，跳转到搜索页
+      if (pathname === '/') {
+        if (trimmedValue) {
+          const params = new URLSearchParams();
+          params.set('q', trimmedValue);
+          if (project) {
+            params.set('projects', project);
+          }
+          startTransition(() => {
+            router.push(`/search?${params.toString()}`);
+          });
+        }
+        return;
+      }
+      
+      // 在其他页面，使用原有逻辑
       const params = new URLSearchParams(searchParams.toString());
-      if (value.trim()) {
-        params.set('q', value.trim());
+      if (trimmedValue) {
+        params.set('q', trimmedValue);
       } else {
         params.delete('q');
       }
@@ -56,16 +79,24 @@ export function SearchBox() {
     prevValueRef.current = newValue;
   };
 
+  const isHomePage = pathname === '/';
+
   return (
     <div className="relative w-full max-w-xs sm:max-w-md">
-      <Search className="absolute left-2 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
+      <Search className={cn(
+        "absolute left-2 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 z-10 pointer-events-none",
+        isHomePage ? "text-white/80" : "text-muted-foreground"
+      )} />
       <Input
         type="search"
         placeholder="搜索..."
         value={searchValue}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        className="pl-8 sm:pl-10 h-8 sm:h-10 text-sm"
+        className={cn(
+          "pl-8 sm:pl-10 h-8 sm:h-10 text-sm",
+          isHomePage && "bg-white/10 backdrop-blur border-white/20 text-white placeholder:text-white/50 focus:bg-white/15 focus:border-white/30"
+        )}
         disabled={isPending}
       />
     </div>
