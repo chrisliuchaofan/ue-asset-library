@@ -205,11 +205,11 @@
 }
 
 .hero-title-base {
-  background: linear-gradient(to right, rgb(224 242 254), rgb(186 230 253), rgb(125 211 252));
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 6px rgba(135, 206, 250, 0.3));
+  color: rgb(255 255 255);
+  filter: drop-shadow(0 0 8px rgba(135, 206, 250, 0.5)) drop-shadow(0 0 12px rgba(135, 206, 250, 0.3));
+  font-family: 'Microsoft YaHei', '微软雅黑', 'PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'SimHei', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .hero-title-shine {
@@ -221,9 +221,9 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(173, 216, 230, 0.2) 25%,
+    rgba(135, 206, 250, 0.2) 25%,
     rgba(135, 206, 250, 0.3) 50%,
-    rgba(173, 216, 230, 0.2) 75%,
+    rgba(135, 206, 250, 0.2) 75%,
     transparent 100%
   );
   background-size: 200% 100%;
@@ -232,6 +232,9 @@
   -webkit-text-fill-color: transparent;
   animation: hero-title-shine 25s linear infinite;
   pointer-events: none;
+  font-family: 'Microsoft YaHei', '微软雅黑', 'PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'SimHei', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 /* Hero 专用：背景星点 */
@@ -242,21 +245,21 @@
 
 /* Hero 专用：按钮样式 */
 .hero-button {
-  /* 默认状态：深色半透明背景 + 细边框 + 轻微圆角 */
-  background-color: rgba(0, 0, 0, 0.2);
+  /* 默认状态：全透明背景 + 无边框 */
+  background-color: transparent;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(207, 224, 255, 0.4);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 1px rgba(207, 224, 255, 0.2);
+  border: none;
+  box-shadow: none;
   transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .hero-button:hover {
-  /* hover 状态：背景亮一点、边框亮一点、向上移动、增加阴影 */
+  /* hover 状态：轻微背景 + 向上移动 */
   background-color: rgba(255, 255, 255, 0.05);
-  border-color: rgba(207, 224, 255, 0.6);
+  border: none;
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 0 2px rgba(207, 224, 255, 0.3);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
 }
 
 .hero-button:active {

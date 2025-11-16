@@ -213,8 +213,13 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     offsetX?: number;
     offsetY?: number;
   } | null>(null);
+  const [mainPreviewPopover, setMainPreviewPopover] = useState<{
+    url: string;
+    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  } | null>(null);
   const [thumbnailPage, setThumbnailPage] = useState(0);
   const thumbnailRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const mainPreviewRef = useRef<HTMLDivElement | null>(null);
   const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const thumbnailVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
@@ -652,8 +657,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   );
   
   const mediaObjectClass = useMemo(
-    () => viewMode === 'grid' ? 'object-cover' : 'object-contain',
-    [viewMode]
+    () => 'object-cover', // 统一使用 object-cover 保持铺满，画面干净整洁
+    []
   );
   
   const showNavigation = useMemo(
@@ -1204,7 +1209,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                       ref={(el) => {
                         thumbnailRefs.current[idx] = el;
                       }}
-                      className="relative h-full w-full overflow-hidden"
+                      className="relative h-full w-full overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
                       onMouseEnter={() => {
                         if (hoveredThumbnailIndex !== idx) {
                           setHoveredThumbnailIndex(idx);
@@ -1311,7 +1316,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                                   src={getOptimizedImageUrl(thumbnailUrl, 240)}
                                   alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
                                   fill
-                                  className="object-cover"
+                                  className="object-cover transition-transform duration-300"
                                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                   loading="lazy"
                                   unoptimized={getOptimizedImageUrl(thumbnailUrl, 240).includes('x-oss-process=image')}
@@ -1365,6 +1370,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
             </div>
           ) : (
             <div
+              ref={(el) => { mainPreviewRef.current = el; }}
               className={cn(
                 'relative overflow-hidden cursor-pointer',
                 isOverlayMode ? 'rounded-xl' : 'rounded-t-xl', // 缩略图模式：不设置 flex；经典模式：居中
@@ -1377,8 +1383,41 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
               )}
               style={isClassic ? { height: previewAreaHeight, width: '100%' } : (isOverlayMode && viewMode === 'thumbnail' ? { minWidth: 'fit-content', minHeight: 'fit-content' } : (isOverlayMode ? { width: '100%' } : undefined))} // 缩略图模式设置 minWidth/minHeight 确保容器有尺寸
               onDoubleClick={handleDoubleClick}
-              onMouseEnter={() => setIsHoveringPreview(true)}
-              onMouseLeave={() => setIsHoveringPreview(false)}
+              onMouseEnter={() => {
+                setIsHoveringPreview(true);
+                // 为主预览图添加悬停预览（只在非网格视图时）
+                if (!isGrid && currentUrl && !currentIsVideo && mainPreviewRef.current) {
+                  const rect = mainPreviewRef.current.getBoundingClientRect();
+                  const viewportCenterX = window.innerWidth / 2;
+                  const viewportCenterY = window.innerHeight / 2;
+                  const elementCenterX = rect.left + rect.width / 2;
+                  const elementCenterY = rect.top + rect.height / 2;
+                  
+                  const isLeftOfCenter = elementCenterX < viewportCenterX;
+                  const isTopOfCenter = elementCenterY < viewportCenterY;
+                  const isTopRow = rect.top < window.innerHeight * 0.3;
+                  const isBottomRow = rect.bottom > window.innerHeight * 0.7;
+                  
+                  let position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+                  if (isTopRow) {
+                    position = isLeftOfCenter ? 'bottom-left' : 'bottom-right';
+                  } else if (isBottomRow) {
+                    position = isLeftOfCenter ? 'top-left' : 'top-right';
+                  } else {
+                    if (isLeftOfCenter) {
+                      position = isTopOfCenter ? 'bottom-left' : 'top-left';
+                    } else {
+                      position = isTopOfCenter ? 'bottom-right' : 'top-right';
+                    }
+                  }
+                  
+                  setMainPreviewPopover({ url: currentUrl, position });
+                }
+              }}
+              onMouseLeave={() => {
+                setIsHoveringPreview(false);
+                setMainPreviewPopover(null);
+              }}
               onClick={(e) => {
                 // 检查是否点击了导航按钮区域
                 const target = e.target as HTMLElement;
@@ -1425,14 +1464,13 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 alt={`${asset.name} - ${displayIndex + 1}`}
                 fill
                 className={`z-10 transition-transform duration-300 group-hover:scale-[1.02] ${
-                  isOverlayMode ? 'rounded-xl object-cover' : 'rounded-t-xl object-contain'
+                  isOverlayMode ? 'rounded-xl object-cover' : 'rounded-t-xl object-cover'
                 }`}
                 sizes={priority ? `(max-width: 768px) 100vw, ${optimizedImageWidth}px` : "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"}
                 loading={priority ? 'eager' : 'lazy'}
                 priority={priority}
                 fetchPriority={priority ? 'high' : 'auto'}
                 unoptimized={currentUrl.includes('x-oss-process=image')}
-                style={viewMode === 'thumbnail' ? { objectFit: 'contain' } : undefined}
                 onError={(e) => {
                   if (process.env.NODE_ENV !== 'production') {
                     console.error('图片加载失败:', currentUrl);
@@ -1466,6 +1504,17 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
               )}>
                 无预览
               </div>
+            )}
+            
+            {/* 主预览图悬停预览弹出框 - 显示完整内容 */}
+            {mainPreviewPopover && mainPreviewRef.current && !isGrid && (
+              <ThumbnailPreviewPopover
+                position={mainPreviewPopover.position}
+                thumbnailUrl={mainPreviewPopover.url}
+                assetName={asset.name}
+                index={displayIndex + 1}
+                elementRef={mainPreviewRef.current}
+              />
             )}
 
             {isOverlayMode && (
