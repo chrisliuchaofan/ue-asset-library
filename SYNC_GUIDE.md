@@ -5,8 +5,75 @@
 ## 📋 前提条件
 
 1. **Git 已安装**：两台电脑都需要安装 Git
-2. **SSH 密钥配置**：两台电脑都需要配置 GitHub SSH 密钥
+2. **SSH 密钥配置**：两台电脑都需要配置 GitHub SSH 密钥（见下方详细步骤）
 3. **远程仓库地址**：`git@github.com:chrisliuchaofan/ue-asset-library.git`
+
+## 🔑 配置 SSH 密钥（重要！）
+
+如果遇到 `Permission denied (publickey)` 错误，说明需要配置 SSH 密钥。
+
+### 步骤 1：检查是否已有 SSH 密钥
+
+在 Cursor 终端中执行：
+```bash
+ls -la ~/.ssh
+```
+
+如果看到 `id_rsa` 或 `id_ed25519` 文件，说明已有密钥，跳到步骤 3。
+
+### 步骤 2：生成新的 SSH 密钥
+
+在 Cursor 终端中执行（替换为你的 GitHub 邮箱）：
+```bash
+ssh-keygen -t ed25519 -C "your_email@example.com"
+```
+
+- 按回车使用默认保存位置（`~/.ssh/id_ed25519`）
+- 可以设置密码（建议设置，更安全），或直接按回车跳过
+
+### 步骤 3：将公钥添加到 GitHub
+
+1. **复制公钥内容**：
+   ```bash
+   cat ~/.ssh/id_ed25519.pub
+   ```
+   或者：
+   ```bash
+   cat ~/.ssh/id_rsa.pub
+   ```
+   复制输出的全部内容（以 `ssh-ed25519` 或 `ssh-rsa` 开头）
+
+2. **添加到 GitHub**：
+   - 打开 https://github.com/settings/keys
+   - 点击 "New SSH key"
+   - Title 填写：`MacBook-Air-3`（或任意名称）
+   - Key 粘贴刚才复制的公钥内容
+   - 点击 "Add SSH key"
+
+3. **测试连接**：
+   ```bash
+   ssh -T git@github.com
+   ```
+   如果看到 `Hi chrisliuchaofan! You've successfully authenticated...`，说明配置成功！
+
+### 步骤 4：重新克隆
+
+SSH 配置成功后，在 Cursor 中重新执行克隆操作。
+
+### 替代方案：使用 HTTPS（如果 SSH 配置困难）
+
+如果 SSH 配置遇到问题，可以使用 HTTPS 方式：
+
+1. **在 Cursor 中克隆时，使用 HTTPS 地址**：
+   ```
+   https://github.com/chrisliuchaofan/ue-asset-library.git
+   ```
+
+2. **首次推送时需要输入 GitHub 用户名和 Personal Access Token**（不是密码）
+   - 生成 Token：https://github.com/settings/tokens
+   - 点击 "Generate new token (classic)"
+   - 勾选 `repo` 权限
+   - 复制生成的 token（只显示一次，请保存好）
 
 ## 🚀 首次设置（在第二台电脑上）
 
@@ -233,7 +300,26 @@ git remote -v
 
 ## 🆘 遇到问题？
 
-### 问题 1：SSH 连接确认提示
+### 问题 1：Permission denied (publickey)
+
+**错误信息**：
+```
+git@github.com: Permission denied (publickey).
+fatal: Could not read from remote repository.
+```
+
+**解决方法**：需要配置 SSH 密钥，详见上方"🔑 配置 SSH 密钥"章节。
+
+**快速解决**：
+1. 检查是否有密钥：`ls -la ~/.ssh`
+2. 如果没有，生成密钥：`ssh-keygen -t ed25519 -C "your_email@example.com"`
+3. 复制公钥：`cat ~/.ssh/id_ed25519.pub`
+4. 添加到 GitHub：https://github.com/settings/keys
+5. 测试：`ssh -T git@github.com`
+
+**或者使用 HTTPS**：在克隆时使用 `https://github.com/chrisliuchaofan/ue-asset-library.git`
+
+### 问题 2：SSH 连接确认提示
 
 首次使用 SSH 连接 GitHub 时，会看到：
 ```
