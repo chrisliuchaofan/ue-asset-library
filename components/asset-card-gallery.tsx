@@ -1166,7 +1166,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
       >
         <Card
           className={cn(
-            "group relative flex flex-col rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition hover:shadow-lg dark:border-white/[0.08] dark:bg-white/[0.04]",
+            "group relative flex flex-col rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02] dark:border-white/[0.08] dark:bg-white/[0.04]",
             isClassic ? "overflow-hidden" : "overflow-visible",
             // 在缩略图模式下，Card 宽度由 thumbSizeClass 控制
             viewMode === 'thumbnail' && thumbSizeClass[thumbSize]
@@ -1372,7 +1372,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
             <div
               ref={(el) => { mainPreviewRef.current = el; }}
               className={cn(
-                'relative overflow-hidden cursor-pointer',
+                'relative overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-[1.02]',
                 isOverlayMode ? 'rounded-xl' : 'rounded-t-xl', // 缩略图模式：不设置 flex；经典模式：居中
                 previewBackgroundClass,
                 !isClassic && !isOverlayMode && previewAspectClass, // 非经典模式且非缩略图模式使用aspect类
