@@ -327,7 +327,7 @@ Are you sure you want to continue connecting (yes/no/[fingerprint])?
 ```
 **解决方法**：输入 `yes` 并按回车确认。
 
-### 问题 2：推送被拒绝
+### 问题 3：推送被拒绝
 
 如果看到 "Updates were rejected"，说明远程有新的提交：
 
@@ -338,7 +338,7 @@ git pull origin main
 git push origin main
 ```
 
-### 问题 3：忘记拉取就开始工作
+### 问题 4：忘记拉取就开始工作
 
 如果已经做了一些更改，但忘记先拉取：
 
@@ -355,7 +355,7 @@ git stash pop
 # 如果有冲突，解决后提交
 ```
 
-### 问题 4：想查看远程有什么新提交
+### 问题 5：想查看远程有什么新提交
 
 ```bash
 # 查看远程更新（不合并）
