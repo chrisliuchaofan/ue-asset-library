@@ -336,6 +336,65 @@ git diff            # 查看未提交的更改
 - [ ] 已推送到远程：`git push origin main` 成功
 - [ ] 在另一台电脑上已拉取：`git pull origin main` 成功
 
+## ✅ 检查版本一致性
+
+### 方法 1：使用检查脚本（最简单 ⭐）
+
+在**两台电脑上**分别运行：
+
+```bash
+./scripts/check-sync-status.sh
+```
+
+脚本会显示：
+- ✅ 本地版本与远程版本是否一致
+- 📌 当前提交哈希和提交信息
+- ⚠️ 是否有未提交的更改
+- 📊 本地和远程的差异详情
+
+**判断标准**：如果两台电脑显示的"提交哈希"相同，说明版本一致！
+
+### 方法 2：手动检查
+
+**在每台电脑上执行：**
+
+```bash
+# 查看当前提交哈希（短版本）
+git rev-parse --short HEAD
+
+# 查看当前提交信息
+git log -1 --oneline
+
+# 查看远程最新提交哈希
+git fetch origin
+git rev-parse --short origin/main
+
+# 比较本地和远程
+git log --oneline -1 HEAD
+git log --oneline -1 origin/main
+```
+
+**判断标准**：
+- 如果两台电脑的 `git rev-parse --short HEAD` 输出相同 → ✅ 版本一致
+- 如果不同 → ⚠️ 需要同步
+
+### 方法 3：在 Cursor 中查看
+
+1. 打开源代码管理面板（`Ctrl + Shift + G`）
+2. 查看底部状态栏，会显示当前分支和提交信息
+3. 点击提交信息，可以看到完整的提交哈希
+4. 在另一台电脑上查看相同的提交哈希即可确认
+
+### 快速对比命令
+
+如果想快速对比两台电脑的版本，可以在每台电脑上运行：
+
+```bash
+echo "当前版本: $(git rev-parse --short HEAD) - $(git log -1 --pretty=format:'%s')"
+```
+
+然后比较两台电脑的输出结果。
+
 ## 🔧 常用命令速查
 
 ```bash
