@@ -202,22 +202,32 @@
 .hero-title-text {
   position: relative;
   display: inline-block;
+  width: 100%;
+  min-width: max-content;
 }
 
 .hero-title-base {
+  position: relative;
+  z-index: 2;
   color: rgb(255 255 255);
   filter: drop-shadow(0 0 8px rgba(135, 206, 250, 0.5)) drop-shadow(0 0 12px rgba(135, 206, 250, 0.3));
   font-family: 'Microsoft YaHei', '微软雅黑', 'PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'SimHei', sans-serif;
   font-weight: 700;
   letter-spacing: -0.02em;
+  display: inline-block;
+  /* 确保文字完整显示，不被截断 */
+  white-space: nowrap;
+  width: auto;
+  min-width: 100%;
 }
 
 .hero-title-shine {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
   background: linear-gradient(
     90deg,
     transparent 0%,
@@ -235,6 +245,12 @@
   font-family: 'Microsoft YaHei', '微软雅黑', 'PingFang SC', 'Hiragino Sans GB', 'STHeiti', 'SimHei', sans-serif;
   font-weight: 700;
   letter-spacing: -0.02em;
+  mix-blend-mode: screen;
+  opacity: 0.25;
+  /* 确保文字内容完整显示 */
+  white-space: nowrap;
+  width: auto;
+  min-width: 100%;
 }
 
 /* Hero 专用：背景星点 */
