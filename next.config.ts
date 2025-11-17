@@ -129,6 +129,16 @@ const nextConfig: NextConfig = {
     return config;
   },
   
+  // 重定向 favicon.ico 到 icon.svg
+  async rewrites() {
+    return [
+      {
+        source: '/favicon.ico',
+        destination: '/icon.svg',
+      },
+    ];
+  },
+  
   // 优化 HTTP 头
   async headers() {
     return [
