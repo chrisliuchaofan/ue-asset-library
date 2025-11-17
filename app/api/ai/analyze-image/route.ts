@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+// 强制动态路由，确保 API 路由在 Vercel 上正确部署
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // 请求参数验证 Schema
 const AnalyzeImageRequestSchema = z.object({
   imageUrl: z.string().url('图片 URL 格式不正确').optional(),
