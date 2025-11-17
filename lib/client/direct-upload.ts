@@ -84,14 +84,28 @@ export async function uploadFileDirect(
       let lastProgressTime = Date.now();
       let hasProgress = false;
       
-      // 设置超时（30秒）
-      const timeout = 30000;
+      // 根据文件大小动态计算超时时间
+      // 假设最低上传速度为 100KB/s，至少保留 60 秒基础超时
+      // 对于大文件，按 100KB/s 计算所需时间，再加上 60 秒缓冲
+      const minTimeout = 60000; // 最小 60 秒
+      const estimatedSpeed = 100 * 1024; // 100KB/s
+      const estimatedTime = Math.ceil(file.size / estimatedSpeed);
+      const timeout = Math.max(minTimeout, estimatedTime * 1000 + 60000); // 计算时间 + 60秒缓冲
+      
+      // 最大超时时间限制为 10 分钟（600秒），避免无限等待
+      const maxTimeout = 600000; // 10 分钟
+      const finalTimeout = Math.min(timeout, maxTimeout);
+      
+      // 检查是否有进度更新的超时（如果长时间没有进度更新，可能是网络问题）
+      const progressTimeout = 120000; // 2 分钟无进度更新则超时
+      let progressTimeoutId: NodeJS.Timeout | null = null;
+      
       const timeoutId = setTimeout(() => {
-        if (!hasProgress && Date.now() - uploadStartTime > timeout) {
+        if (!hasProgress) {
           xhr.abort();
-          reject(new Error(`上传失败：超时（${timeout / 1000}秒内无响应）`));
+          reject(new Error(`上传失败：超时（${finalTimeout / 1000}秒内无响应）`));
         }
-      }, timeout);
+      }, finalTimeout);
       
       if (options.signal) {
         options.signal.addEventListener(
@@ -106,9 +120,28 @@ export async function uploadFileDirect(
       }
 
       if (options.onProgress) {
+        // 初始化进度超时检查
+        const resetProgressTimeout = () => {
+          if (progressTimeoutId) {
+            clearTimeout(progressTimeoutId);
+          }
+          // 如果 2 分钟内没有新的进度更新，认为上传卡住了
+          progressTimeoutId = setTimeout(() => {
+            xhr.abort();
+            reject(new Error(`上传失败：上传进度停滞超过 ${progressTimeout / 1000} 秒`));
+          }, progressTimeout);
+        };
+        
+        // 初始设置进度超时检查
+        resetProgressTimeout();
+        
         xhr.upload.addEventListener('progress', (event) => {
           hasProgress = true;
           lastProgressTime = Date.now();
+          
+          // 重置进度超时检查（每次有进度更新时重置计时器）
+          resetProgressTimeout();
+          
           if (event.lengthComputable) {
             const percent = Math.round((event.loaded / event.total) * 100);
             options.onProgress?.(percent);
@@ -118,6 +151,7 @@ export async function uploadFileDirect(
 
       xhr.onerror = () => {
         clearTimeout(timeoutId);
+        if (progressTimeoutId) clearTimeout(progressTimeoutId);
         const errorDetails = {
           status: xhr.status,
           statusText: xhr.statusText,
@@ -132,16 +166,19 @@ export async function uploadFileDirect(
       
       xhr.onabort = () => {
         clearTimeout(timeoutId);
+        if (progressTimeoutId) clearTimeout(progressTimeoutId);
         reject(new DOMException('上传已取消', 'AbortError'));
       };
       
       xhr.ontimeout = () => {
         clearTimeout(timeoutId);
-        reject(new Error(`上传失败：请求超时（${timeout / 1000}秒）`));
+        if (progressTimeoutId) clearTimeout(progressTimeoutId);
+        reject(new Error(`上传失败：请求超时（${finalTimeout / 1000}秒）`));
       };
       
       xhr.onload = () => {
         clearTimeout(timeoutId);
+        if (progressTimeoutId) clearTimeout(progressTimeoutId);
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve();
         } else {
@@ -158,17 +195,20 @@ export async function uploadFileDirect(
 
       try {
         xhr.open('POST', config.uploadUrl);
-        // 设置超时
-        xhr.timeout = timeout;
+        // 设置超时（使用动态计算的超时时间）
+        xhr.timeout = finalTimeout;
         console.log('[直接上传] 开始上传到OSS:', {
           uploadUrl: config.uploadUrl,
           fileName: file.name,
           fileSize: file.size,
           fileType: file.type,
+          timeout: `${finalTimeout / 1000}秒`,
         });
         xhr.send(formData);
+        uploadStartTime = Date.now();
       } catch (error) {
         clearTimeout(timeoutId);
+        if (progressTimeoutId) clearTimeout(progressTimeoutId);
         console.error('[直接上传] 发送请求失败:', error);
         reject(new Error(`上传失败：发送请求时出错 - ${error instanceof Error ? error.message : String(error)}`));
       }

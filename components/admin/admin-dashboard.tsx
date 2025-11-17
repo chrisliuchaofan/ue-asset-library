@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, FileArchive, Tags, CheckSquare, ImageIcon, MoreVertical, Edit, Copy, Check } from 'lucide-react';
+import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, FileArchive, Tags, CheckSquare, ImageIcon, MoreVertical, Edit, Copy, Check, Sparkles, ThumbsUp } from 'lucide-react';
 import { BatchUploadDialog } from './batch-upload-dialog';
 import { TagsManagementDialog } from './tags-management-dialog';
 import { BatchEditDialog } from './batch-edit-dialog';
@@ -76,6 +76,7 @@ interface FormState {
   project: string; // 项目
   style: string; // 风格：逗号分隔的字符串
   tags: string; // 标签：逗号分隔的字符串
+  description: string; // 描述
   source: string; // 来源
   engineVersion: string; // 版本
   guangzhouNas: string; // 广州NAS路径
@@ -95,6 +96,7 @@ const initialFormState: FormState = {
   project: '',
   style: '',
   tags: '',
+  description: '',
   source: '',
   engineVersion: '',
   guangzhouNas: '',
@@ -137,6 +139,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
   const [filterProject, setFilterProject] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('');
   const [filterTag, setFilterTag] = useState<string>('');
+  const [filterRecommended, setFilterRecommended] = useState<boolean | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
   const ITEMS_PER_PAGE = 12;
@@ -163,6 +166,16 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const [allowedTypes, setAllowedTypes] = useState<string[]>([...DEFAULT_ASSET_TYPES]); // 允许的资产类型列表（动态获取）
   const [showPaths, setShowPaths] = useState(false);
+  
+  // AI 推荐标签相关状态（主表单）
+  const [aiRecommendedTags, setAiRecommendedTags] = useState<string[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  
+  // AI 推荐标签相关状态（编辑对话框）
+  const [editDialogAiRecommendedTags, setEditDialogAiRecommendedTags] = useState<string[]>([]);
+  const [editDialogAiLoading, setEditDialogAiLoading] = useState(false);
+  const [editDialogAiError, setEditDialogAiError] = useState<string | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<(typeof ASSET_COLUMNS)[number]['id'], number>>(() =>
     ASSET_COLUMNS.reduce((acc, column) => {
       acc[column.id] = column.defaultWidth;
@@ -202,7 +215,9 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.allowedTypes) && data.allowedTypes.length > 0) {
-          setAllowedTypes(data.allowedTypes);
+          // 合并默认类型和从API获取的类型，去重
+          const allTypes = [...new Set([...DEFAULT_ASSET_TYPES, ...data.allowedTypes])];
+          setAllowedTypes(allTypes);
           return;
         }
       }
@@ -232,6 +247,8 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
     setPreviewUrls([]);
     setCurrentPreviewIndex(0);
     setUploadedFiles([]);
+    setAiRecommendedTags([]);
+    setAiError(null);
   }, []);
 
   // 计算文件 hash（用于唯一性检查）
@@ -396,6 +413,133 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
     []
   );
 
+  /**
+   * 从视频中提取多帧（最多6帧，平均分布）
+   */
+  const extractVideoFrames = useCallback(
+    async (videoFile: File, frameCount: number = 6): Promise<string[]> => {
+      return new Promise((resolve) => {
+        const video = document.createElement('video');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          resolve([]);
+          return;
+        }
+
+        const frames: string[] = [];
+        let duration = 0;
+
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => {
+          duration = video.duration;
+          
+          if (duration <= 0 || !isFinite(duration)) {
+            // 如果无法获取时长，只提取第一帧
+            video.currentTime = 0.1;
+            const onSeekedFirst = () => {
+              try {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                canvas.toBlob(
+                  (blob) => {
+                    if (blob) {
+                      const url = URL.createObjectURL(blob);
+                      frames.push(url);
+                    }
+                    resolve(frames);
+                  },
+                  'image/jpeg',
+                  0.8
+                );
+              } catch (error) {
+                console.warn('提取视频第一帧失败:', error);
+                resolve(frames);
+              }
+            };
+            video.addEventListener('seeked', onSeekedFirst, { once: true });
+            return;
+          }
+
+          // 计算每帧的时间点（平均分布）
+          // 确保至少提取1帧，最多提取frameCount帧
+          const actualFrameCount = Math.max(1, Math.min(frameCount, Math.ceil(duration)));
+          const interval = duration / (actualFrameCount + 1);
+
+          let extractedCount = 0;
+          let currentFrameIndex = 0;
+
+          const extractFrame = (index: number) => {
+            if (index >= actualFrameCount) {
+              resolve(frames);
+              return;
+            }
+
+            const time = interval * (index + 1);
+            video.currentTime = Math.min(time, duration - 0.1);
+
+            const onSeeked = () => {
+              try {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                canvas.toBlob(
+                  (blob) => {
+                    if (blob) {
+                      const url = URL.createObjectURL(blob);
+                      frames.push(url);
+                      extractedCount++;
+                      
+                      if (extractedCount < actualFrameCount) {
+                        currentFrameIndex++;
+                        extractFrame(currentFrameIndex);
+                      } else {
+                        video.removeEventListener('seeked', onSeeked);
+                        resolve(frames);
+                      }
+                    } else {
+                      video.removeEventListener('seeked', onSeeked);
+                      if (extractedCount < actualFrameCount) {
+                        currentFrameIndex++;
+                        extractFrame(currentFrameIndex);
+                      } else {
+                        resolve(frames);
+                      }
+                    }
+                  },
+                  'image/jpeg',
+                  0.8
+                );
+              } catch (error) {
+                console.warn('提取视频帧失败:', error);
+                video.removeEventListener('seeked', onSeeked);
+                if (extractedCount < actualFrameCount) {
+                  currentFrameIndex++;
+                  extractFrame(currentFrameIndex);
+                } else {
+                  resolve(frames);
+                }
+              }
+            };
+
+            video.addEventListener('seeked', onSeeked, { once: true });
+          };
+
+          extractFrame(0);
+        };
+
+        video.onerror = () => {
+          resolve(frames.length > 0 ? frames : []);
+        };
+
+        video.src = URL.createObjectURL(videoFile);
+      });
+    },
+    []
+  );
+
   const handleInputChange =
     (field: keyof FormState) => (event: ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({
@@ -403,6 +547,338 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       [field]: event.target.value,
     }));
   };
+
+  /**
+   * 获取完整的图片 URL（用于 AI 分析）- 主表单
+   * 优先使用当前选中的预览图
+   */
+  const getImageUrlForAI = useCallback((): string | null => {
+    // 优先使用当前选中的预览图
+    if (previewUrls.length > 0 && previewUrls[currentPreviewIndex]) {
+      const selectedUrl = previewUrls[currentPreviewIndex];
+      // 如果是 blob URL（视频抽帧生成的），直接返回
+      if (selectedUrl.startsWith('blob:')) {
+        return selectedUrl;
+      }
+      // 如果是完整 URL
+      if (selectedUrl.startsWith('http')) {
+        return selectedUrl;
+      }
+      // 如果是相对路径，拼接 CDN base
+      if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+        return `${normalizedCdnBase.replace(/\/+$/, '')}${selectedUrl}`;
+      }
+      return selectedUrl;
+    }
+    
+    // 如果没有预览图，使用 thumbnail
+    if (form.thumbnail) {
+      if (form.thumbnail.startsWith('http') || form.thumbnail.startsWith('blob:')) {
+        return form.thumbnail;
+      }
+      if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+        return `${normalizedCdnBase.replace(/\/+$/, '')}${form.thumbnail}`;
+      }
+      return form.thumbnail;
+    }
+    
+    return null;
+  }, [previewUrls, currentPreviewIndex, form.thumbnail, storageMode, normalizedCdnBase]);
+
+  /**
+   * 获取完整的图片 URL（用于 AI 分析）- 编辑对话框
+   */
+  const getEditDialogImageUrlForAI = useCallback((): string | null => {
+    if (!editingAssetInDialog) return null;
+    
+    // 优先使用 thumbnail
+    const thumbnail = editingAssetInDialog.thumbnail;
+    if (thumbnail) {
+      if (thumbnail.startsWith('http')) {
+        return thumbnail;
+      }
+      if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+        return `${normalizedCdnBase.replace(/\/+$/, '')}${thumbnail}`;
+      }
+      return thumbnail;
+    }
+    
+    // 如果没有 thumbnail，使用 src
+    const src = editingAssetInDialog.src;
+    if (src) {
+      if (src.startsWith('http')) {
+        return src;
+      }
+      if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+        return `${normalizedCdnBase.replace(/\/+$/, '')}${src}`;
+      }
+      return src;
+    }
+    
+    return null;
+  }, [editingAssetInDialog, storageMode, normalizedCdnBase]);
+
+  /**
+   * 将 blob URL 转换为 base64
+   */
+  const blobUrlToBase64 = useCallback(async (blobUrl: string): Promise<string> => {
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
+  /**
+   * 将 blob URL 转换为 File 对象并上传
+   */
+  const uploadBlobUrl = useCallback(async (blobUrl: string, fileName: string = 'thumbnail.jpg'): Promise<string> => {
+    try {
+      // 获取 blob
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      
+      // 转换为 File 对象
+      const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+      
+      // 上传文件
+      if (storageMode === 'oss') {
+        const directResult = await uploadFileDirect(file, {});
+        return directResult.fileUrl;
+      } else {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('上传预览图失败');
+        }
+        
+        const uploadData = await uploadResponse.json();
+        return uploadData.url;
+      }
+    } catch (error) {
+      console.error('上传 blob URL 失败:', error);
+      throw error;
+    }
+  }, [storageMode]);
+
+  /**
+   * 调用 AI 分析接口获取推荐标签 - 主表单
+   */
+  const handleAIGenerateTags = useCallback(async () => {
+    const imageUrl = getImageUrlForAI();
+    
+    if (!imageUrl) {
+      setAiError('请先选择并上传预览图');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+    setAiRecommendedTags([]);
+
+    try {
+      // 如果是 blob URL，需要转换为 base64
+      let finalImageUrl = imageUrl;
+      if (imageUrl.startsWith('blob:')) {
+        const base64 = await blobUrlToBase64(imageUrl);
+        finalImageUrl = base64;
+      }
+
+      // 从 localStorage 读取自定义提示词
+      const customPrompt = typeof window !== 'undefined' ? localStorage.getItem('ai_image_prompt') : null;
+      
+      const response = await fetch('/api/ai/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          imageUrl: finalImageUrl.startsWith('data:') ? undefined : finalImageUrl,
+          imageBase64: finalImageUrl.startsWith('data:') ? finalImageUrl : undefined,
+          customPrompt: customPrompt || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'AI 分析失败');
+      }
+
+      const data = await response.json();
+      
+      // 检查是否有错误
+      if (data.raw?.error) {
+        throw new Error(data.raw.error || 'AI 分析失败');
+      }
+
+      // 提取标签和描述
+      const tags = Array.isArray(data.tags) ? data.tags.filter((tag: string) => tag && tag.trim()) : [];
+      const description = data.description || '';
+      
+      if (tags.length === 0 && !description) {
+        setAiError('AI 未能生成标签或描述，请稍后重试');
+      } else {
+        setAiRecommendedTags(tags);
+        // 如果AI生成了描述，自动填充到表单（如果描述字段为空）
+        if (description && !form.description.trim()) {
+          setForm((prev) => ({ ...prev, description }));
+        }
+      }
+    } catch (error) {
+      console.error('AI 分析失败:', error);
+      setAiError(error instanceof Error ? error.message : 'AI 分析失败，请稍后重试');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [getImageUrlForAI, blobUrlToBase64]);
+
+  /**
+   * 调用 AI 分析接口获取推荐标签 - 编辑对话框
+   */
+  const handleEditDialogAIGenerateTags = useCallback(async () => {
+    const imageUrl = getEditDialogImageUrlForAI();
+    
+    if (!imageUrl) {
+      setEditDialogAiError('请先选择并上传预览图');
+      return;
+    }
+
+    setEditDialogAiLoading(true);
+    setEditDialogAiError(null);
+    setEditDialogAiRecommendedTags([]);
+
+    try {
+      // 从 localStorage 读取自定义提示词
+      const customPrompt = typeof window !== 'undefined' ? localStorage.getItem('ai_image_prompt') : null;
+      
+      const response = await fetch('/api/ai/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          imageUrl,
+          customPrompt: customPrompt || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'AI 分析失败');
+      }
+
+      const data = await response.json();
+      
+      // 检查是否有错误
+      if (data.raw?.error) {
+        throw new Error(data.raw.error || 'AI 分析失败');
+      }
+
+      // 提取标签和描述
+      const tags = Array.isArray(data.tags) ? data.tags.filter((tag: string) => tag && tag.trim()) : [];
+      const description = data.description || '';
+      
+      if (tags.length === 0 && !description) {
+        setEditDialogAiError('AI 未能生成标签或描述，请稍后重试');
+      } else {
+        setEditDialogAiRecommendedTags(tags);
+        // 如果AI生成了描述，自动填充到编辑对话框（如果描述字段为空）
+        if (description && editingAssetInDialog && !editingAssetInDialog.description?.trim()) {
+          setEditingAssetInDialog((prev) => prev ? ({ ...prev, description }) : null);
+        }
+      }
+    } catch (error) {
+      console.error('AI 分析失败:', error);
+      setEditDialogAiError(error instanceof Error ? error.message : 'AI 分析失败，请稍后重试');
+    } finally {
+      setEditDialogAiLoading(false);
+    }
+  }, [getEditDialogImageUrlForAI]);
+
+  /**
+   * 切换推荐标签的选中状态（添加到 tags 或从 tags 中移除）- 主表单
+   */
+  const handleToggleRecommendedTag = useCallback((tag: string) => {
+    const currentTags = form.tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    
+    const tagIndex = currentTags.indexOf(tag);
+    
+    if (tagIndex >= 0) {
+      // 如果已存在，则移除
+      currentTags.splice(tagIndex, 1);
+    } else {
+      // 如果不存在，则添加
+      currentTags.push(tag);
+    }
+    
+    setForm((prev) => ({
+      ...prev,
+      tags: currentTags.join(', '),
+    }));
+  }, [form.tags]);
+
+  /**
+   * 切换推荐标签的选中状态（添加到 tags 或从 tags 中移除）- 编辑对话框
+   */
+  const handleEditDialogToggleRecommendedTag = useCallback((tag: string) => {
+    if (!editingAssetInDialog) return;
+    
+    const currentTags = Array.isArray(editingAssetInDialog.tags)
+      ? [...editingAssetInDialog.tags]
+      : (typeof editingAssetInDialog.tags === 'string' ? editingAssetInDialog.tags : '').split(',').map((t: string) => t.trim()).filter(Boolean);
+    
+    const tagIndex = currentTags.indexOf(tag);
+    
+    if (tagIndex >= 0) {
+      // 如果已存在，则移除
+      currentTags.splice(tagIndex, 1);
+    } else {
+      // 如果不存在，则添加
+      currentTags.push(tag);
+    }
+    
+    setEditingAssetInDialog({
+      ...editingAssetInDialog,
+      tags: currentTags,
+    });
+  }, [editingAssetInDialog]);
+
+  /**
+   * 检查推荐标签是否已被选中 - 主表单
+   */
+  const isRecommendedTagSelected = useCallback((tag: string) => {
+    const currentTags = form.tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    return currentTags.includes(tag);
+  }, [form.tags]);
+
+  /**
+   * 检查推荐标签是否已被选中 - 编辑对话框
+   */
+  const isEditDialogRecommendedTagSelected = useCallback((tag: string) => {
+    if (!editingAssetInDialog) return false;
+    const currentTags = Array.isArray(editingAssetInDialog.tags)
+      ? editingAssetInDialog.tags
+      : (typeof editingAssetInDialog.tags === 'string' ? editingAssetInDialog.tags : '').split(',').map((t: string) => t.trim()).filter(Boolean);
+    return currentTags.includes(tag);
+  }, [editingAssetInDialog]);
 
   const refreshAssets = useCallback(async () => {
     const response = await fetch('/api/assets', { cache: 'no-store' });
@@ -558,6 +1034,14 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       const mainFileHash = mainFile?.hash;
       const mainFileSize = mainFile?.fileSize || mainFile?.size;
 
+      // 如果 thumbnail 是 blob URL，需要先上传
+      let finalThumbnail = form.thumbnail;
+      if (form.thumbnail && form.thumbnail.startsWith('blob:')) {
+        setMessage('正在上传预览图...');
+        const thumbnailFileName = `${form.name.trim()}_thumbnail_${Date.now()}.jpg`;
+        finalThumbnail = await uploadBlobUrl(form.thumbnail, thumbnailFileName);
+      }
+
       const payload = {
         name: form.name.trim(),
         type: form.type,
@@ -567,11 +1051,12 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
           .split(',')
           .map((tag) => tag.trim())
           .filter(Boolean),
+        description: form.description.trim() || undefined,
         source: form.source.trim(),
         engineVersion: form.engineVersion.trim(),
         guangzhouNas: form.guangzhouNas.trim() || undefined,
         shenzhenNas: form.shenzhenNas.trim() || undefined,
-        thumbnail: form.thumbnail || undefined,
+        thumbnail: finalThumbnail || undefined,
         src: form.src || undefined,
         gallery: form.gallery
           ? form.gallery
@@ -679,6 +1164,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       name: asset.name,
       type: asset.type,
       project: asset.project || '',
+      description: asset.description || '',
       style: styleValue,
       tags: asset.tags.join(', '),
       source: asset.source || '',
@@ -872,6 +1358,14 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       // 确保类型已trim
       const assetType = form.type.trim();
 
+      // 如果 thumbnail 是 blob URL，需要先上传
+      let finalThumbnail = form.thumbnail;
+      if (form.thumbnail && form.thumbnail.startsWith('blob:')) {
+        setMessage('正在上传预览图...');
+        const thumbnailFileName = `${form.name.trim()}_thumbnail_${Date.now()}.jpg`;
+        finalThumbnail = await uploadBlobUrl(form.thumbnail, thumbnailFileName);
+      }
+
       const payload = {
         id: editingAssetId,
         name: form.name.trim(),
@@ -882,11 +1376,12 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
           .split(',')
           .map((tag) => tag.trim())
           .filter(Boolean),
+        description: form.description.trim() || undefined,
         source: form.source.trim(),
         engineVersion: form.engineVersion.trim(),
         guangzhouNas: form.guangzhouNas.trim() || undefined,
         shenzhenNas: form.shenzhenNas.trim() || undefined,
-        thumbnail: form.thumbnail || undefined,
+        thumbnail: finalThumbnail || undefined,
         src: form.src || undefined,
         gallery: form.gallery
           ? form.gallery
@@ -1092,12 +1587,26 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
         }
       }
       
-      // 如果是视频，提取缩略图
+      // 如果是视频，提取多帧
       let thumbnailUrl = previewUrl;
+      let videoFrames: string[] = [];
+      
       if (data.type === 'video') {
-        const thumb = await extractVideoThumbnail(file);
-        if (thumb) {
-          thumbnailUrl = thumb;
+        // 提取视频的6帧
+        console.log('开始提取视频帧...');
+        const frames = await extractVideoFrames(file, 6);
+        console.log('视频帧提取完成，共', frames.length, '帧');
+        if (frames.length > 0) {
+          videoFrames = frames;
+          thumbnailUrl = frames[0]; // 使用第一帧作为默认缩略图
+        } else {
+          // 如果提取失败，回退到单帧提取
+          console.log('视频帧提取失败，回退到单帧提取');
+          const thumb = await extractVideoThumbnail(file);
+          if (thumb) {
+            thumbnailUrl = thumb;
+            videoFrames = [thumb];
+          }
         }
       }
 
@@ -1116,7 +1625,45 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       
       setUploadedFiles((prev) => {
         const updated = [...prev, newFile];
-        updateFormFromUploadedFiles(updated);
+        
+        // 如果是视频且提取了多帧，更新预览图列表
+        if (data.type === 'video' && videoFrames.length > 0) {
+          // 先设置预览图（视频抽帧生成的 blob URL）
+          setPreviewUrls((prevUrls) => {
+            // 如果是第一个文件，直接设置；否则追加
+            if (prev.length === 0) {
+              return videoFrames;
+            } else {
+              return [...prevUrls, ...videoFrames];
+            }
+          });
+          setCurrentPreviewIndex(0); // 默认选中第一帧
+          
+          // 更新表单，但不覆盖 previewUrls（因为视频抽帧的预览图已经设置好了）
+          const firstFile = updated[0];
+          const galleryUrls = updated.map((f) => f.url);
+          
+          setForm((prevForm) => {
+            // 视频抽帧时，默认使用第一帧作为预览图
+            const finalThumbnail = thumbnailUrl || prevForm.thumbnail;
+            const finalSrc = firstFile.url || finalThumbnail;
+            
+            return {
+              ...prevForm,
+              name: prevForm.name || firstFile.originalName.replace(/\.[^/.]+$/, ''),
+              src: finalSrc,
+              thumbnail: finalThumbnail, // 使用视频抽帧的第一帧作为默认预览图
+              gallery: galleryUrls.join(','),
+              width: firstFile.width ? String(firstFile.width) : prevForm.width,
+              height: firstFile.height ? String(firstFile.height) : prevForm.height,
+              filesize: firstFile.size ? String(firstFile.size) : prevForm.filesize,
+            };
+          });
+        } else {
+          // 非视频文件，使用原来的逻辑
+          updateFormFromUploadedFiles(updated);
+        }
+        
         return updated;
       });
 
@@ -1154,7 +1701,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
         fileInputRef.current.value = '';
       }
     }
-  }, [storageMode, normalizedCdnBase, uploadedFiles, checkFileExists, calculateFileHash, updateFormFromUploadedFiles, extractVideoThumbnail]);
+  }, [storageMode, normalizedCdnBase, uploadedFiles, checkFileExists, calculateFileHash, updateFormFromUploadedFiles, extractVideoThumbnail, extractVideoFrames]);
 
   const handleFileSelect = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -1409,6 +1956,10 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       filtered = filtered.filter((asset) => asset.tags.includes(filterTag));
     }
 
+    if (filterRecommended !== null) {
+      filtered = filtered.filter((asset) => (asset.recommended ?? false) === filterRecommended);
+    }
+
     let sorted = [...filtered];
     if (sortKey) {
       sorted = sorted.sort((a, b) => {
@@ -1427,7 +1978,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
     }
 
     return sorted;
-  }, [assets, filterProject, searchKeyword, filterType, filterTag, sortKey, sortDirection, nameCollator]);
+  }, [assets, filterProject, searchKeyword, filterType, filterTag, filterRecommended, sortKey, sortDirection, nameCollator]);
 
   // 分页显示（每页显示12条）
   const totalPages = useMemo(() => {
@@ -1443,7 +1994,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
   // 当筛选条件变化时，重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchKeyword, filterProject, filterType, filterTag]);
+  }, [searchKeyword, filterProject, filterType, filterTag, filterRecommended]);
 
   // 预览图悬停状态
   const [hoveredPreview, setHoveredPreview] = useState<{
@@ -1856,9 +2407,55 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       case 'actions':
         return (
           <div className="flex h-[56px] items-center gap-1.5">
-                          <Button
+            {/* 推荐按钮 */}
+            <Button
               size="icon"
-                            variant="ghost"
+              variant="ghost"
+              className={cn(
+                "h-7 w-7 transition-colors",
+                asset.recommended 
+                  ? "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" 
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              )}
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  setLoading(true);
+                  const response = await fetch(`/api/assets/${asset.id}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      id: asset.id,
+                      recommended: !asset.recommended,
+                    }),
+                  });
+                  
+                  if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || '更新推荐状态失败');
+                  }
+                  
+                  await refreshAssets();
+                  setMessage(asset.recommended ? '已取消推荐' : '已设为推荐');
+                } catch (error) {
+                  console.error(error);
+                  setMessage(error instanceof Error ? error.message : '更新推荐状态失败');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              title={asset.recommended ? '取消推荐' : '设为推荐'}
+            >
+              <ThumbsUp className={cn("h-4 w-4", asset.recommended && "fill-current")} />
+              <span className="sr-only">{asset.recommended ? '取消推荐' : '设为推荐'}</span>
+            </Button>
+            {/* 编辑按钮 */}
+            <Button
+              size="icon"
+              variant="ghost"
               className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               onClick={(e) => {
                 e.stopPropagation();
@@ -1898,12 +2495,12 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 setEditDialogUploadedFiles(allMediaFiles);
                 setEditDialogOpen(true);
               }}
-                            disabled={loading}
+              disabled={loading}
               title="编辑资产"
-                          >
+            >
               <Edit className="h-4 w-4" />
               <span className="sr-only">编辑</span>
-                          </Button>
+            </Button>
                           <Button
               size="icon"
                             variant="ghost"
@@ -2231,6 +2828,21 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => setFilterRecommended(filterRecommended === true ? null : true)}
+                className={cn(
+                  "h-9 rounded border px-3 text-sm transition",
+                  filterRecommended === true
+                    ? 'border-yellow-500 bg-yellow-50 text-yellow-700'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                )}
+              >
+                <div className="flex items-center gap-1.5">
+                  <ThumbsUp className={cn("h-4 w-4", filterRecommended === true && "fill-current")} />
+                  <span>已推荐</span>
+                </div>
+              </button>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-gray-600">
@@ -2596,19 +3208,20 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 {previewUrls[currentPreviewIndex] && (
                   <>
                     {(() => {
-                      // 根据当前预览的文件类型判断（从 uploadedFiles 中获取）
-                      const currentFile = uploadedFiles[currentPreviewIndex];
-                      const isImage = currentFile?.type === 'image' || 
-                        previewUrls[currentPreviewIndex].match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
+                      const currentUrl = previewUrls[currentPreviewIndex];
+                      // blob URL 或图片 URL 都显示为图片
+                      const isImage = currentUrl.startsWith('blob:') || 
+                        currentUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) ||
+                        !uploadedFiles.some(f => f.type === 'video' && f.url === currentUrl);
                       return isImage ? (
                         <img
-                          src={previewUrls[currentPreviewIndex]}
+                          src={currentUrl}
                           alt={`预览 ${currentPreviewIndex + 1}`}
                           className="w-full h-full object-contain"
                         />
                       ) : (
                         <video
-                          src={previewUrls[currentPreviewIndex]}
+                          src={currentUrl}
                           controls
                           className="w-full h-full object-contain"
                         />
@@ -2646,6 +3259,51 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   </>
                 )}
               </div>
+              {/* 视频抽帧缩略图列表 */}
+              {uploadedFiles.some(f => f.type === 'video') && previewUrls.length > 1 && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-600 mb-2">点击选择预览图（用于 AI 分析和资产预览图）：</p>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {previewUrls.map((url, index) => {
+                      const isSelected = index === currentPreviewIndex;
+                      const isThumbnail = form.thumbnail === url;
+                      return (
+                        <div
+                          key={index}
+                          className={`relative flex-shrink-0 w-20 h-12 rounded border-2 cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-blue-600 ring-2 ring-blue-300'
+                              : 'border-gray-300 hover:border-gray-400'
+                          } ${isThumbnail ? 'bg-blue-50' : ''}`}
+                          onClick={() => {
+                            setCurrentPreviewIndex(index);
+                            // 同时设置为预览图
+                            handleSetAsThumbnail(url);
+                          }}
+                        >
+                          <img
+                            src={url}
+                            alt={`帧 ${index + 1}`}
+                            className="w-full h-full object-cover rounded"
+                          />
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-blue-600/20 flex items-center justify-center">
+                              <span className="text-xs font-semibold text-blue-700 bg-white/90 px-1 rounded">
+                                {index + 1}
+                              </span>
+                            </div>
+                          )}
+                          {isThumbnail && (
+                            <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] px-1 rounded-bl">
+                              预览图
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2741,9 +3399,17 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, type: event.target.value }))
                   }
+                  onClick={(e) => {
+                    // 点击时，如果是已选择的值，选中全部文本以便重新输入或选择
+                    const input = e.currentTarget;
+                    if (input.value && document.activeElement === input) {
+                      input.select();
+                    }
+                  }}
                   disabled={loading}
                   required
                   list={`type-suggestions-${editingAssetId || 'new'}`}
+                  autoComplete="off"
                 />
                 <datalist id={`type-suggestions-${editingAssetId || 'new'}`}>
                   {(allowedTypes.length > 0 ? allowedTypes : [...DEFAULT_ASSET_TYPES]).map((type) => (
@@ -2770,13 +3436,62 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               </div>
             </div>
             <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAIGenerateTags}
+                  disabled={loading || aiLoading || uploading}
+                  className="flex items-center gap-1"
+                  title={previewUrls.length > 1 ? `使用预览图 ${currentPreviewIndex + 1}/${previewUrls.length} 生成标签` : '使用当前预览图生成标签'}
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {aiLoading ? '分析中...' : previewUrls.length > 1 ? `AI 推荐标签 (${currentPreviewIndex + 1}/${previewUrls.length})` : 'AI 推荐标签'}
+                </Button>
+              </div>
               <Input
                 placeholder="自然, 风景, 建筑"
                 value={form.tags}
                 onChange={handleInputChange('tags')}
                 disabled={loading}
                 required
+              />
+              {aiError && (
+                <p className="text-sm text-red-600">{aiError}</p>
+              )}
+              {aiRecommendedTags.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <p className="text-sm font-medium text-gray-700">AI 推荐标签</p>
+                  <div className="flex flex-wrap gap-2">
+                    {aiRecommendedTags.map((tag) => {
+                      const isSelected = isRecommendedTagSelected(tag);
+                      return (
+                        <Badge
+                          key={tag}
+                          variant={isSelected ? 'default' : 'outline'}
+                          className="cursor-pointer hover:bg-primary/80 transition-colors"
+                          onClick={() => handleToggleRecommendedTag(tag)}
+                        >
+                          {tag}
+                          {isSelected && ' ✓'}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium">描述</label>
+              <textarea
+                placeholder="资产的详细描述（可手动填写或使用AI生成）"
+                value={form.description}
+                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                disabled={loading}
+                rows={3}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
             <div className="space-y-2">
@@ -2916,6 +3631,8 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
         setEditDialogOpen(open);
         if (!open) {
           setEditingAssetInDialog(null);
+          setEditDialogAiRecommendedTags([]);
+          setEditDialogAiError(null);
         }
       }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -2941,9 +3658,17 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                       placeholder="选择或输入新类型"
                       value={editingAssetInDialog.type}
                       onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, type: e.target.value as typeof editingAssetInDialog.type })}
+                      onClick={(e) => {
+                        // 点击时，如果是已选择的值，选中全部文本以便重新输入或选择
+                        const input = e.currentTarget;
+                        if (input.value && document.activeElement === input) {
+                          input.select();
+                        }
+                      }}
                       disabled={loading}
                       required
                       list="type-suggestions-dialog"
+                      autoComplete="off"
                     />
                     <datalist id="type-suggestions-dialog">
                       {(allowedTypes.length > 0 ? allowedTypes : [...DEFAULT_ASSET_TYPES]).map((type) => (
@@ -2954,20 +3679,23 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">项目<span className="text-red-500">*</span></label>
-                  <select
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={editingAssetInDialog.project || ''}
-                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, project: e.target.value as any })}
-                    disabled={loading}
-                    required
-                  >
-                    <option value="">请选择项目</option>
-                    {getAllProjects().map((project) => (
-                      <option key={project} value={project}>
-                        {getProjectDisplayName(project)}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="请选择项目"
+                      value={editingAssetInDialog.project || ''}
+                      onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, project: e.target.value as any })}
+                      disabled={loading}
+                      required
+                      list="project-suggestions-dialog"
+                    />
+                    <datalist id="project-suggestions-dialog">
+                      {getAllProjects().map((project) => (
+                        <option key={project} value={project}>
+                          {getProjectDisplayName(project)}
+                        </option>
+                      ))}
+                    </datalist>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">风格（逗号分隔，可新增）</label>
@@ -2985,13 +3713,61 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   </datalist>
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleEditDialogAIGenerateTags}
+                      disabled={loading || editDialogAiLoading || editDialogUploading}
+                      className="flex items-center gap-1"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {editDialogAiLoading ? '分析中...' : 'AI 推荐标签'}
+                    </Button>
+                  </div>
                   <Input
                     placeholder="自然, 风景, 建筑"
                     value={Array.isArray(editingAssetInDialog.tags) ? editingAssetInDialog.tags.join(', ') : editingAssetInDialog.tags}
                     onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, tags: e.target.value.split(',').map(tag => tag.trim()).filter(Boolean) })}
                     disabled={loading}
                     required
+                  />
+                  {editDialogAiError && (
+                    <p className="text-sm text-red-600">{editDialogAiError}</p>
+                  )}
+                  {editDialogAiRecommendedTags.length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <p className="text-sm font-medium text-gray-700">AI 推荐标签</p>
+                      <div className="flex flex-wrap gap-2">
+                        {editDialogAiRecommendedTags.map((tag) => {
+                          const isSelected = isEditDialogRecommendedTagSelected(tag);
+                          return (
+                            <Badge
+                              key={tag}
+                              variant={isSelected ? 'default' : 'outline'}
+                              className="cursor-pointer hover:bg-primary/80 transition-colors"
+                              onClick={() => handleEditDialogToggleRecommendedTag(tag)}
+                            >
+                              {tag}
+                              {isSelected && ' ✓'}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium">描述</label>
+                  <textarea
+                    placeholder="资产的详细描述（可手动填写或使用AI生成）"
+                    value={editingAssetInDialog.description || ''}
+                    onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, description: e.target.value })}
+                    disabled={loading}
+                    rows={3}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
                 <div className="space-y-2">
@@ -3313,6 +4089,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                     project: editingAssetInDialog.project || undefined,
                     style: style,
                     tags: tags,
+                    description: editingAssetInDialog.description?.trim() || undefined,
                     source: editingAssetInDialog.source.trim(),
                     engineVersion: editingAssetInDialog.engineVersion.trim(),
                     guangzhouNas: editingAssetInDialog.guangzhouNas?.trim() || undefined,

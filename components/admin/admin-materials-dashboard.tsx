@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, Tags, CheckSquare, Edit } from 'lucide-react';
+import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, Tags, CheckSquare, Edit, ThumbsUp } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { PROJECTS, getAllProjects, getProjectDisplayName } from '@/lib/constants';
@@ -122,6 +122,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   const [filterProject, setFilterProject] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('');
   const [filterTag, setFilterTag] = useState<string>('');
+  const [filterRecommended, setFilterRecommended] = useState<boolean | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [tagsManagementOpen, setTagsManagementOpen] = useState(false);
   const ITEMS_PER_PAGE = 12;
@@ -604,9 +605,13 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         const fileHash = uploadData.hash || await calculateFileHash(file);
         const fileSize = uploadData.size;
 
+        // 获取项目，如果表单中没有设置，使用默认值 '项目A'
+        const project = form.project || '项目A';
+
         const materialPayload = {
           name: materialName,
           type: materialType,
+          project: project as '项目A' | '项目B' | '项目C',
           tag: '达标' as const,
           quality: ['常规'] as ('高品质' | '常规' | '迭代')[],
           thumbnail: uploadData.url,
@@ -698,7 +703,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, [checkFileExists, calculateFileHash, refreshMaterials, getLocalMediaMetadata, storageMode, normalizedCdnBase]);
+  }, [checkFileExists, calculateFileHash, refreshMaterials, getLocalMediaMetadata, storageMode, normalizedCdnBase, form]);
 
   // 单文件上传（用于编辑时添加文件）
   const handleFileUpload = useCallback(async (file: File) => {
@@ -919,6 +924,10 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       filtered = filtered.filter((material) => material.tag === filterTag);
     }
 
+    if (filterRecommended !== null) {
+      filtered = filtered.filter((material) => (material.recommended ?? false) === filterRecommended);
+    }
+
     let sorted = [...filtered];
     if (sortKey) {
       sorted = sorted.sort((a, b) => {
@@ -937,7 +946,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     }
 
     return sorted;
-  }, [materials, filterProject, searchKeyword, filterType, filterTag, sortKey, sortDirection, nameCollator]);
+  }, [materials, filterProject, searchKeyword, filterType, filterTag, filterRecommended, sortKey, sortDirection, nameCollator]);
 
   // 分页显示（每页显示12条）
   const totalPages = useMemo(() => {
@@ -953,7 +962,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   // 当筛选条件变化时，重置到第一页
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchKeyword, filterProject, filterType, filterTag]);
+  }, [searchKeyword, filterProject, filterType, filterTag, filterRecommended]);
 
   // 预览图悬停状态
   const [hoveredPreview, setHoveredPreview] = useState<{
@@ -1141,6 +1150,51 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       case 'actions':
         return (
           <div className="flex h-[56px] items-center gap-1.5">
+            {/* 推荐按钮 */}
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn(
+                "h-7 w-7 transition-colors",
+                material.recommended 
+                  ? "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" 
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              )}
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  setLoading(true);
+                  const response = await fetch(`/api/materials/${material.id}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      id: material.id,
+                      recommended: !material.recommended,
+                    }),
+                  });
+                  
+                  if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || '更新推荐状态失败');
+                  }
+                  
+                  await refreshMaterials();
+                  setMessage(material.recommended ? '已取消推荐' : '已设为推荐');
+                } catch (error) {
+                  console.error(error);
+                  setMessage(error instanceof Error ? error.message : '更新推荐状态失败');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              title={material.recommended ? '取消推荐' : '设为推荐'}
+            >
+              <ThumbsUp className={cn("h-4 w-4", material.recommended && "fill-current")} />
+              <span className="sr-only">{material.recommended ? '取消推荐' : '设为推荐'}</span>
+            </Button>
             <Button
               size="icon"
               variant="ghost"
@@ -1841,6 +1895,20 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   </option>
                 ))}
               </select>
+              <button
+                onClick={() => setFilterRecommended(filterRecommended === true ? null : true)}
+                className={cn(
+                  "h-9 rounded border px-3 text-sm transition",
+                  filterRecommended === true
+                    ? 'border-yellow-500 bg-yellow-50 text-yellow-700'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                )}
+              >
+                <div className="flex items-center gap-1.5">
+                  <ThumbsUp className={cn("h-4 w-4", filterRecommended === true && "fill-current")} />
+                  <span>已推荐</span>
+                </div>
+              </button>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-gray-600">

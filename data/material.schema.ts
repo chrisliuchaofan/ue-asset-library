@@ -29,6 +29,7 @@ export const MaterialSchema = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   duration: z.number().optional(), // 视频时长（秒）
+  recommended: z.boolean().optional(), // 是否推荐
   createdAt: z.number().optional(), // 创建时间（时间戳）
   updatedAt: z.number().optional(), // 更新时间（时间戳）
 });
@@ -71,6 +72,7 @@ export const MaterialUpdateSchema = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   duration: z.number().optional(),
+  recommended: z.boolean().optional(), // 是否推荐
 });
 
 export type Material = z.infer<typeof MaterialSchema>;

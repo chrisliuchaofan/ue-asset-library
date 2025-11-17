@@ -61,6 +61,14 @@ export function AssetDetailDialog({ open, onOpenChange, asset }: AssetDetailDial
             })()}
           </div>
 
+          {/* 描述 */}
+          {asset.description && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-muted-foreground">描述</div>
+              <div className="text-sm leading-relaxed whitespace-pre-wrap">{asset.description}</div>
+            </div>
+          )}
+
           {/* 资产信息 */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -87,6 +95,24 @@ export function AssetDetailDialog({ open, onOpenChange, asset }: AssetDetailDial
               <div>
                 <div className="text-sm text-muted-foreground">版本</div>
                 <div className="font-medium">{asset.engineVersion}</div>
+              </div>
+            )}
+            {asset.project && (
+              <div>
+                <div className="text-sm text-muted-foreground">项目</div>
+                <div className="font-medium">{asset.project}</div>
+              </div>
+            )}
+            {asset.guangzhouNas && (
+              <div>
+                <div className="text-sm text-muted-foreground">广州NAS路径</div>
+                <div className="font-medium text-xs break-all">{asset.guangzhouNas}</div>
+              </div>
+            )}
+            {asset.shenzhenNas && (
+              <div>
+                <div className="text-sm text-muted-foreground">深圳NAS路径</div>
+                <div className="font-medium text-xs break-all">{asset.shenzhenNas}</div>
               </div>
             )}
             {!isVideoUrl(asset.src) && asset.width && asset.height && (

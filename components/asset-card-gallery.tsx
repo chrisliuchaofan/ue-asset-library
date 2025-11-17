@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { type Asset } from '@/data/manifest.schema';
 import { highlightText, cn, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check, Maximize2, Minimize2, Star } from 'lucide-react';
 import { type OfficeLocation } from '@/lib/nas-utils';
 import { createPortal } from 'react-dom';
 import { AssetDetailDialog } from '@/components/asset-detail-dialog';
@@ -164,17 +164,23 @@ const ThumbnailPreviewPopover = memo(function ThumbnailPreviewPopover({ position
 
   if (!mounted) return null;
 
+  // 判断是否为 blob URL（视频提取的帧）
+  const isBlobUrl = thumbnailUrl.startsWith('blob:');
+  // blob URL 直接使用，普通路径使用优化函数
+  const imageSrc = isBlobUrl ? thumbnailUrl : getOptimizedImageUrl(thumbnailUrl, 640);
+  const isOptimized = !isBlobUrl && imageSrc.includes('x-oss-process=image');
+
   const popoverContent = (
     <div style={popoverStyle}>
       <div className="bg-background border border-border rounded-lg shadow-2xl inline-block" style={{ padding: '3px' }}>
         <Image
-          src={getOptimizedImageUrl(thumbnailUrl, 640)}
+          src={imageSrc}
           alt={`${assetName} 完整预览 ${index}`}
           width={400}
           height={400}
           className="object-contain max-h-[400px] max-w-[400px] w-auto h-auto block"
           loading="lazy"
-          unoptimized={getOptimizedImageUrl(thumbnailUrl, 640).includes('x-oss-process=image')}
+          unoptimized={isBlobUrl || isOptimized}
         />
       </div>
     </div>
@@ -194,7 +200,6 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   // 使用 useState 跟踪是否已 mounted，避免 hydration 不匹配
   const [isMounted, setIsMounted] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isEnlarged, setIsEnlarged] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
   const [isHoveringCard, setIsHoveringCard] = useState(false);
@@ -297,11 +302,15 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   // 稳定第一个视频 URL 的引用
   const firstVideoUrl = useMemo(() => videoUrls[0] || null, [videoUrls]);
 
-  // 当只有视频时，从第一个视频中提取6帧作为缩略图（经典预览和宫格图预览都需要）
+  // 当只有视频时，从第一个视频中提取6帧作为缩略图
+  // 提取条件：
+  // 1. 经典模式或宫格模式：只有视频时才提取
+  // 2. 缩略图模式：只有视频时才提取（如果图片和视频混合，不提取）
   // 使用 requestIdleCallback 延迟执行，避免阻塞主线程和影响 LCP
   useEffect(() => {
     // 如果不需要提取帧，清空并返回
-    const shouldExtract = (viewMode === 'classic' || viewMode === 'grid') && imageUrls.length === 0 && firstVideoUrl !== null;
+    // 所有模式下，只有视频（没有图片）时才提取帧
+    const shouldExtract = imageUrls.length === 0 && firstVideoUrl !== null && (viewMode === 'classic' || viewMode === 'grid' || viewMode === 'thumbnail');
     
     if (!shouldExtract) {
       // 只在确实需要清空时才调用 setState，避免不必要的更新
@@ -541,7 +550,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
       }
 
       if (!thumbnailInitializedRef.current || galleryChanged) {
-        const targetIndex = firstVideoIndexForDisplay >= 0 ? firstVideoIndexForDisplay : 0;
+        // 缩略图模式：优先显示图片，如果没有图片则显示视频
+        const targetIndex = firstImageIndexForDisplay >= 0 ? firstImageIndexForDisplay : (firstVideoIndexForDisplay >= 0 ? firstVideoIndexForDisplay : 0);
         if (currentIndex !== targetIndex) {
           setCurrentIndex(targetIndex);
         }
@@ -812,6 +822,10 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   }, [thumbnailPage, totalPages]);
 
   // 悬停时才播放视频，离开后暂停（预览图区域）
+  // 播放条件：
+  // 1. 经典模式：主预览区域悬停时播放视频
+  // 2. 缩略图模式：如果是视频，悬停时自动播放（保持静止状态，悬停播放）
+  // 3. 宫格模式：主预览区域悬停时播放视频
   useEffect(() => {
     const activeIndex = displayIndex;
 
@@ -819,7 +833,22 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
       const video = videoRefs.current[index];
       if (!video) return;
 
+      // 判断是否应该播放视频
+      let shouldPlay = false;
       if (index === activeIndex && isHoveringPreview && isVideoUrl(url)) {
+        if (viewMode === 'classic') {
+          // 经典模式：主预览区域悬停时播放视频
+          shouldPlay = true;
+        } else if (viewMode === 'thumbnail') {
+          // 缩略图模式：如果是视频，悬停时自动播放
+          shouldPlay = true;
+        } else if (viewMode === 'grid') {
+          // 宫格模式：主预览区域悬停时播放视频
+          shouldPlay = true;
+        }
+      }
+
+      if (shouldPlay) {
         video.muted = true;
         video.play().catch((err) => {
           if (process.env.NODE_ENV !== 'production') {
@@ -828,18 +857,40 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
         });
       } else {
         video.pause();
-        video.currentTime = 0;
+        // 缩略图模式下，如果不是悬停状态，保持视频在首帧（静止状态）
+        if (viewMode === 'thumbnail' && index === activeIndex) {
+          // 确保视频显示首帧（静止状态）
+          if (video.readyState >= 2) {
+            // 如果视频元数据已加载，立即设置到首帧
+            video.currentTime = 0;
+          }
+        } else if (viewMode !== 'thumbnail') {
+          video.currentTime = 0;
+        }
       }
     });
-  }, [displayIndex, galleryUrls, isHoveringPreview, isVideoUrl]);
+  }, [displayIndex, galleryUrls, isHoveringPreview, isVideoUrl, viewMode]);
 
   // 悬停时才播放视频，离开后暂停（缩略图区域）
+  // 注意：视频抽帧的缩略图悬停时不播放视频（只显示静态帧）
   useEffect(() => {
     if (viewMode !== 'classic' && viewMode !== 'grid') return;
 
     thumbnailVideoRefs.current.forEach((video, index) => {
       if (!video) return;
 
+      // 判断是否是视频抽帧的缩略图
+      // 如果 imageUrls.length === 0，说明使用的是视频提取的帧，不播放视频
+      const isVideoThumbnail = imageUrls.length === 0 && index < videoThumbnails.length;
+      
+      // 视频抽帧的缩略图不播放视频
+      if (isVideoThumbnail) {
+        video.pause();
+        video.currentTime = 0;
+        return;
+      }
+
+      // 其他情况（图片缩略图）正常播放
       if (hoveredThumbnailIndex === index && isHoveringThumbnails) {
         video.muted = true;
         video.play().catch((err) => {
@@ -852,7 +903,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
         video.currentTime = 0;
       }
     });
-  }, [viewMode, hoveredThumbnailIndex, isHoveringThumbnails]);
+  }, [viewMode, hoveredThumbnailIndex, isHoveringThumbnails, imageUrls.length, videoThumbnails.length]);
 
   // 清理定时器和视频缩略图 blob URL
   useEffect(() => {
@@ -1006,19 +1057,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0));
   };
 
-  // 处理双击事件
+  // 处理双击事件（已取消双击放大功能）
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // 清除单击延迟
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
-    }
-    setIsHoveringPreview(false);
-    setIsEnlarged(true);
-  };
 
   // 使用传入的卡片宽度，如果没有则使用默认值
   // 始终使用传入的 propCardWidth，确保所有卡片使用相同的宽度计算逻辑
@@ -1193,7 +1233,8 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                       onMouseEnter={() => {
                         if (hoveredThumbnailIndex !== idx) {
                           setHoveredThumbnailIndex(idx);
-                          if (thumbnailUrl && !isVideoThumbnail) {
+                          // 为所有缩略图（包括视频提取的帧）添加悬停放大功能
+                          if (thumbnailUrl) {
                             // 计算弹出位置：朝向画面中心，但不脱离原选项卡
                             const element = thumbnailRefs.current[idx];
                             if (element) {
@@ -1258,37 +1299,25 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                         <>
                           {isVideoThumbnail && correspondingVideoUrl ? (
                             <>
+                              {/* 视频抽帧的缩略图：只显示静态帧，悬停时不播放视频，但支持悬停放大 */}
                               <Image
                                 src={thumbnailUrl}
                                 alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
                                 fill
-                                className="object-cover transition-opacity duration-200"
+                                className="object-cover"
                                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                 loading="lazy"
-                                style={{
-                                  opacity: hoveredThumbnailIndex === idx ? 0 : 1,
-                                }}
                               />
-                              <video
-                                ref={(el) => {
-                                  thumbnailVideoRefs.current[idx] = el;
-                                }}
-                                src={getClientAssetUrl(correspondingVideoUrl)}
-                                className="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
-                                style={{
-                                  opacity: hoveredThumbnailIndex === idx ? 1 : 0,
-                                }}
-                                muted
-                                loop
-                                playsInline
-                                preload="none"
-                                onMouseEnter={(e) => {
-                                  // 只在用户悬停时才开始加载视频，减少不必要的流量
-                                  if (e.currentTarget.readyState === 0) {
-                                    e.currentTarget.load();
-                                  }
-                                }}
-                              />
+                              {/* 悬停预览弹出框 - 视频提取的帧也支持悬停放大 */}
+                              {hoveredThumbnailPreview?.index === idx && (
+                                <ThumbnailPreviewPopover
+                                  position={hoveredThumbnailPreview.position}
+                                  thumbnailUrl={thumbnailUrl}
+                                  assetName={asset.name}
+                                  index={thumbnailPage * thumbnailsPerPage + idx + 1}
+                                  elementRef={thumbnailRefs.current[idx]}
+                                />
+                              )}
                             </>
                           ) : (
                             <>
@@ -1362,7 +1391,6 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 isClassic && 'flex items-center justify-center'
               )}
               style={isClassic ? { height: previewAreaHeight, width: '100%' } : (isOverlayMode && viewMode === 'thumbnail' ? { minWidth: 'fit-content', minHeight: 'fit-content' } : (isOverlayMode ? { width: '100%' } : undefined))} // 缩略图模式设置 minWidth/minHeight 确保容器有尺寸
-              onDoubleClick={handleDoubleClick}
               onMouseEnter={() => {
                 setIsHoveringPreview(true);
                 // 为主预览图添加悬停预览（只在非网格视图时）
@@ -1425,7 +1453,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                     videoRefs.current[index] = el;
                   }}
                   src={getClientAssetUrl(url)}
-                  preload="none"
+                  preload={viewMode === 'thumbnail' ? 'metadata' : 'none'}
                   className={`absolute inset-0 h-full w-full transition-opacity duration-200 ${
                     isOverlayMode ? 'rounded-xl object-cover' : `rounded-t-xl ${mediaObjectClass}`
                   } ${
@@ -1434,6 +1462,22 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                   muted
                   loop
                   playsInline
+                  onLoadedMetadata={(e) => {
+                    // 缩略图模式下，视频加载后保持在首帧（静止状态）
+                    if (viewMode === 'thumbnail' && index === displayIndex) {
+                      const video = e.currentTarget;
+                      video.currentTime = 0;
+                      video.pause();
+                    }
+                  }}
+                  onLoadedData={(e) => {
+                    // 缩略图模式下，视频数据加载后确保在首帧（静止状态）
+                    if (viewMode === 'thumbnail' && index === displayIndex && !isHoveringPreview) {
+                      const video = e.currentTarget;
+                      video.currentTime = 0;
+                      video.pause();
+                    }
+                  }}
                 />
               );
             })}
@@ -1619,8 +1663,13 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
               </>
             )}
 
+            {asset.recommended && (
+              <div className={`absolute ${isOverlayMode ? (isCompact ? 'left-1 top-1' : 'left-1.5 top-1.5') : 'left-2 top-2'} z-30 rounded-full bg-yellow-500 ${isOverlayMode ? (isCompact ? 'p-0.5' : 'p-1') : 'p-1.5'} flex items-center justify-center shadow-lg`}>
+                <Star className={`${isOverlayMode ? (isCompact ? 'h-2 w-2' : 'h-2.5 w-2.5') : 'h-3 w-3'} text-white fill-white`} />
+              </div>
+            )}
             {currentIsVideo && (
-              <div className={`absolute ${isOverlayMode ? (isCompact ? 'left-1 top-1' : 'left-1.5 top-1.5') : 'left-2 top-2'} z-20 rounded-full bg-black/70 ${isOverlayMode ? (isCompact ? 'px-1 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[9px]') : 'px-2 py-0.5 text-[10px]'} font-semibold uppercase tracking-wide text-white`}>
+              <div className={`absolute ${isOverlayMode ? (isCompact ? (asset.recommended ? 'left-6 top-1' : 'left-1 top-1') : (asset.recommended ? 'left-7 top-1.5' : 'left-1.5 top-1.5')) : (asset.recommended ? 'left-10 top-2' : 'left-2 top-2')} z-20 rounded-full bg-black/70 ${isOverlayMode ? (isCompact ? 'px-1 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[9px]') : 'px-2 py-0.5 text-[10px]'} font-semibold uppercase tracking-wide text-white`}>
                 视频
               </div>
             )}
@@ -1813,36 +1862,14 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                         <>
                           {isVideoThumbnail && correspondingVideoUrl ? (
                             <>
+                              {/* 视频抽帧的缩略图：只显示静态帧，悬停时不播放视频 */}
                               <Image
                                 src={thumbnailUrl}
                                 alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
                                 fill
-                                className="object-cover transition-opacity duration-200"
+                                className="object-cover"
                                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                 loading="lazy"
-                                style={{
-                                  opacity: hoveredThumbnailIndex === idx ? 0 : 1,
-                                }}
-                              />
-                              <video
-                                ref={(el) => {
-                                  thumbnailVideoRefs.current[idx] = el;
-                                }}
-                                src={getClientAssetUrl(correspondingVideoUrl)}
-                                className="absolute inset-0 h-full w-full object-cover transition-opacity duration-200"
-                                style={{
-                                  opacity: hoveredThumbnailIndex === idx ? 1 : 0,
-                                }}
-                                muted
-                                loop
-                                playsInline
-                                preload="none"
-                                onMouseEnter={(e) => {
-                                  // 只在用户悬停时才开始加载视频，减少不必要的流量
-                                  if (e.currentTarget.readyState === 0) {
-                                    e.currentTarget.load();
-                                  }
-                                }}
                               />
                             </>
                           ) : (
@@ -1955,103 +1982,6 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
           </div>
         )}
       </div>
-
-      {isEnlarged && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
-          onClick={() => setIsEnlarged(false)}
-          onDoubleClick={(e) => {
-            if (!currentIsVideo) {
-              e.stopPropagation();
-              setIsEnlarged(false);
-            }
-          }}
-        >
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-4 top-4 z-50 text-white hover:bg-white/20"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsEnlarged(false);
-            }}
-          >
-            <X className="h-6 w-6" />
-          </Button>
-          <div
-            className="relative h-full w-full max-w-7xl"
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => {
-              if (!currentIsVideo) {
-                e.stopPropagation();
-                setIsEnlarged(false);
-              }
-            }}
-          >
-            {currentIsVideo ? (
-              <div className="relative h-full w-full">
-                <video
-                  src={currentUrl}
-                  controls
-                  autoPlay
-                  className="h-full w-full object-contain"
-                  muted={false}
-                />
-              </div>
-            ) : (
-              <Image
-                src={currentSource ? getOptimizedImageUrl(currentSource, 1080) : ''}
-                alt={`${asset.name} - ${displayIndex + 1}`}
-                fill
-                className="object-contain"
-                sizes="100vw"
-                loading="lazy"
-                unoptimized={currentSource ? getOptimizedImageUrl(currentSource, 1080).includes('x-oss-process=image') : false}
-              />
-            )}
-            {galleryUrls.length > 1 && (
-              <>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full border-white/30 bg-white/20 text-white hover:bg-white/30"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1));
-                  }}
-                >
-                  <ChevronLeft className="h-6 w-6" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full border-white/30 bg-white/20 text-white hover:bg-white/30"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0));
-                  }}
-                >
-                  <ChevronRight className="h-6 w-6" />
-                </Button>
-                <div className="absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 gap-2">
-                  {galleryUrls.map((_, index) => (
-                    <button
-                      key={index}
-                      className={`h-2 rounded-full transition-all ${
-                        index === validIndex ? 'w-6 bg-white' : 'w-2 bg-white/50 hover:bg-white/70'
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentIndex(index);
-                      }}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* 资产详情弹窗 */}
       <AssetDetailDialog
