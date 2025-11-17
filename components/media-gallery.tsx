@@ -112,7 +112,18 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
     const imageUrl = getMainImageUrl();
     
     if (!imageUrl) {
-      setAiError('当前没有可分析的图片');
+      // 提供更详细的错误信息
+      const debugInfo = {
+        currentSource,
+        currentUrl,
+        isVideo,
+        galleryUrls: galleryUrls.length,
+        thumbnail: asset.thumbnail,
+        src: asset.src,
+        ossConfig: typeof window !== 'undefined' ? window.__OSS_CONFIG__ : null,
+      };
+      console.warn('[AI 读图] 无法获取图片 URL:', debugInfo);
+      setAiError('无法获取图片 URL，请检查图片路径配置');
       return;
     }
     
@@ -359,7 +370,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
               variant="outline"
               size="sm"
               onClick={handleAIAnalyze}
-              disabled={isAnalyzing || !getMainImageUrl()}
+              disabled={isAnalyzing}
               className="w-full sm:w-auto"
             >
               {isAnalyzing ? (
