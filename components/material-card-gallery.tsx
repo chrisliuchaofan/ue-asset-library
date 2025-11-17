@@ -235,7 +235,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
       else if (viewportWidth >= 768) cardWidth = 300; // md: 4列
       else if (viewportWidth >= 640) cardWidth = 360; // sm: 3列
       else cardWidth = 400; // 2列
-      setImageWidth(Math.min(Math.ceil(cardWidth * 1.5), 500));
+      setImageWidth(Math.min(Math.ceil(cardWidth * 1.5), 480));
     };
     
     updateImageWidth();
