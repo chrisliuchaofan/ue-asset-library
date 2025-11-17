@@ -168,12 +168,13 @@ const ThumbnailPreviewPopover = memo(function ThumbnailPreviewPopover({ position
     <div style={popoverStyle}>
       <div className="bg-background border border-border rounded-lg shadow-2xl inline-block" style={{ padding: '3px' }}>
         <Image
-          src={getOptimizedImageUrl(thumbnailUrl, 600)}
+          src={getOptimizedImageUrl(thumbnailUrl, 640)}
           alt={`${assetName} 完整预览 ${index}`}
           width={400}
           height={400}
           className="object-contain max-h-[400px] max-w-[400px] w-auto h-auto block"
-          unoptimized={getOptimizedImageUrl(thumbnailUrl, 600).includes('x-oss-process=image')}
+          loading="lazy"
+          unoptimized={getOptimizedImageUrl(thumbnailUrl, 640).includes('x-oss-process=image')}
         />
       </div>
     </div>
@@ -591,32 +592,11 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     },
     [viewMode, isHoveringPreview, firstVideoIndexForDisplay, firstImageIndexForDisplay, validIndex]
   );
-  // 优化图片宽度：根据视图模式和优先级使用更小的尺寸以减少网络流量
-  // 首屏图片使用更小的尺寸以提升 LCP，非首屏图片可以使用稍大尺寸
+  // 统一缩略图尺寸策略：列表/缩略图网格使用 320px，保证视觉效果和性能平衡
   const optimizedImageWidth = useMemo(() => {
-    // 首屏优先加载的图片使用更小尺寸，提升加载速度
-    if (priority) {
-      switch (viewMode) {
-        case 'thumbnail':
-          return 200; // 首屏缩略图模式：进一步减小尺寸以提升 LCP（从240缩小到200）
-        case 'grid':
-          return 200; // 首屏宫格模式：进一步减小尺寸以提升 LCP（从240缩小到200）
-        case 'classic':
-        default:
-          return 280; // 首屏经典模式：进一步减小尺寸以提升 LCP（从320缩小到280）
-      }
-    }
-    // 非首屏图片可以使用稍大尺寸
-    switch (viewMode) {
-      case 'thumbnail':
-        return 280; // 从300缩小到280，进一步优化
-      case 'grid':
-        return 280; // 从300缩小到280，进一步优化
-      case 'classic':
-      default:
-        return 360; // 从400缩小到360，进一步优化
-    }
-  }, [viewMode, priority]);
+    // 统一使用 320px，不再区分首屏和非首屏，简化逻辑并保证一致性
+    return 320;
+  }, []);
 
   // 使用 useMemo 缓存当前源和 URL 计算
   const currentSource = useMemo(
@@ -1313,13 +1293,13 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                           ) : (
                             <>
                               <Image
-                                  src={getOptimizedImageUrl(thumbnailUrl, 240)}
+                                  src={getOptimizedImageUrl(thumbnailUrl, 320)}
                                   alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
                                   fill
                                   className="object-cover transition-transform duration-300"
                                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                   loading="lazy"
-                                  unoptimized={getOptimizedImageUrl(thumbnailUrl, 240).includes('x-oss-process=image')}
+                                  unoptimized={getOptimizedImageUrl(thumbnailUrl, 320).includes('x-oss-process=image')}
                                 />
                               {/* 悬停预览弹出框 - 智能定位，朝向画面中心 */}
                               {hoveredThumbnailPreview?.index === idx && (
@@ -1867,7 +1847,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                             </>
                           ) : (
                             <Image
-                              src={getOptimizedImageUrl(thumbnailUrl, 240)}
+                              src={getOptimizedImageUrl(thumbnailUrl, 320)}
                               alt={`${asset.name} 预览 ${thumbnailPage * thumbnailsPerPage + idx + 1}`}
                               fill
                               className="object-cover"
@@ -2025,6 +2005,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 fill
                 className="object-contain"
                 sizes="100vw"
+                loading="lazy"
                 unoptimized={currentSource ? getOptimizedImageUrl(currentSource, 1080).includes('x-oss-process=image') : false}
               />
             )}
