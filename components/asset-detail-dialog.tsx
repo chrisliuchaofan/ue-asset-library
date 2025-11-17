@@ -5,6 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { MediaGallery } from '@/components/media-gallery';
@@ -38,6 +39,9 @@ export function AssetDetailDialog({ open, onOpenChange, asset }: AssetDetailDial
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">{asset.name}</DialogTitle>
+          <DialogDescription>
+            查看资产详细信息，包括预览图、标签和元数据
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-6">
