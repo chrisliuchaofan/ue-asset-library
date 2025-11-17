@@ -38,6 +38,36 @@
 |--------|-----|------|------|
 | `NEXT_PUBLIC_CDN_BASE` | `/` 或 `https://你的CDN域名` | CDN 基础路径<br>- 使用 `/` 时，客户端会自动使用 OSS 外网域名<br>- 使用 CDN 域名时，填写完整域名（如 `https://cdn.example.com`） | Production, Preview |
 
+### AI 图像分析配置（可选）
+
+| 变量名 | 值 | 说明 | 环境 |
+|--------|-----|------|------|
+| `AI_IMAGE_API_ENDPOINT` | `https://api.example.com/v1/analyze` | AI 图像分析 API 端点 | Production, Preview |
+| `AI_IMAGE_API_KEY` | `你的API密钥` | AI 图像分析 API 密钥 | Production, Preview |
+| `AI_IMAGE_API_PROVIDER` | `openai` / `aliyun` / `baidu` / `generic` | AI 服务商类型（可选，系统会自动检测） | Production, Preview |
+| `AI_IMAGE_API_MODEL` | `gpt-4-vision-preview` | AI 模型名称（仅 OpenAI 需要） | Production, Preview |
+| `AI_IMAGE_API_TIMEOUT` | `30000` | 请求超时时间（毫秒，默认 30 秒） | Production, Preview |
+| `AI_IMAGE_API_STRICT` | `true` / `false` | 严格模式（默认 false）<br>- `false`：未配置环境变量时返回 mock 占位结果<br>- `true`：未配置环境变量时抛出错误 | Production, Preview |
+
+**注意**：
+- **默认行为**：如果未配置 `AI_IMAGE_API_ENDPOINT` 和 `AI_IMAGE_API_KEY`，API 会返回 mock 占位结果，方便前端联调和本地测试。
+- **严格模式**：设置 `AI_IMAGE_API_STRICT=true` 时，未配置环境变量会抛出错误（适用于生产环境）。
+- 系统支持多种 AI 服务商（OpenAI、阿里云、百度等），会根据 endpoint 自动检测服务商类型。
+- 也可以通过 `AI_IMAGE_API_PROVIDER` 环境变量手动指定服务商类型。
+
+### 阿里云通义 Qwen-VL 配置示例
+
+```bash
+AI_IMAGE_API_PROVIDER=aliyun
+AI_IMAGE_API_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+AI_IMAGE_API_KEY=sk-你的API密钥
+AI_IMAGE_API_MODEL=qwen-vl-plus-latest  # 或 qwen-vl-max-latest
+```
+
+**模型说明**：
+- `qwen-vl-plus-latest`：标准版，速度快，适合常规分析（推荐）
+- `qwen-vl-max-latest`：高级版，分析更深入，适合复杂场景
+
 ## 配置示例
 
 ### 示例 1：使用 OSS 外网域名（推荐）
