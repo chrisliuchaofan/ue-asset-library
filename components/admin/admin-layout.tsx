@@ -32,6 +32,9 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
   const [newProjectPassword, setNewProjectPassword] = useState('');
   const [descriptions, setDescriptions] = useState<Record<DescriptionKey, string>>({ ...DEFAULT_DESCRIPTIONS });
   const [descriptionsExpanded, setDescriptionsExpanded] = useState(false);
+  const [aiPromptExpanded, setAiPromptExpanded] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState<string>('');
+  const [aiAnalyzePrompt, setAiAnalyzePrompt] = useState<string>('');
 
   // 从 localStorage 加载项目配置
   useEffect(() => {
@@ -79,6 +82,24 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
     // 加载描述文字
     const loadedDescriptions = getAllDescriptions();
     setDescriptions(loadedDescriptions);
+    
+    // 加载 AI 提示词（用于上传资产时的标签生成）
+    const storedAiPrompt = localStorage.getItem('ai_image_prompt');
+    if (storedAiPrompt) {
+      setAiPrompt(storedAiPrompt);
+    } else {
+      // 默认提示词（阿里云格式）
+      setAiPrompt('你是资深游戏美术分析师，请先判断图片内容，再给出：1）不超过 8 个标签（每个不超过 6 字），2）一句不超过 25 字的中文描述。仅输出 JSON：{"tags":[], "description":""}。');
+    }
+    
+    // 加载 AI 分析提示词（用于资产详情页的AI分析）
+    const storedAiAnalyzePrompt = localStorage.getItem('ai_analyze_prompt');
+    if (storedAiAnalyzePrompt) {
+      setAiAnalyzePrompt(storedAiAnalyzePrompt);
+    } else {
+      // 默认提示词（用于资产详情页的AI分析，可以与上传时的提示词不同）
+      setAiAnalyzePrompt('请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的描述和标签。仅输出 JSON 格式：{"tags":[], "description":""}。');
+    }
   }, []);
 
   const handlePasswordChange = (project: string, password: string) => {
@@ -208,6 +229,12 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
       // 保存描述文字
       saveDescriptions(descriptions);
       
+      // 保存 AI 提示词（用于上传资产时的标签生成）
+      localStorage.setItem('ai_image_prompt', aiPrompt);
+      
+      // 保存 AI 分析提示词（用于资产详情页的AI分析）
+      localStorage.setItem('ai_analyze_prompt', aiAnalyzePrompt);
+      
       setMessage('保存成功！页面将刷新以应用更改');
       setTimeout(() => {
         // 刷新页面以应用更改
@@ -233,40 +260,26 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
   };
 
   return (
-    <div className="border-t border-gray-200 p-2">
-      <button
-        onClick={() => !sidebarCollapsed && setSettingsExpanded(!settingsExpanded)}
-        className={cn(
-          'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100'
-        )}
-      >
-        <Settings className="h-5 w-5 shrink-0" />
-        {!sidebarCollapsed && (
-          <>
-            <span className="flex-1 text-left">设置</span>
-            {settingsExpanded ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronUp className="h-4 w-4" />
-            )}
-          </>
-        )}
-      </button>
-      {!sidebarCollapsed && settingsExpanded && (
-        <div className="mt-2 space-y-3 px-3 py-2 max-h-[60vh] overflow-y-auto">
+    <div className="flex flex-1 flex-col overflow-hidden bg-white">
+      <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+        <h1 className="text-xl font-semibold text-gray-900">设置</h1>
+        <p className="mt-1 text-sm text-gray-500">管理系统配置、项目设置和 AI 提示词</p>
+      </div>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
           {/* 现有项目设置 */}
-          <div className="space-y-2">
-            <div className="text-xs font-semibold text-gray-700">项目设置</div>
+          <div className="space-y-4 p-4 border rounded-lg bg-white">
+            <div className="text-sm font-semibold text-gray-900">项目设置</div>
             {getAllProjects().map((project) => {
               const displayName = projectDisplayNames[project] || getProjectDisplayName(project);
               const isDefaultProject = PROJECTS.includes(project as any);
               return (
-                <div key={project} className="space-y-1 p-2 border rounded">
+                <div key={project} className="space-y-3 p-4 border rounded-lg bg-gray-50">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-gray-600 font-medium">
+                    <Label className="text-sm text-gray-900 font-semibold">
                       {displayName}
                       {!isDefaultProject && (
-                        <span className="ml-1 text-gray-400 text-[10px]">({project})</span>
+                        <span className="ml-2 text-sm text-gray-500 font-normal">({project})</span>
                       )}
                     </Label>
                     {!isDefaultProject && (
@@ -274,16 +287,16 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteProject(project)}
-                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
                         title="删除项目"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
-                  <div className="space-y-1">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor={`display-${project}`} className="text-xs text-gray-500">
+                      <Label htmlFor={`display-${project}`} className="text-sm text-gray-700 mb-1 block">
                         显示名称 <span className="text-red-500">*</span>
                       </Label>
                       <Input
@@ -292,12 +305,12 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                         value={displayName}
                         onChange={(e) => handleDisplayNameChange(project, e.target.value)}
                         placeholder="显示名称（如：三冰）"
-                        className="h-7 text-xs"
+                        className="h-9 text-sm"
                         required
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`password-${project}`} className="text-xs text-gray-500">
+                      <Label htmlFor={`password-${project}`} className="text-sm text-gray-700 mb-1 block">
                         密码 <span className="text-red-500">*</span>
                       </Label>
                       <Input
@@ -306,7 +319,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                         value={projectPasswords[project] || (PROJECT_PASSWORDS[project as keyof typeof PROJECT_PASSWORDS] || '')}
                         onChange={(e) => handlePasswordChange(project, e.target.value)}
                         placeholder="请输入密码"
-                        className="h-7 text-xs"
+                        className="h-9 text-sm"
                         required
                       />
                     </div>
@@ -317,11 +330,11 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
           </div>
 
           {/* 新增项目 */}
-          <div className="space-y-2 border-t pt-2">
-            <div className="text-xs font-semibold text-gray-700">新增项目</div>
-            <div className="space-y-1">
+          <div className="space-y-4 p-4 border rounded-lg bg-white">
+            <div className="text-sm font-semibold text-gray-900">新增项目</div>
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label className="text-xs text-gray-500">
+                <Label className="text-sm text-gray-700 mb-1 block">
                   显示名称 <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -329,24 +342,24 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                   value={newProjectDisplayName}
                   onChange={(e) => setNewProjectDisplayName(e.target.value)}
                   placeholder="显示名称（如：新项目）"
-                  className="h-7 text-xs mt-0.5"
+                  className="h-9 text-sm"
                   required
                 />
               </div>
               <div>
-                <Label className="text-xs text-gray-500">
-                  项目ID <span className="text-gray-400 text-[10px]">(自动生成)</span>
+                <Label className="text-sm text-gray-700 mb-1 block">
+                  项目ID <span className="text-gray-400 text-xs">(自动生成)</span>
                 </Label>
                 <Input
                   type="text"
                   value={newProjectName}
                   onChange={(e) => setNewProjectName(e.target.value)}
                   placeholder="项目ID（可选，如不填将自动生成）"
-                  className="h-7 text-xs mt-0.5"
+                  className="h-9 text-sm"
                 />
               </div>
               <div>
-                <Label className="text-xs text-gray-500">
+                <Label className="text-sm text-gray-700 mb-1 block">
                   密码 <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -354,198 +367,254 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                   value={newProjectPassword}
                   onChange={(e) => setNewProjectPassword(e.target.value)}
                   placeholder="密码"
-                  className="h-7 text-xs mt-0.5"
+                  className="h-9 text-sm"
                   required
                 />
               </div>
-              <Button
-                onClick={handleAddProject}
-                size="sm"
-                variant="outline"
-                className="w-full h-7 text-xs mt-1"
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                添加项目
-              </Button>
             </div>
+            <Button
+              onClick={handleAddProject}
+              size="sm"
+              variant="outline"
+              className="h-9 text-sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              添加项目
+            </Button>
           </div>
 
           {/* 描述文字设置 */}
-          <div className="space-y-2 border-t pt-2 mt-2">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold text-gray-700">描述文字设置</div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setDescriptionsExpanded(!descriptionsExpanded)}
-                className="h-6 px-2 text-xs"
-              >
-                {descriptionsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              </Button>
+          <div className="space-y-4 p-4 border rounded-lg bg-white">
+            <div className="text-sm font-semibold text-gray-900">描述文字设置</div>
+            <div className="text-sm text-gray-600 mb-4">
+              自定义前端显示的文字内容。使用 {'{project}'} 作为项目名称占位符。
             </div>
-            {descriptionsExpanded && (
-              <div className="space-y-2">
-                <div className="text-xs text-gray-500 mb-2">
-                  自定义前端显示的文字内容。使用 {'{project}'} 作为项目名称占位符。
-                </div>
-                
-                {/* 项目密码验证对话框 */}
-                <div className="space-y-1 p-2 border rounded bg-gray-50">
-                  <div className="text-xs font-medium text-gray-600 mb-1">项目密码验证对话框</div>
+            <div className="space-y-4">
+              {/* 项目密码验证对话框 */}
+              <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
+                <div className="text-sm font-semibold text-gray-900">项目密码验证对话框</div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-xs text-gray-500">对话框标题</Label>
+                    <Label className="text-sm text-gray-700 mb-1 block">对话框标题</Label>
                     <Input
                       type="text"
                       value={descriptions.projectPasswordDialogTitle}
                       onChange={(e) => handleDescriptionChange('projectPasswordDialogTitle', e.target.value)}
-                      className="h-7 text-xs"
+                      className="h-9 text-sm"
                       placeholder="项目密码验证"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-gray-500">对话框描述</Label>
-                    <Input
-                      type="text"
-                      value={descriptions.projectPasswordDialogDescription}
-                      onChange={(e) => handleDescriptionChange('projectPasswordDialogDescription', e.target.value)}
-                      className="h-7 text-xs"
-                      placeholder="请输入 {project} 的密码以切换项目"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-gray-500">输入框占位符</Label>
+                    <Label className="text-sm text-gray-700 mb-1 block">输入框占位符</Label>
                     <Input
                       type="text"
                       value={descriptions.projectPasswordInputPlaceholder}
                       onChange={(e) => handleDescriptionChange('projectPasswordInputPlaceholder', e.target.value)}
-                      className="h-7 text-xs"
+                      className="h-9 text-sm"
                       placeholder="请输入密码（支持中文）"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-1">
-                    <div>
-                      <Label className="text-xs text-gray-500">取消按钮</Label>
-                      <Input
-                        type="text"
-                        value={descriptions.projectPasswordDialogCancel}
-                        onChange={(e) => handleDescriptionChange('projectPasswordDialogCancel', e.target.value)}
-                        className="h-7 text-xs"
-                        placeholder="取消"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">确认按钮</Label>
-                      <Input
-                        type="text"
-                        value={descriptions.projectPasswordDialogConfirm}
-                        onChange={(e) => handleDescriptionChange('projectPasswordDialogConfirm', e.target.value)}
-                        className="h-7 text-xs"
-                        placeholder="确认"
-                      />
-                    </div>
+                </div>
+                <div>
+                  <Label className="text-sm text-gray-700 mb-1 block">对话框描述</Label>
+                  <Input
+                    type="text"
+                    value={descriptions.projectPasswordDialogDescription}
+                    onChange={(e) => handleDescriptionChange('projectPasswordDialogDescription', e.target.value)}
+                    className="h-9 text-sm"
+                    placeholder="请输入 {project} 的密码以切换项目"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm text-gray-700 mb-1 block">取消按钮</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.projectPasswordDialogCancel}
+                      onChange={(e) => handleDescriptionChange('projectPasswordDialogCancel', e.target.value)}
+                      className="h-9 text-sm"
+                      placeholder="取消"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-700 mb-1 block">确认按钮</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.projectPasswordDialogConfirm}
+                      onChange={(e) => handleDescriptionChange('projectPasswordDialogConfirm', e.target.value)}
+                      className="h-9 text-sm"
+                      placeholder="确认"
+                    />
                   </div>
                 </div>
+              </div>
 
-                {/* 空状态 */}
-                <div className="space-y-1 p-2 border rounded bg-gray-50">
-                  <div className="text-xs font-medium text-gray-600 mb-1">空状态显示</div>
+              {/* 空状态 */}
+              <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
+                <div className="text-sm font-semibold text-gray-900">空状态显示</div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-xs text-gray-500">标题</Label>
+                    <Label className="text-sm text-gray-700 mb-1 block">标题</Label>
                     <Input
                       type="text"
                       value={descriptions.emptyStateTitle}
                       onChange={(e) => handleDescriptionChange('emptyStateTitle', e.target.value)}
-                      className="h-7 text-xs"
+                      className="h-9 text-sm"
                       placeholder="未找到资产"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-gray-500">描述</Label>
+                    <Label className="text-sm text-gray-700 mb-1 block">描述</Label>
                     <Input
                       type="text"
                       value={descriptions.emptyStateDescription}
                       onChange={(e) => handleDescriptionChange('emptyStateDescription', e.target.value)}
-                      className="h-7 text-xs"
+                      className="h-9 text-sm"
                       placeholder="尝试调整搜索关键词或筛选条件"
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* 资产计数 */}
-                <div className="space-y-1 p-2 border rounded bg-gray-50">
-                  <div className="text-xs font-medium text-gray-600 mb-1">资产计数显示</div>
-                  <div className="grid grid-cols-3 gap-1">
-                    <div>
-                      <Label className="text-xs text-gray-500">前缀</Label>
-                      <Input
-                        type="text"
-                        value={descriptions.assetsCountPrefix}
-                        onChange={(e) => handleDescriptionChange('assetsCountPrefix', e.target.value)}
-                        className="h-7 text-xs"
-                        placeholder="找到"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">后缀</Label>
-                      <Input
-                        type="text"
-                        value={descriptions.assetsCountSuffix}
-                        onChange={(e) => handleDescriptionChange('assetsCountSuffix', e.target.value)}
-                        className="h-7 text-xs"
-                        placeholder="个资产"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-gray-500">0个资产</Label>
-                      <Input
-                        type="text"
-                        value={descriptions.assetsCountZero}
-                        onChange={(e) => handleDescriptionChange('assetsCountZero', e.target.value)}
-                        className="h-7 text-xs"
-                        placeholder="找到 0 个资产"
-                      />
-                    </div>
+              {/* 资产计数 */}
+              <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
+                <div className="text-sm font-semibold text-gray-900">资产计数显示</div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-sm text-gray-700 mb-1 block">前缀</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.assetsCountPrefix}
+                      onChange={(e) => handleDescriptionChange('assetsCountPrefix', e.target.value)}
+                      className="h-9 text-sm"
+                      placeholder="找到"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-700 mb-1 block">后缀</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.assetsCountSuffix}
+                      onChange={(e) => handleDescriptionChange('assetsCountSuffix', e.target.value)}
+                      className="h-9 text-sm"
+                      placeholder="个资产"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm text-gray-700 mb-1 block">0个资产</Label>
+                    <Input
+                      type="text"
+                      value={descriptions.assetsCountZero}
+                      onChange={(e) => handleDescriptionChange('assetsCountZero', e.target.value)}
+                      className="h-9 text-sm"
+                      placeholder="找到 0 个资产"
+                    />
                   </div>
                 </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResetDescriptions}
-                  className="w-full h-7 text-xs"
-                >
-                  重置为默认值
-                </Button>
               </div>
-            )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetDescriptions}
+                className="h-9 text-sm"
+              >
+                重置为默认值
+              </Button>
+            </div>
+          </div>
+
+          {/* AI 提示词设置（用于上传资产时的标签生成） */}
+          <div className="space-y-4 p-4 border rounded-lg bg-white">
+            <div className="text-sm font-semibold text-gray-900">AI 提示词设置（上传资产时）</div>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600">
+                <p>自定义上传资产时 AI 生成标签的提示词。留空则使用默认提示词。</p>
+                <p className="mt-1 text-sm text-gray-500">提示：提示词应要求 AI 返回 JSON 格式，包含 tags 数组和 description 字符串</p>
+              </div>
+              <div>
+                <Label className="text-sm text-gray-700 mb-2 block">AI 标签生成提示词</Label>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="你是资深游戏美术分析师，请先判断图片内容，再给出：1）不超过 8 个标签（每个不超过 6 字），2）一句不超过 25 字的中文描述。"
+                  rows={6}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAiPrompt('你是资深游戏美术分析师，请先判断图片内容，再给出：1）不超过 8 个标签（每个不超过 6 字），2）一句不超过 25 字的中文描述。仅输出 JSON：{"tags":[], "description":""}。');
+                }}
+                className="h-9 text-sm"
+              >
+                重置为默认值
+              </Button>
+            </div>
+          </div>
+
+          {/* AI 分析提示词设置（用于资产详情页的AI分析） */}
+          <div className="space-y-4 p-4 border rounded-lg bg-white">
+            <div className="text-sm font-semibold text-gray-900">AI 分析提示词设置（资产详情页）</div>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600">
+                <p>自定义资产详情页 AI 分析的提示词。留空则使用默认提示词。</p>
+                <p className="mt-1 text-sm text-gray-500">提示：提示词应要求 AI 返回 JSON 格式，包含 tags 数组和 description 字符串。此提示词与上传时的提示词分开管理。</p>
+              </div>
+              <div>
+                <Label className="text-sm text-gray-700 mb-2 block">AI 分析提示词</Label>
+                <textarea
+                  value={aiAnalyzePrompt}
+                  onChange={(e) => setAiAnalyzePrompt(e.target.value)}
+                  placeholder="请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的描述和标签。"
+                  rows={6}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAiAnalyzePrompt('请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的描述和标签。仅输出 JSON 格式：{"tags":[], "description":""}。');
+                }}
+                className="h-9 text-sm"
+              >
+                重置为默认值
+              </Button>
+            </div>
           </div>
 
           {/* 保存按钮 */}
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            size="sm"
-            className="w-full h-8 text-xs"
-          >
-            <Save className="h-3 w-3 mr-1" />
-            {saving ? '保存中...' : '保存设置'}
-          </Button>
-          {message && (
-            <div className={`text-xs ${message.includes('失败') || message.includes('不能') ? 'text-red-500' : 'text-green-500'}`}>
-              {message}
-            </div>
-          )}
+          <div className="flex items-center gap-4 pt-4 border-t">
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              size="default"
+              className="h-9"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? '保存中...' : '保存设置'}
+            </Button>
+            {message && (
+              <div className={`text-sm ${message.includes('失败') || message.includes('不能') ? 'text-red-500' : 'text-green-500'}`}>
+                {message}
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
 export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps) {
-  const [activeTab, setActiveTab] = useState<'assets-new' | 'assets-manage' | 'materials-new' | 'materials-manage'>('assets-new');
+  const [activeTab, setActiveTab] = useState<'assets-new' | 'assets-manage' | 'materials-new' | 'materials-manage' | 'settings'>('assets-new');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [assetsExpanded, setAssetsExpanded] = useState(true);
   const [materialsExpanded, setMaterialsExpanded] = useState(false);
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
 
   // 将 children 转换为数组
   const childrenArray = Children.toArray(children);
@@ -686,10 +755,37 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
               </div>
             )}
           </div>
-        </nav>
 
-        {/* 设置区域 */}
-        <SettingsSection sidebarCollapsed={sidebarCollapsed} />
+          {/* 设置 */}
+          <div>
+            <button
+              onClick={() => {
+                if (!sidebarCollapsed) {
+                  setSettingsExpanded(!settingsExpanded);
+                }
+                setActiveTab('settings');
+              }}
+              className={cn(
+                'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
+                activeTab === 'settings'
+                  ? 'bg-blue-50 text-blue-700'
+                  : 'text-gray-700 hover:bg-gray-100'
+              )}
+            >
+              <Settings className="h-5 w-5 shrink-0" />
+              {!sidebarCollapsed && (
+                <>
+                  <span className="flex-1 text-left">设置</span>
+                  {settingsExpanded ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </>
+              )}
+            </button>
+          </div>
+        </nav>
       </aside>
 
       {/* 右侧内容区域 */}
@@ -709,6 +805,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
             {activeTab === 'assets-manage' && childrenArray[1]}
             {activeTab === 'materials-new' && childrenArray[2]}
             {activeTab === 'materials-manage' && childrenArray[3]}
+            {activeTab === 'settings' && <SettingsSection sidebarCollapsed={sidebarCollapsed} />}
           </div>
         </div>
       </div>

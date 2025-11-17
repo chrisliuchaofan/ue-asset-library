@@ -9,6 +9,7 @@ export const revalidate = 0;
 const AnalyzeImageRequestSchema = z.object({
   imageUrl: z.string().url('图片 URL 格式不正确').optional(),
   imageBase64: z.string().optional(),
+  customPrompt: z.string().optional(), // 自定义提示词（可选）
   // 预留：未来支持文件上传
   // imageFile: z.instanceof(File).optional(),
 }).refine(
@@ -180,7 +181,8 @@ async function fetchWithTimeout(
 async function callAIImageAPI(
   imageUrl: string,
   maxRetries: number = 2,
-  retryDelay: number = 1000
+  retryDelay: number = 1000,
+  customPrompt?: string
 ): Promise<AIAnalyzeResponse> {
   const apiEndpoint = process.env.AI_IMAGE_API_ENDPOINT;
   const apiKey = process.env.AI_IMAGE_API_KEY;
@@ -213,9 +215,19 @@ async function callAIImageAPI(
   
   // 根据不同的 AI 服务商构建请求体
   const buildRequestBody = (): any => {
+    // 检查是否是 base64 格式
+    const isBase64 = imageUrl.startsWith('data:image/');
+    
+    // 使用自定义提示词（如果提供），否则使用默认提示词
+    const defaultOpenAIPrompt = '请分析这张图片，提供标签（用逗号分隔）和简短描述。格式：标签：xxx,xxx,xxx\n描述：xxx';
+    const defaultAliyunPrompt = '你是资深游戏美术分析师，请先判断图片内容，再给出：1）不超过 8 个标签（每个不超过 6 字），2）一句不超过 25 字的中文描述。仅输出 JSON：{tags:[], description:\'\'}。';
+    
+    const openAIPrompt = customPrompt || defaultOpenAIPrompt;
+    const aliyunPrompt = customPrompt || defaultAliyunPrompt;
+    
     switch (provider) {
       case 'openai':
-        // OpenAI Vision API 格式
+        // OpenAI Vision API 格式（支持 base64）
         return {
           model: process.env.AI_IMAGE_API_MODEL || 'gpt-4-vision-preview',
           messages: [
@@ -224,11 +236,11 @@ async function callAIImageAPI(
               content: [
                 {
                   type: 'text',
-                  text: '请分析这张图片，提供标签（用逗号分隔）和简短描述。格式：标签：xxx,xxx,xxx\n描述：xxx',
+                  text: openAIPrompt,
                 },
                 {
                   type: 'image_url',
-                  image_url: { url: imageUrl },
+                  image_url: { url: imageUrl }, // OpenAI 支持 data URI
                 },
               ],
             },
@@ -237,7 +249,7 @@ async function callAIImageAPI(
         };
       
       case 'aliyun':
-        // 阿里云 DashScope OpenAI 兼容模式
+        // 阿里云 DashScope OpenAI 兼容模式（支持 base64）
         const model = process.env.AI_IMAGE_API_MODEL || 'qwen-vl-plus-latest';
         return {
           model: model,
@@ -247,11 +259,11 @@ async function callAIImageAPI(
               content: [
                 {
                   type: 'text',
-                  text: '你是资深游戏美术分析师，请先判断图片内容，再给出：1）不超过 8 个标签（每个不超过 6 字），2）一句不超过 25 字的中文描述。仅输出 JSON：{tags:[], description:\'\'}。',
+                  text: aliyunPrompt,
                 },
                 {
                   type: 'image_url',
-                  image_url: { url: imageUrl },
+                  image_url: { url: imageUrl }, // 阿里云也支持 data URI
                 },
               ],
             },
@@ -449,7 +461,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { imageUrl, imageBase64 } = parsed.data;
+    const { imageUrl, imageBase64, customPrompt } = parsed.data;
 
     // 优先使用 URL，如果提供了 base64 则先转换为 URL（预留功能）
     let finalImageUrl: string;
@@ -457,14 +469,18 @@ export async function POST(request: Request) {
     if (imageUrl) {
       finalImageUrl = imageUrl;
     } else if (imageBase64) {
-      // 预留：base64 转 URL 的逻辑
-      // 目前先返回错误，提示使用 URL 方式
-      return NextResponse.json(
-        {
-          message: 'Base64 方式暂未实现，请使用 imageUrl 参数',
-        },
-        { status: 501 } // 501 Not Implemented
-      );
+      // 支持 base64 格式（用于视频抽帧生成的 blob URL 转换）
+      // base64 格式：data:image/jpeg;base64,/9j/4AAQSkZJRg...
+      if (imageBase64.startsWith('data:image/')) {
+        // 直接使用 base64 数据，但需要转换为可访问的 URL
+        // 由于 AI API 需要 URL，我们需要创建一个临时 URL 或者直接使用 base64
+        // 对于支持 base64 的 AI 服务，可以直接使用
+        // 这里我们尝试使用 base64 作为 URL（某些服务支持）
+        finalImageUrl = imageBase64;
+      } else {
+        // 如果不是标准的 data URI，尝试作为 URL
+        finalImageUrl = imageBase64;
+      }
     } else {
       // 理论上不会到这里（zod refine 已经验证）
       return NextResponse.json(
@@ -479,7 +495,7 @@ export async function POST(request: Request) {
     // 注意：如果环境变量未配置，callAIImageAPI 会返回 mock 结果，不会抛异常
     // 如果调用失败，callAIImageAPI 会返回 { tags: [], description: '', raw: { error: '...' } }
     const startTime = Date.now();
-    const result = await callAIImageAPI(finalImageUrl);
+    const result = await callAIImageAPI(finalImageUrl, 2, 1000, customPrompt);
     const duration = Date.now() - startTime;
 
     // 记录请求日志（包括生产环境，方便排查问题）

@@ -28,6 +28,7 @@ export const AssetSchema = z.object({
   project: ProjectEnum, // 项目：必填
   style: z.union([z.string(), z.array(z.string())]).optional(), // 风格：字符串或字符串数组
   tags: z.array(z.string()), // 标签：字符串数组
+  description: z.string().optional(), // 描述：字符串
   source: z.string().optional(), // 来源：字符串
   engineVersion: z.string().optional(), // 版本：字符串
   guangzhouNas: z.string().optional(), // 广州NAS路径
@@ -43,6 +44,7 @@ export const AssetSchema = z.object({
   duration: z.number().optional(), // 视频时长（秒）
   createdAt: z.number().optional(), // 创建时间（时间戳）
   updatedAt: z.number().optional(), // 更新时间（时间戳）
+  recommended: z.boolean().optional(), // 是否推荐
 });
 
 export const ManifestSchema = z.object({
@@ -57,6 +59,7 @@ export const AssetCreateSchema = z.object({
   project: ProjectEnum, // 项目：必填
   style: z.union([z.string(), z.array(z.string())]).optional(),
   tags: z.array(z.string()).min(1, '至少需要一个标签'),
+  description: z.string().optional(),
   source: z.string().min(1, '来源不能为空'),
   engineVersion: z.string().min(1, '版本不能为空'),
   guangzhouNas: z.string().optional(),
@@ -70,6 +73,7 @@ export const AssetCreateSchema = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   duration: z.number().optional(),
+  recommended: z.boolean().optional(), // 是否推荐
 }).refine((data) => {
   // 广州NAS和深圳NAS至少需要填写一个
   return !!(data.guangzhouNas?.trim() || data.shenzhenNas?.trim());
@@ -86,6 +90,7 @@ export const AssetUpdateSchema = z.object({
   project: ProjectEnum.optional(), // 项目：可选更新
   style: z.union([z.string(), z.array(z.string())]).optional(),
   tags: z.array(z.string()).min(1, '至少需要一个标签').optional(),
+  description: z.string().optional(),
   source: z.string().min(1, '来源不能为空').optional(),
   engineVersion: z.string().min(1, '版本不能为空').optional(),
   guangzhouNas: z.string().optional(),
@@ -99,6 +104,7 @@ export const AssetUpdateSchema = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   duration: z.number().optional(),
+  recommended: z.boolean().optional(), // 是否推荐
 }).refine((data) => {
   // 如果提供了 guangzhouNas 或 shenzhenNas，至少需要填写一个
   if (data.guangzhouNas !== undefined || data.shenzhenNas !== undefined) {

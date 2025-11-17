@@ -4,7 +4,8 @@ import { useCallback, useMemo, useState, useRef, useEffect, type ChangeEvent } f
 import type { Asset } from '@/data/manifest.schema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, FileArchive } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, FileArchive, Sparkles } from 'lucide-react';
 import { BatchUploadDialog } from './batch-upload-dialog';
 import { uploadFileDirect } from '@/lib/client/direct-upload';
 import { useAdminRefresh } from './admin-refresh-context';
@@ -30,6 +31,7 @@ interface FormState {
   project: string;
   style: string;
   tags: string;
+  description: string;
   source: string;
   engineVersion: string;
   guangzhouNas: string;
@@ -49,6 +51,7 @@ const initialFormState: FormState = {
   project: '',
   style: '',
   tags: '',
+  description: '',
   source: '',
   engineVersion: '',
   guangzhouNas: '',
@@ -85,6 +88,11 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
   const [allowedTypes, setAllowedTypes] = useState<string[]>([...DEFAULT_ASSET_TYPES]);
+  
+  // AI 推荐标签相关状态
+  const [aiRecommendedTags, setAiRecommendedTags] = useState<string[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const normalizedCdnBase = useMemo(() => cdnBase.replace(/\/+$/, ''), [cdnBase]);
 
@@ -94,7 +102,11 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
         .then((res) => res.json())
         .then((data) => {
           if (Array.isArray(data.allowedTypes) && data.allowedTypes.length > 0) {
-            setAllowedTypes(data.allowedTypes);
+            // 合并默认类型和从API获取的类型，去重
+            const allTypes = [...new Set([...DEFAULT_ASSET_TYPES, ...data.allowedTypes])];
+            setAllowedTypes(allTypes);
+          } else {
+            setAllowedTypes([...DEFAULT_ASSET_TYPES]);
           }
         })
         .catch(() => {
@@ -108,6 +120,8 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
     setPreviewUrls([]);
     setCurrentPreviewIndex(0);
     setUploadedFiles([]);
+    setAiRecommendedTags([]);
+    setAiError(null);
   }, []);
 
   const calculateFileHash = useCallback(async (file: File): Promise<string> => {
@@ -259,12 +273,305 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
     []
   );
 
+  /**
+   * 从视频中提取多帧（最多6帧，平均分布）
+   */
+  const extractVideoFrames = useCallback(
+    async (videoFile: File, frameCount: number = 6): Promise<string[]> => {
+      return new Promise((resolve) => {
+        const video = document.createElement('video');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          resolve([]);
+          return;
+        }
+
+        const frames: string[] = [];
+        let loadedMetadata = false;
+        let duration = 0;
+
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => {
+          duration = video.duration;
+          loadedMetadata = true;
+          
+          if (duration <= 0 || !isFinite(duration)) {
+            // 如果无法获取时长，只提取第一帧
+            video.currentTime = 0.1;
+            const onSeekedFirst = () => {
+              try {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                canvas.toBlob(
+                  (blob) => {
+                    if (blob) {
+                      const url = URL.createObjectURL(blob);
+                      frames.push(url);
+                    }
+                    resolve(frames);
+                  },
+                  'image/jpeg',
+                  0.8
+                );
+              } catch (error) {
+                console.warn('提取视频第一帧失败:', error);
+                resolve(frames);
+              }
+            };
+            video.addEventListener('seeked', onSeekedFirst, { once: true });
+            return;
+          }
+
+          // 计算每帧的时间点（平均分布）
+          // 确保至少提取1帧，最多提取frameCount帧
+          const actualFrameCount = Math.max(1, Math.min(frameCount, Math.ceil(duration)));
+          const interval = duration / (actualFrameCount + 1); // +1 是为了避免最后一帧太接近结束
+
+          let extractedCount = 0;
+          let currentFrameIndex = 0;
+
+          const extractFrame = (index: number) => {
+            if (index >= actualFrameCount) {
+              resolve(frames);
+              return;
+            }
+
+            const time = interval * (index + 1);
+            video.currentTime = Math.min(time, duration - 0.1);
+
+            const onSeeked = () => {
+              try {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                canvas.toBlob(
+                  (blob) => {
+                    if (blob) {
+                      const url = URL.createObjectURL(blob);
+                      frames.push(url);
+                      extractedCount++;
+                      
+                      // 继续提取下一帧
+                      if (extractedCount < actualFrameCount) {
+                        currentFrameIndex++;
+                        extractFrame(currentFrameIndex);
+                      } else {
+                        video.removeEventListener('seeked', onSeeked);
+                        resolve(frames);
+                      }
+                    } else {
+                      // 如果当前帧提取失败，继续下一帧
+                      video.removeEventListener('seeked', onSeeked);
+                      if (extractedCount < actualFrameCount) {
+                        currentFrameIndex++;
+                        extractFrame(currentFrameIndex);
+                      } else {
+                        resolve(frames);
+                      }
+                    }
+                  },
+                  'image/jpeg',
+                  0.8
+                );
+              } catch (error) {
+                console.warn('提取视频帧失败:', error);
+                video.removeEventListener('seeked', onSeeked);
+                if (extractedCount < actualFrameCount) {
+                  currentFrameIndex++;
+                  extractFrame(currentFrameIndex);
+                } else {
+                  resolve(frames);
+                }
+              }
+            };
+
+            video.addEventListener('seeked', onSeeked, { once: true });
+          };
+
+          // 开始提取第一帧
+          extractFrame(0);
+        };
+
+        video.onerror = () => {
+          resolve(frames.length > 0 ? frames : []);
+        };
+
+        video.src = URL.createObjectURL(videoFile);
+      });
+    },
+    []
+  );
+
   const handleInputChange = (field: keyof FormState) => (event: ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({
       ...prev,
       [field]: event.target.value,
     }));
   };
+
+  /**
+   * 获取完整的图片 URL（用于 AI 分析）
+   * 优先使用当前选中的预览图
+   */
+  const getImageUrlForAI = useCallback((): string | null => {
+    // 优先使用当前选中的预览图
+    if (previewUrls.length > 0 && previewUrls[currentPreviewIndex]) {
+      const selectedUrl = previewUrls[currentPreviewIndex];
+      // 如果是 blob URL（视频抽帧生成的），直接返回
+      if (selectedUrl.startsWith('blob:')) {
+        return selectedUrl;
+      }
+      // 如果是完整 URL
+      if (selectedUrl.startsWith('http')) {
+        return selectedUrl;
+      }
+      // 如果是相对路径，拼接 CDN base
+      if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+        return `${normalizedCdnBase.replace(/\/+$/, '')}${selectedUrl}`;
+      }
+      return selectedUrl;
+    }
+    
+    // 如果没有预览图，使用 thumbnail
+    if (form.thumbnail) {
+      if (form.thumbnail.startsWith('http') || form.thumbnail.startsWith('blob:')) {
+        return form.thumbnail;
+      }
+      if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+        return `${normalizedCdnBase.replace(/\/+$/, '')}${form.thumbnail}`;
+      }
+      return form.thumbnail;
+    }
+    
+    return null;
+  }, [previewUrls, currentPreviewIndex, form.thumbnail, storageMode, normalizedCdnBase]);
+
+  /**
+   * 将 blob URL 转换为 base64
+   */
+  const blobUrlToBase64 = useCallback(async (blobUrl: string): Promise<string> => {
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
+  /**
+   * 调用 AI 分析接口获取推荐标签
+   */
+  const handleAIGenerateTags = useCallback(async () => {
+    const imageUrl = getImageUrlForAI();
+    
+    if (!imageUrl) {
+      setAiError('请先选择并上传预览图');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+    setAiRecommendedTags([]);
+
+    try {
+      // 如果是 blob URL，需要转换为 base64
+      let finalImageUrl = imageUrl;
+      if (imageUrl.startsWith('blob:')) {
+        const base64 = await blobUrlToBase64(imageUrl);
+        finalImageUrl = base64;
+      }
+
+      // 从 localStorage 读取自定义提示词
+      const customPrompt = typeof window !== 'undefined' ? localStorage.getItem('ai_image_prompt') : null;
+      
+      const response = await fetch('/api/ai/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          imageUrl: finalImageUrl.startsWith('data:') ? undefined : finalImageUrl,
+          imageBase64: finalImageUrl.startsWith('data:') ? finalImageUrl : undefined,
+          customPrompt: customPrompt || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'AI 分析失败');
+      }
+
+      const data = await response.json();
+      
+      // 检查是否有错误
+      if (data.raw?.error) {
+        throw new Error(data.raw.error || 'AI 分析失败');
+      }
+
+      // 提取标签和描述
+      const tags = Array.isArray(data.tags) ? data.tags.filter((tag: string) => tag && tag.trim()) : [];
+      const description = data.description || '';
+      
+      if (tags.length === 0 && !description) {
+        setAiError('AI 未能生成标签或描述，请稍后重试');
+      } else {
+        setAiRecommendedTags(tags);
+        // 如果AI生成了描述，自动填充到表单（如果描述字段为空）
+        if (description && !form.description.trim()) {
+          setForm((prev) => ({ ...prev, description }));
+        }
+      }
+    } catch (error) {
+      console.error('AI 分析失败:', error);
+      setAiError(error instanceof Error ? error.message : 'AI 分析失败，请稍后重试');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [getImageUrlForAI, blobUrlToBase64]);
+
+  /**
+   * 切换推荐标签的选中状态（添加到 tags 或从 tags 中移除）
+   */
+  const handleToggleRecommendedTag = useCallback((tag: string) => {
+    const currentTags = form.tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    
+    const tagIndex = currentTags.indexOf(tag);
+    
+    if (tagIndex >= 0) {
+      // 如果已存在，则移除
+      currentTags.splice(tagIndex, 1);
+    } else {
+      // 如果不存在，则添加
+      currentTags.push(tag);
+    }
+    
+    setForm((prev) => ({
+      ...prev,
+      tags: currentTags.join(', '),
+    }));
+  }, [form.tags]);
+
+  /**
+   * 检查推荐标签是否已被选中
+   */
+  const isRecommendedTagSelected = useCallback((tag: string) => {
+    const currentTags = form.tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+    return currentTags.includes(tag);
+  }, [form.tags]);
 
   const handleFileUpload = useCallback(async (file: File) => {
     setUploading(true);
@@ -416,10 +723,24 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
       }
       
       let thumbnailUrl = previewUrl;
+      let videoFrames: string[] = [];
+      
       if (data.type === 'video') {
-        const thumb = await extractVideoThumbnail(file);
-        if (thumb) {
-          thumbnailUrl = thumb;
+        // 提取视频的6帧
+        console.log('开始提取视频帧...');
+        const frames = await extractVideoFrames(file, 6);
+        console.log('视频帧提取完成，共', frames.length, '帧');
+        if (frames.length > 0) {
+          videoFrames = frames;
+          thumbnailUrl = frames[0]; // 使用第一帧作为默认缩略图
+        } else {
+          // 如果提取失败，回退到单帧提取
+          console.log('视频帧提取失败，回退到单帧提取');
+          const thumb = await extractVideoThumbnail(file);
+          if (thumb) {
+            thumbnailUrl = thumb;
+            videoFrames = [thumb];
+          }
         }
       }
 
@@ -438,7 +759,45 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
       
       setUploadedFiles((prev) => {
         const updated = [...prev, newFile];
-        updateFormFromUploadedFiles(updated);
+        
+        // 如果是视频且提取了多帧，更新预览图列表
+        if (data.type === 'video' && videoFrames.length > 0) {
+          // 先设置预览图（视频抽帧生成的 blob URL）
+          setPreviewUrls((prevUrls) => {
+            // 如果是第一个文件，直接设置；否则追加
+            if (prev.length === 0) {
+              return videoFrames;
+            } else {
+              return [...prevUrls, ...videoFrames];
+            }
+          });
+          setCurrentPreviewIndex(0); // 默认选中第一帧
+          
+          // 更新表单，但不覆盖 previewUrls（因为视频抽帧的预览图已经设置好了）
+          const firstFile = updated[0];
+          const galleryUrls = updated.map((f) => f.url);
+          
+          setForm((prevForm) => {
+            // 视频抽帧时，默认使用第一帧作为预览图
+            const finalThumbnail = thumbnailUrl || prevForm.thumbnail;
+            const finalSrc = firstFile.url || finalThumbnail;
+            
+            return {
+              ...prevForm,
+              name: prevForm.name || firstFile.originalName.replace(/\.[^/.]+$/, ''),
+              src: finalSrc,
+              thumbnail: finalThumbnail, // 使用视频抽帧的第一帧作为默认预览图
+              gallery: galleryUrls.join(','),
+              width: firstFile.width ? String(firstFile.width) : prevForm.width,
+              height: firstFile.height ? String(firstFile.height) : prevForm.height,
+              filesize: firstFile.size ? String(firstFile.size) : prevForm.filesize,
+            };
+          });
+        } else {
+          // 非视频文件，使用原来的逻辑
+          updateFormFromUploadedFiles(updated);
+        }
+        
         return updated;
       });
 
@@ -484,6 +843,44 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
     event.preventDefault();
   }, []);
 
+  /**
+   * 将 blob URL 转换为 File 对象并上传
+   */
+  const uploadBlobUrl = useCallback(async (blobUrl: string, fileName: string = 'thumbnail.jpg'): Promise<string> => {
+    try {
+      // 获取 blob
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      
+      // 转换为 File 对象
+      const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+      
+      // 上传文件
+      if (storageMode === 'oss') {
+        const directResult = await uploadFileDirect(file, {});
+        return directResult.fileUrl;
+      } else {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error('上传预览图失败');
+        }
+        
+        const uploadData = await uploadResponse.json();
+        return uploadData.url;
+      }
+    } catch (error) {
+      console.error('上传 blob URL 失败:', error);
+      throw error;
+    }
+  }, [storageMode]);
+
   const handleCreate = async () => {
     setMessage(null);
     setLoading(true);
@@ -526,6 +923,14 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
       const mainFileHash = mainFile?.hash;
       const mainFileSize = mainFile?.fileSize || mainFile?.size;
 
+      // 如果 thumbnail 是 blob URL，需要先上传
+      let finalThumbnail = form.thumbnail;
+      if (form.thumbnail && form.thumbnail.startsWith('blob:')) {
+        setMessage('正在上传预览图...');
+        const thumbnailFileName = `${form.name.trim()}_thumbnail_${Date.now()}.jpg`;
+        finalThumbnail = await uploadBlobUrl(form.thumbnail, thumbnailFileName);
+      }
+
       const payload = {
         name: form.name.trim(),
         type: form.type,
@@ -535,11 +940,12 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
           .split(',')
           .map((tag) => tag.trim())
           .filter(Boolean),
+        description: form.description.trim() || undefined,
         source: form.source.trim(),
         engineVersion: form.engineVersion.trim(),
         guangzhouNas: form.guangzhouNas.trim() || undefined,
         shenzhenNas: form.shenzhenNas.trim() || undefined,
-        thumbnail: form.thumbnail || undefined,
+        thumbnail: finalThumbnail || undefined,
         src: form.src || undefined,
         gallery: form.gallery
           ? form.gallery
@@ -668,18 +1074,23 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
                 {previewUrls[currentPreviewIndex] && (
                   <>
                     {(() => {
-                      const currentFile = uploadedFiles[currentPreviewIndex];
-                      const isImage = currentFile?.type === 'image' || 
-                        previewUrls[currentPreviewIndex].match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
+                      const currentUrl = previewUrls[currentPreviewIndex];
+                      // blob URL 或图片 URL 都显示为图片
+                      const isImage = currentUrl.startsWith('blob:') || 
+                        currentUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i) ||
+                        !uploadedFiles.some(f => f.type === 'video' && f.url === currentUrl);
                       return isImage ? (
                         <img
-                          src={previewUrls[currentPreviewIndex]}
+                          src={currentUrl}
                           alt={`预览 ${currentPreviewIndex + 1}`}
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-contain cursor-pointer"
+                          onClick={() => {
+                            // 点击预览图可以选择，但这里主要是显示，选择通过缩略图列表
+                          }}
                         />
                       ) : (
                         <video
-                          src={previewUrls[currentPreviewIndex]}
+                          src={currentUrl}
                           controls
                           className="w-full h-full object-contain"
                         />
@@ -716,6 +1127,51 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
                   </>
                 )}
               </div>
+              {/* 视频抽帧缩略图列表 */}
+              {uploadedFiles.some(f => f.type === 'video') && previewUrls.length > 1 && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-600 mb-2">点击选择预览图（用于 AI 分析和资产预览图）：</p>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {previewUrls.map((url, index) => {
+                      const isSelected = index === currentPreviewIndex;
+                      const isThumbnail = form.thumbnail === url;
+                      return (
+                        <div
+                          key={index}
+                          className={`relative flex-shrink-0 w-20 h-12 rounded border-2 cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-blue-600 ring-2 ring-blue-300'
+                              : 'border-gray-300 hover:border-gray-400'
+                          } ${isThumbnail ? 'bg-blue-50' : ''}`}
+                          onClick={() => {
+                            setCurrentPreviewIndex(index);
+                            // 同时设置为预览图
+                            handleSetAsThumbnail(url);
+                          }}
+                        >
+                          <img
+                            src={url}
+                            alt={`帧 ${index + 1}`}
+                            className="w-full h-full object-cover rounded"
+                          />
+                          {isSelected && (
+                            <div className="absolute inset-0 bg-blue-600/20 flex items-center justify-center">
+                              <span className="text-xs font-semibold text-blue-700 bg-white/90 px-1 rounded">
+                                {index + 1}
+                              </span>
+                            </div>
+                          )}
+                          {isThumbnail && (
+                            <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] px-1 rounded-bl">
+                              预览图
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -811,9 +1267,21 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, type: event.target.value }))
                   }
+                  onFocus={(e) => {
+                    // 当聚焦时，如果输入框有值，先清空再显示，这样可以重新选择
+                    // 但这里我们不自动清空，让用户手动选择
+                  }}
+                  onClick={(e) => {
+                    // 点击时，如果是已选择的值，选中全部文本以便重新输入或选择
+                    const input = e.currentTarget;
+                    if (input.value && document.activeElement === input) {
+                      input.select();
+                    }
+                  }}
                   disabled={loading}
                   required
                   list="type-suggestions-new"
+                  autoComplete="off"
                 />
                 <datalist id="type-suggestions-new">
                   {allowedTypes.map((type) => (
@@ -824,20 +1292,23 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">项目<span className="text-red-500">*</span></label>
-              <select
-                value={form.project}
-                onChange={(e) => setForm((prev) => ({ ...prev, project: e.target.value }))}
-                disabled={loading}
-                required
-                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">请选择项目</option>
-                {getAllProjects().map((project) => (
-                  <option key={project} value={project}>
-                    {getProjectDisplayName(project)}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-1">
+                <Input
+                  placeholder="请选择项目"
+                  value={form.project}
+                  onChange={(e) => setForm((prev) => ({ ...prev, project: e.target.value }))}
+                  disabled={loading}
+                  required
+                  list="project-suggestions-new"
+                />
+                <datalist id="project-suggestions-new">
+                  {getAllProjects().map((project) => (
+                    <option key={project} value={project}>
+                      {getProjectDisplayName(project)}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">风格（逗号分隔，可新增）</label>
@@ -857,13 +1328,62 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               </div>
             </div>
             <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAIGenerateTags}
+                  disabled={loading || aiLoading || uploading}
+                  className="flex items-center gap-1"
+                  title={previewUrls.length > 1 ? `使用预览图 ${currentPreviewIndex + 1}/${previewUrls.length} 生成标签` : '使用当前预览图生成标签'}
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {aiLoading ? '分析中...' : previewUrls.length > 1 ? `AI 推荐标签 (${currentPreviewIndex + 1}/${previewUrls.length})` : 'AI 推荐标签'}
+                </Button>
+              </div>
               <Input
                 placeholder="自然, 风景, 建筑"
                 value={form.tags}
                 onChange={handleInputChange('tags')}
                 disabled={loading}
                 required
+              />
+              {aiError && (
+                <p className="text-sm text-red-600">{aiError}</p>
+              )}
+              {aiRecommendedTags.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <p className="text-sm font-medium text-gray-700">AI 推荐标签</p>
+                  <div className="flex flex-wrap gap-2">
+                    {aiRecommendedTags.map((tag) => {
+                      const isSelected = isRecommendedTagSelected(tag);
+                      return (
+                        <Badge
+                          key={tag}
+                          variant={isSelected ? 'default' : 'outline'}
+                          className="cursor-pointer hover:bg-primary/80 transition-colors"
+                          onClick={() => handleToggleRecommendedTag(tag)}
+                        >
+                          {tag}
+                          {isSelected && ' ✓'}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium">描述</label>
+              <textarea
+                placeholder="资产的详细描述（可手动填写或使用AI生成）"
+                value={form.description}
+                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                disabled={loading}
+                rows={3}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
             <div className="space-y-2">

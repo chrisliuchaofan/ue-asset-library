@@ -15,7 +15,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
-import { LayoutPanelTop, Film, Grid3x3, ChevronDown, ChevronUp } from 'lucide-react';
+import { LayoutPanelTop, Film, Grid3x3, ChevronDown, ChevronUp, ArrowUpDown, Clock, Star } from 'lucide-react';
 import { getAssetsIndex } from '@/lib/asset-index';
 import { PAGINATION, getDescription } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -29,9 +29,13 @@ const SELECTED_ASSETS_STORAGE_KEY = 'selected-asset-ids';
 const VIEW_MODE_STORAGE_KEY = 'asset-view-mode';
 const COMPACT_MODE_STORAGE_KEY = 'asset-compact-mode';
 const THUMB_SIZE_STORAGE_KEY = 'asset-thumb-size';
+const SORT_BY_STORAGE_KEY = 'asset-sort-by';
+const TIME_SORT_DIRECTION_STORAGE_KEY = 'asset-time-sort-direction';
 
 type ViewMode = 'classic' | 'thumbnail' | 'grid';
 type ThumbSize = 'small' | 'medium' | 'large';
+type SortBy = 'latest' | 'recommended';
+type TimeSortDirection = 'newest-first' | 'oldest-first';
 
 // 缩略图尺寸选择器组件
 function ThumbSizeSelector({ thumbSize, onThumbSizeChange }: { thumbSize: ThumbSize; onThumbSizeChange: (size: ThumbSize) => void }) {
@@ -119,9 +123,12 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const [filterDurationMs, setFilterDurationMs] = useState<number | null>(null);
   const [isFetching, setIsFetching] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   // 使用默认值 'medium' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
   const [thumbSize, setThumbSize] = useState<ThumbSize>('medium');
+  const [sortBy, setSortBy] = useState<SortBy>('latest');
+  const [timeSortDirection, setTimeSortDirection] = useState<TimeSortDirection>('newest-first'); // 默认新到旧
   
   // 紧凑模式：使用Map存储每个卡片的紧凑状态（assetId -> boolean）
   const [compactModeMap, setCompactModeMap] = useState<Map<string, boolean>>(() => {
@@ -193,6 +200,35 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     localStorage.setItem(THUMB_SIZE_STORAGE_KEY, thumbSize);
   }, [thumbSize]);
 
+  // 从 localStorage 读取排序方式
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(SORT_BY_STORAGE_KEY) as SortBy | null;
+      if (stored === 'latest' || stored === 'recommended') {
+        setSortBy(stored);
+      }
+      const storedDirection = localStorage.getItem(TIME_SORT_DIRECTION_STORAGE_KEY) as TimeSortDirection | null;
+      if (storedDirection === 'newest-first' || storedDirection === 'oldest-first') {
+        setTimeSortDirection(storedDirection);
+      }
+    } catch {
+      // 忽略错误
+    }
+  }, []);
+
+  // 保存排序方式到 localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(SORT_BY_STORAGE_KEY, sortBy);
+  }, [sortBy]);
+
+  // 保存时间排序方向到 localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(TIME_SORT_DIRECTION_STORAGE_KEY, timeSortDirection);
+  }, [timeSortDirection]);
+
   // 从 URL 参数读取页码
   useEffect(() => {
     const pageParam = searchParams.get('page');
@@ -205,16 +241,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       setCurrentPage(1);
     }
   }, [searchParams]);
-
-  // 计算分页数据（使用 useMemo 优化性能）
-  const itemsPerPage = PAGINATION.ASSETS_PER_PAGE; // 100个
-  const { totalPages, paginatedAssets } = useMemo(() => {
-    const total = Math.ceil(displayAssets.length / itemsPerPage);
-    const start = (currentPage - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
-    const paginated = displayAssets.slice(start, end);
-    return { totalPages: total, paginatedAssets: paginated };
-  }, [displayAssets, currentPage]); // itemsPerPage 是常量，不需要放在依赖数组中
 
   useEffect(() => {
     if (hasHydratedSelection) return;
@@ -355,6 +381,45 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   // 使用索引进行快速筛选，大幅提升性能
   const assetsIndex = useMemo(() => getAssetsIndex(assets), [assets]);
 
+  // 排序函数
+  const sortAssets = useCallback((assets: Asset[]): Asset[] => {
+    const sorted = [...assets];
+    if (sortBy === 'latest') {
+      // 按时间排序（按更新时间，如果没有则按创建时间）
+      sorted.sort((a, b) => {
+        const aTime = a.updatedAt ?? a.createdAt ?? 0;
+        const bTime = b.updatedAt ?? b.createdAt ?? 0;
+        // 根据时间排序方向决定升序或降序
+        if (timeSortDirection === 'newest-first') {
+          return bTime - aTime; // 降序，最新的在前
+        } else {
+          return aTime - bTime; // 升序，最旧的在前
+        }
+      });
+    } else if (sortBy === 'recommended') {
+      // 按推荐排序：推荐资产优先，然后按时间排序
+      sorted.sort((a, b) => {
+        const aRecommended = a.recommended ?? false;
+        const bRecommended = b.recommended ?? false;
+        
+        // 如果推荐状态不同，推荐的在前面
+        if (aRecommended !== bRecommended) {
+          return aRecommended ? -1 : 1;
+        }
+        
+        // 如果推荐状态相同，按时间排序
+        const aTime = a.updatedAt ?? a.createdAt ?? 0;
+        const bTime = b.updatedAt ?? b.createdAt ?? 0;
+        if (timeSortDirection === 'newest-first') {
+          return bTime - aTime; // 降序，最新的在前
+        } else {
+          return aTime - bTime; // 升序，最旧的在前
+        }
+      });
+    }
+    return sorted;
+  }, [sortBy, timeSortDirection]);
+
   // 使用 useMemo 缓存乐观过滤结果，减少重复计算
   // 使用索引而不是遍历，性能提升 10-100 倍（取决于数据量）
   const optimisticFilteredAssets = useMemo(() => {
@@ -371,9 +436,10 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       versions: optimisticFilters.versions.length > 0 ? optimisticFilters.versions : undefined,
       projects: selectedProjects.length > 0 ? selectedProjects : undefined,
     });
+    const sorted = sortAssets(preview);
     const duration = performance.now() - start;
-    return { preview, duration };
-  }, [assetsIndex, deferredKeyword, deferredOptimisticFilters, selectedProjects]);
+    return { preview: sorted, duration };
+  }, [assetsIndex, deferredKeyword, deferredOptimisticFilters, selectedProjects, sortAssets]);
 
   // 乐观本地过滤，确保交互即时响应
   useEffect(() => {
@@ -384,6 +450,24 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     setFilterDurationMs(optimisticFilteredAssets.duration);
     setIsFetching(true);
   }, [optimisticFilteredAssets]);
+
+  // 对 displayAssets 进行排序（当没有乐观过滤时）
+  const sortedDisplayAssets = useMemo(() => {
+    if (optimisticFilters) {
+      return displayAssets; // 乐观过滤已经排序
+    }
+    return sortAssets(displayAssets);
+  }, [displayAssets, sortAssets, optimisticFilters]);
+
+  // 计算分页数据（使用 useMemo 优化性能）
+  const itemsPerPage = PAGINATION.ASSETS_PER_PAGE; // 100个
+  const { totalPages, paginatedAssets } = useMemo(() => {
+    const total = Math.ceil(sortedDisplayAssets.length / itemsPerPage);
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const paginated = sortedDisplayAssets.slice(start, end);
+    return { totalPages: total, paginatedAssets: paginated };
+  }, [sortedDisplayAssets, currentPage]); // itemsPerPage 是常量，不需要放在依赖数组中
 
   // 没有筛选条件时使用初始数据
   // 但如果有项目参数，需要根据项目筛选
@@ -519,11 +603,11 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-muted-foreground">
             {useMemo(() => {
-              if (displayAssets.length === 0) {
+              if (sortedDisplayAssets.length === 0) {
                 return getDescription('assetsCountZero');
               }
-              return `${getDescription('assetsCountPrefix')} ${displayAssets.length} ${getDescription('assetsCountSuffix')}`;
-            }, [displayAssets.length])}
+              return `${getDescription('assetsCountPrefix')} ${sortedDisplayAssets.length} ${getDescription('assetsCountSuffix')}`;
+            }, [sortedDisplayAssets.length])}
           </div>
           <div className="flex items-center gap-2">
             <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
@@ -564,6 +648,60 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
                 onThumbSizeChange={setThumbSize}
               />
             )}
+            {/* 排序按钮 */}
+            <DropdownMenu open={isSortDropdownOpen} onOpenChange={setIsSortDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground transition hover:bg-transparent"
+                >
+                  <ArrowUpDown className="h-4 w-4" />
+                  <span className="hidden md:inline">
+                    {sortBy === 'latest' 
+                      ? (timeSortDirection === 'newest-first' ? '按最新排序' : '按最旧排序')
+                      : '按推荐排序'}
+                  </span>
+                  {isSortDropdownOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-44">
+                <DropdownMenuRadioGroup
+                  value={sortBy}
+                  onValueChange={(value) => {
+                    setSortBy(value as SortBy);
+                    setIsSortDropdownOpen(false);
+                  }}
+                >
+                  <DropdownMenuRadioItem 
+                    value="latest" 
+                    className="flex items-center gap-2 text-sm"
+                    onClick={(e) => {
+                      // 点击时切换时间排序方向
+                      if (sortBy === 'latest') {
+                        e.preventDefault();
+                        setTimeSortDirection(prev => prev === 'newest-first' ? 'oldest-first' : 'newest-first');
+                        setIsSortDropdownOpen(false);
+                      }
+                    }}
+                  >
+                    <Clock className="h-4 w-4" />
+                    <span className="text-sm">
+                      {timeSortDirection === 'newest-first' ? '按最新排序' : '按最旧排序'}
+                    </span>
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="recommended" className="flex items-center gap-2 text-sm">
+                    <Star className="h-4 w-4" />
+                    <span className="text-sm">按推荐排序</span>
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

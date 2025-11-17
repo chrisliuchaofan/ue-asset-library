@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { type Asset } from '@/data/manifest.schema';
-import { X, ZoomIn, ChevronLeft, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
+import { X, ZoomIn, ChevronLeft, ChevronRight, Heart, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
 
@@ -144,6 +144,9 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
     setAiResult(null);
     
     try {
+      // 从 localStorage 读取 AI 分析提示词（与上传时的提示词分开）
+      const customPrompt = typeof window !== 'undefined' ? localStorage.getItem('ai_analyze_prompt') : null;
+      
       const response = await fetch('/api/ai/analyze-image', {
         method: 'POST',
         headers: {
@@ -151,6 +154,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
         },
         body: JSON.stringify({
           imageUrl: imageUrl,
+          customPrompt: customPrompt || undefined,
         }),
       });
       
@@ -361,7 +365,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
         )}
       </div>
 
-      {/* AI 读图功能区域 */}
+      {/* AI 分析功能区域 */}
       {!isVideo && (
         <div className="mt-4 space-y-2">
           <div className="flex items-center gap-2">
@@ -380,8 +384,8 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                 </>
               ) : (
                 <>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  AI 读图
+                  <Heart className="mr-2 h-4 w-4" />
+                  AI 分析
                 </>
               )}
             </Button>

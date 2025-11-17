@@ -1,19 +1,31 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { MaterialsList } from '@/components/materials-list';
 import { HeaderActions } from '@/components/header-actions';
 import { type Material } from '@/data/material.schema';
 import { useOfficeLocation } from '@/components/office-selector';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowUpDown, Clock, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import type { MaterialFilterSnapshot } from '@/components/material-filter-sidebar';
 import type { MaterialsSummary } from '@/lib/materials-data';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
 type ThumbSize = 'small' | 'medium' | 'large';
+type SortBy = 'latest' | 'recommended';
+type TimeSortDirection = 'newest-first' | 'oldest-first';
 
 const THUMB_SIZE_STORAGE_KEY = 'material-thumb-size';
+const SORT_BY_STORAGE_KEY = 'material-sort-by';
+const TIME_SORT_DIRECTION_STORAGE_KEY = 'material-time-sort-direction';
 
 interface MaterialsListWithHeaderProps {
   materials: Material[];
@@ -47,6 +59,9 @@ function applyFilters(source: Material[], keyword: string, snapshot: MaterialFil
 export function MaterialsListWithHeader({ materials, optimisticFilters, summary }: MaterialsListWithHeaderProps) {
   // 使用默认值 'medium' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
   const [thumbSize, setThumbSize] = useState<ThumbSize>('medium');
+  const [sortBy, setSortBy] = useState<SortBy>('latest');
+  const [timeSortDirection, setTimeSortDirection] = useState<TimeSortDirection>('newest-first');
+  const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
   const searchParams = useSearchParams();
   const keyword = searchParams.get('q') ?? '';
   const selectedType = searchParams.get('type') || null;
@@ -213,13 +228,86 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
     localStorage.setItem(THUMB_SIZE_STORAGE_KEY, thumbSize);
   }, [thumbSize]);
 
+  // 从 localStorage 读取排序方式
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const stored = localStorage.getItem(SORT_BY_STORAGE_KEY) as SortBy | null;
+      if (stored === 'latest' || stored === 'recommended') {
+        setSortBy(stored);
+      }
+      const storedDirection = localStorage.getItem(TIME_SORT_DIRECTION_STORAGE_KEY) as TimeSortDirection | null;
+      if (storedDirection === 'newest-first' || storedDirection === 'oldest-first') {
+        setTimeSortDirection(storedDirection);
+      }
+    } catch {
+      // 忽略错误
+    }
+  }, []);
+
+  // 保存排序方式到 localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(SORT_BY_STORAGE_KEY, sortBy);
+  }, [sortBy]);
+
+  // 保存时间排序方向到 localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(TIME_SORT_DIRECTION_STORAGE_KEY, timeSortDirection);
+  }, [timeSortDirection]);
+
+  // 排序函数
+  const sortMaterials = useCallback((materials: Material[]): Material[] => {
+    const sorted = [...materials];
+    if (sortBy === 'latest') {
+      // 按时间排序（按更新时间，如果没有则按创建时间）
+      sorted.sort((a, b) => {
+        const aTime = a.updatedAt ?? a.createdAt ?? 0;
+        const bTime = b.updatedAt ?? b.createdAt ?? 0;
+        // 根据时间排序方向决定升序或降序
+        if (timeSortDirection === 'newest-first') {
+          return bTime - aTime; // 降序，最新的在前
+        } else {
+          return aTime - bTime; // 升序，最旧的在前
+        }
+      });
+    } else if (sortBy === 'recommended') {
+      // 按推荐排序：推荐素材优先，然后按时间排序
+      sorted.sort((a, b) => {
+        const aRecommended = a.recommended ?? false;
+        const bRecommended = b.recommended ?? false;
+        
+        // 如果推荐状态不同，推荐的在前面
+        if (aRecommended !== bRecommended) {
+          return aRecommended ? -1 : 1;
+        }
+        
+        // 如果推荐状态相同，按时间排序
+        const aTime = a.updatedAt ?? a.createdAt ?? 0;
+        const bTime = b.updatedAt ?? b.createdAt ?? 0;
+        if (timeSortDirection === 'newest-first') {
+          return bTime - aTime; // 降序，最新的在前
+        } else {
+          return aTime - bTime; // 升序，最旧的在前
+        }
+      });
+    }
+    return sorted;
+  }, [sortBy, timeSortDirection]);
+
+  // 对显示的材料进行排序
+  const sortedDisplayMaterials = useMemo(() => {
+    return sortMaterials(displayMaterials);
+  }, [displayMaterials, sortMaterials]);
+
   const portal = mounted ? document.getElementById('header-actions-portal') : null;
 
   return (
     <>
       <div className="mb-4 flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          找到 {displayMaterials.length} 个素材
+          找到 {sortedDisplayMaterials.length} 个素材
           {summary.total > 0 && !hasServerFilters && (
             <span className="ml-2 text-xs text-muted-foreground/80">共 {summary.total} 个</span>
           )}
@@ -229,8 +317,63 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
             </span>
           )}
         </div>
-        {/* 缩略图尺寸切换 */}
-        <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
+        <div className="flex items-center gap-2">
+          {/* 排序按钮 */}
+          <DropdownMenu open={isSortDropdownOpen} onOpenChange={setIsSortDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground transition hover:bg-transparent"
+              >
+                <ArrowUpDown className="h-4 w-4" />
+                <span className="hidden md:inline">
+                  {sortBy === 'latest' 
+                    ? (timeSortDirection === 'newest-first' ? '按最新排序' : '按最旧排序')
+                    : '按推荐排序'}
+                </span>
+                {isSortDropdownOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuRadioGroup
+                value={sortBy}
+                onValueChange={(value) => {
+                  setSortBy(value as SortBy);
+                  setIsSortDropdownOpen(false);
+                }}
+              >
+                <DropdownMenuRadioItem 
+                  value="latest" 
+                  className="flex items-center gap-2 text-sm"
+                  onClick={(e) => {
+                    // 点击时切换时间排序方向
+                    if (sortBy === 'latest') {
+                      e.preventDefault();
+                      setTimeSortDirection(prev => prev === 'newest-first' ? 'oldest-first' : 'newest-first');
+                      setIsSortDropdownOpen(false);
+                    }
+                  }}
+                >
+                  <Clock className="h-4 w-4" />
+                  <span className="text-sm">
+                    {timeSortDirection === 'newest-first' ? '按最新排序' : '按最旧排序'}
+                  </span>
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="recommended" className="flex items-center gap-2 text-sm">
+                  <Star className="h-4 w-4" />
+                  <span className="text-sm">按推荐排序</span>
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* 缩略图尺寸切换 */}
+          <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
           <button
             type="button"
             className={`h-7 px-2 text-xs rounded transition-colors ${
@@ -265,9 +408,10 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
             大
           </button>
         </div>
+        </div>
       </div>
       <div className="relative">
-        <MaterialsList materials={displayMaterials} thumbSize={thumbSize} />
+        <MaterialsList materials={sortedDisplayMaterials} thumbSize={thumbSize} />
         {isFetching && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/70 backdrop-blur-sm">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
