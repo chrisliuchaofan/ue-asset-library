@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
 import { AnimatedHero } from '@/components/AnimatedHero';
 
 // 动态导入星系组件，禁用 SSR
@@ -32,8 +33,10 @@ export default function HomePage() {
         transparent={true}
       />
       
-      {/* 内容层 - 使用新的 AnimatedHero 组件 */}
-      <AnimatedHero />
+      {/* 内容层 - 使用新的 AnimatedHero 组件，包裹在 Suspense 中以满足 Next.js 15 的要求 */}
+      <Suspense fallback={<div className="flex-1" />}>
+        <AnimatedHero />
+      </Suspense>
     </div>
   );
 }
