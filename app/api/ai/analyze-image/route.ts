@@ -189,19 +189,23 @@ async function callAIImageAPI(
 
   // 如果未配置环境变量，且不是严格模式，返回 mock 结果
   if (!apiEndpoint || !apiKey) {
+    // 在生产环境也记录日志，方便排查问题
+    console.warn('[AI API] 环境变量未配置:', {
+      hasEndpoint: !!apiEndpoint,
+      hasKey: !!apiKey,
+      isStrict,
+      nodeEnv: process.env.NODE_ENV,
+    });
+    
     if (isStrict) {
       throw new Error('AI 图像分析 API 配置不完整，请检查环境变量 AI_IMAGE_API_ENDPOINT 和 AI_IMAGE_API_KEY');
     }
     
     // 返回 mock 占位结果
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[AI API] 环境变量未配置，返回 mock 占位结果');
-    }
-    
     return {
       tags: ['测试图片', '占位标签', 'AI 未配置'],
-      description: `这是本地开发环境的占位结果，imageUrl=${imageUrl}。配置 AI_IMAGE_API_ENDPOINT 和 AI_IMAGE_API_KEY 后会返回真实分析结果。`,
-      raw: { mock: true, reason: 'MISSING_CONFIG' },
+      description: `这是占位结果，imageUrl=${imageUrl}。请在 Vercel 环境变量中配置 AI_IMAGE_API_ENDPOINT 和 AI_IMAGE_API_KEY 后返回真实分析结果。`,
+      raw: { mock: true, reason: 'MISSING_CONFIG', hasEndpoint: !!apiEndpoint, hasKey: !!apiKey },
     };
   }
 
@@ -478,14 +482,19 @@ export async function POST(request: Request) {
     const result = await callAIImageAPI(finalImageUrl);
     const duration = Date.now() - startTime;
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[AI API] 请求完成，耗时: ${duration}ms`);
-      if (result.raw?.mock) {
-        console.log('[AI API] 返回 mock 占位结果（环境变量未配置）');
-      }
-      if (result.raw?.error) {
-        console.warn('[AI API] 返回错误结果:', result.raw.error);
-      }
+    // 记录请求日志（包括生产环境，方便排查问题）
+    console.log(`[AI API] 请求完成，耗时: ${duration}ms`, {
+      hasResult: !!result,
+      isMock: result.raw?.mock,
+      hasError: !!result.raw?.error,
+      tagsCount: result.tags?.length || 0,
+    });
+    
+    if (result.raw?.mock) {
+      console.warn('[AI API] 返回 mock 占位结果（环境变量未配置）');
+    }
+    if (result.raw?.error) {
+      console.error('[AI API] 返回错误结果:', result.raw.error);
     }
 
     // 正常返回结果（包括 mock 结果和错误结果）
