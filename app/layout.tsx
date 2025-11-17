@@ -83,6 +83,11 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
+        {/* Favicon - 使用 SVG 图标，兼容浏览器对 favicon.ico 的请求 */}
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="alternate icon" href="/icon.svg" />
+        <link rel="shortcut icon" href="/icon.svg" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
         {/* DNS 预解析和预连接，提升资源加载速度 */}
         {cdnBase && cdnBase !== '/' && (
           <>
