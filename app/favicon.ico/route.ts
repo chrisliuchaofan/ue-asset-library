@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+import { NextResponse } from 'next/server';
+
+// 返回 SVG favicon 作为 ICO 的替代
+export async function GET() {
+  const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
     <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
@@ -7,7 +11,16 @@
   </defs>
   <rect width="100" height="100" rx="20" fill="url(#grad)"/>
   <text x="50" y="70" font-family="Arial, sans-serif" font-size="60" font-weight="bold" fill="white" text-anchor="middle">UE</text>
-</svg>
+</svg>`;
+
+  return new NextResponse(svgIcon, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+  });
+}
 
 
 

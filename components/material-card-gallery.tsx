@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -30,7 +30,8 @@ const getThumbSizeWidth = (thumbSize: ThumbSize, isMobile: boolean = false): num
   return thumbSize === 'compact' ? 180 : 320;
 };
 
-export function MaterialCardGallery({ material, keyword, priority = false, thumbSize = 'compact' }: MaterialCardGalleryProps) {
+// 性能优化：使用 memo 减少不必要的重渲染
+function MaterialCardGalleryComponent({ material, keyword, priority = false, thumbSize = 'compact' }: MaterialCardGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [enlarged, setEnlarged] = useState(false);
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
@@ -53,8 +54,25 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
       setIsMobile(window.innerWidth < 640);
     };
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    
+    // 性能优化：使用防抖处理 resize 事件，避免频繁触发
+    let timeoutId: NodeJS.Timeout | null = null;
+    const debouncedCheckMobile = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        checkMobile();
+      }, 150); // 150ms 防抖延迟
+    };
+    
+    window.addEventListener('resize', debouncedCheckMobile, { passive: true });
+    return () => {
+      window.removeEventListener('resize', debouncedCheckMobile);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
   
   // AI 分析相关状态
@@ -63,226 +81,50 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
   const [aiError, setAiError] = useState<string | null>(null);
   const [savedAnalysis, setSavedAnalysis] = useState<string | null>(null);
   
-  // 获取所有预览图/视频 URL
-  const galleryUrls = useMemo(() => {
-    const urls: string[] = [];
-    if (material.gallery?.length) {
-      urls.push(...material.gallery.filter(Boolean));
-    }
-    if (material.thumbnail) {
-      urls.push(material.thumbnail);
-    }
-    if (material.src && !urls.includes(material.src)) {
-      urls.push(material.src);
-    }
-    return urls.length ? urls : [''];
-  }, [material.gallery, material.src, material.thumbnail]);
-
   const isVideoUrl = useCallback((url: string): boolean => {
     if (!url) return false;
     const lower = url.toLowerCase();
     return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
   }, []);
 
-  const imageUrls = useMemo(
-    () => galleryUrls.filter((url) => url && !isVideoUrl(url)),
-    [galleryUrls, isVideoUrl]
-  );
+  // 简化逻辑：每个素材卡只显示一个内容，优先视频
+  // 1. 如果有视频，只显示视频（不显示缩略图）
+  // 2. 如果没有视频，显示图片（包括缩略图）
+  
+  // 收集所有视频 URL（优先从 gallery 和 src 获取，不包括 thumbnail）
+  const videoUrls = useMemo(() => {
+    const videos: string[] = [];
+    // 从 gallery 中获取视频
+    if (material.gallery?.length) {
+      videos.push(...material.gallery.filter((url) => url && isVideoUrl(url)));
+    }
+    // 从 src 中获取视频
+    if (material.src && isVideoUrl(material.src)) {
+      videos.push(material.src);
+    }
+    return videos;
+  }, [material.gallery, material.src, isVideoUrl]);
 
-  const videoUrls = useMemo(
-    () => galleryUrls.filter((url) => url && isVideoUrl(url)),
-    [galleryUrls, isVideoUrl]
-  );
+  // 收集所有图片 URL（不包括视频，不包括 thumbnail 如果它是视频）
+  const imageUrls = useMemo(() => {
+    const images: string[] = [];
+    // 从 gallery 中获取图片
+    if (material.gallery?.length) {
+      images.push(...material.gallery.filter((url) => url && !isVideoUrl(url)));
+    }
+    // 从 src 中获取图片
+    if (material.src && !isVideoUrl(material.src)) {
+      images.push(material.src);
+    }
+    // 从 thumbnail 中获取图片（如果它不是视频）
+    if (material.thumbnail && !isVideoUrl(material.thumbnail)) {
+      images.push(material.thumbnail);
+    }
+    return images;
+  }, [material.gallery, material.src, material.thumbnail, isVideoUrl]);
 
   // 稳定第一个视频 URL 的引用
   const firstVideoUrl = useMemo(() => videoUrls[0] || null, [videoUrls]);
-
-  // 当只有视频时，从第一个视频中提取多帧作为预览图（类似media-gallery）
-  useEffect(() => {
-    // 只有当没有图片且有视频时才提取
-    const shouldExtract = imageUrls.length === 0 && firstVideoUrl !== null && videoUrls.length > 0;
-    
-    if (!shouldExtract) {
-      if (lastVideoUrlRef.current !== null) {
-        // 清理之前的帧
-        videoThumbnails.forEach(url => {
-          if (url.startsWith('blob:')) {
-            URL.revokeObjectURL(url);
-          }
-        });
-        if (videoThumbnail && videoThumbnail.startsWith('blob:')) {
-          URL.revokeObjectURL(videoThumbnail);
-        }
-        setVideoThumbnail(null);
-        setVideoThumbnails([]);
-        lastVideoUrlRef.current = null;
-        extractingFrameRef.current = false;
-      }
-      return;
-    }
-
-    // 如果已经在提取同一个视频，跳过
-    if (extractingFrameRef.current && lastVideoUrlRef.current === firstVideoUrl) {
-      return;
-    }
-
-    // 如果已经提取过这个视频的帧，跳过
-    if (lastVideoUrlRef.current === firstVideoUrl && (videoThumbnail || videoThumbnails.length > 0)) {
-      return;
-    }
-
-    extractingFrameRef.current = true;
-    lastVideoUrlRef.current = firstVideoUrl;
-
-    const extractFrames = async () => {
-      try {
-        const video = document.createElement('video');
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        if (!ctx) {
-          extractingFrameRef.current = false;
-          return;
-        }
-
-        const videoUrl = getClientAssetUrl(firstVideoUrl);
-        const isCrossOrigin = videoUrl.startsWith('http://') || videoUrl.startsWith('https://');
-        
-        if (isCrossOrigin) {
-          video.crossOrigin = 'anonymous';
-        }
-        
-        video.preload = 'metadata';
-        video.src = videoUrl;
-
-        await new Promise<void>((resolve, reject) => {
-          let timeoutId: NodeJS.Timeout | null = null;
-          let resolved = false;
-          
-          const cleanup = () => {
-            if (timeoutId) {
-              clearTimeout(timeoutId);
-              timeoutId = null;
-            }
-            video.onloadedmetadata = null;
-            video.onerror = null;
-          };
-
-          const handleSuccess = () => {
-            if (!resolved) {
-              resolved = true;
-              cleanup();
-              resolve();
-            }
-          };
-
-          const handleError = (errorMsg: string) => {
-            if (!resolved) {
-              resolved = true;
-              cleanup();
-              reject(new Error(errorMsg));
-            }
-          };
-
-          video.onloadedmetadata = handleSuccess;
-          video.onerror = () => handleError('视频加载失败');
-          
-          timeoutId = setTimeout(() => {
-            if (!resolved && video.readyState < 2) {
-              handleError('视频加载超时');
-            }
-          }, 5000);
-        });
-
-        const duration = video.duration;
-        if (!duration || !isFinite(duration)) {
-          extractingFrameRef.current = false;
-          return;
-        }
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        const frames: string[] = [];
-        const frameCount = 6; // 提取6帧
-        const interval = duration / (frameCount + 1);
-
-        // 提取多帧
-        for (let i = 1; i <= frameCount; i++) {
-          const time = interval * i;
-          video.currentTime = Math.min(time, duration - 0.1);
-          
-          await new Promise<void>((resolve) => {
-            video.onseeked = () => {
-              try {
-                ctx.drawImage(video, 0, 0);
-                
-                try {
-                  canvas.toBlob(
-                    (blob) => {
-                      if (blob) {
-                        const url = URL.createObjectURL(blob);
-                        frames.push(url);
-                      }
-                      resolve();
-                    },
-                    'image/jpeg',
-                    0.8
-                  );
-                } catch (blobError: any) {
-                  if (blobError.name === 'SecurityError' || blobError.message?.includes('Tainted')) {
-                    if (process.env.NODE_ENV !== 'production') {
-                      console.warn('无法提取视频帧（CORS 限制）');
-                    }
-                  }
-                  resolve();
-                }
-              } catch (drawError) {
-                resolve();
-              }
-            };
-          });
-        }
-        
-        if (frames.length > 0) {
-          // 第一帧作为主预览图
-          setVideoThumbnail(frames[0]);
-          setVideoThumbnails(frames);
-        }
-        extractingFrameRef.current = false;
-      } catch (error) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn('提取视频帧失败:', error);
-        }
-        setVideoThumbnail(null);
-        setVideoThumbnails([]);
-        extractingFrameRef.current = false;
-        lastVideoUrlRef.current = null;
-      }
-    };
-
-    // 延迟执行，避免阻塞首屏渲染
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      requestIdleCallback(() => {
-        setTimeout(() => {
-          extractFrames();
-        }, 1000);
-      }, { timeout: 2000 });
-    } else {
-      setTimeout(() => {
-        extractFrames();
-      }, 1000);
-    }
-    
-    // 清理函数
-    return () => {
-      videoThumbnails.forEach(url => {
-        if (url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
-      });
-    };
-  }, [imageUrls.length, firstVideoUrl, videoUrls.length, videoThumbnail, videoThumbnails]);
 
   // 根据 thumbSize 和实际图片尺寸计算卡片尺寸
   const actualCardWidth = useMemo(() => getThumbSizeWidth(thumbSize, isMobile), [thumbSize, isMobile]);
@@ -308,27 +150,45 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
   // 图片优化宽度
   const imageWidth = useMemo(() => Math.min(Math.ceil(actualCardWidth * 1.5), 480), [actualCardWidth]);
   
-  // 优先使用图片，如果没有图片则使用视频
-  const currentSource = useMemo(() => {
-    // 如果有图片，优先显示图片
-    if (imageUrls.length > 0) {
-      const imageIndex = Math.min(currentIndex, imageUrls.length - 1);
-      return imageUrls[imageIndex] || galleryUrls[currentIndex] || '';
-    }
-    // 如果没有图片，使用当前索引的URL（可能是视频）
-    return galleryUrls[currentIndex] || '';
-  }, [imageUrls, galleryUrls, currentIndex]);
+  // 确定当前要显示的内容：优先视频，没有视频才显示图片
+  const hasVideo = videoUrls.length > 0;
+  const hasImage = imageUrls.length > 0;
   
-  const currentIsVideo = isVideoUrl(currentSource);
+  // 当前要显示的视频 URL（如果有视频）
+  const currentVideoUrl = useMemo(() => {
+    if (!hasVideo) return null;
+    const videoIndex = Math.min(currentIndex, videoUrls.length - 1);
+    return videoUrls[videoIndex] || null;
+  }, [hasVideo, videoUrls, currentIndex]);
   
-  const currentUrl = currentSource ? (currentIsVideo ? getClientAssetUrl(currentSource) : getOptimizedImageUrl(currentSource, imageWidth)) : '';
+  // 当前要显示的图片 URL（如果没有视频）
+  const currentImageUrl = useMemo(() => {
+    if (hasVideo) return null; // 有视频时不显示图片
+    if (!hasImage) return null;
+    const imageIndex = Math.min(currentIndex, imageUrls.length - 1);
+    return imageUrls[imageIndex] || null;
+  }, [hasVideo, hasImage, imageUrls, currentIndex]);
   
-  const highlightedName = highlightText(material.name, keyword || '');
+  // 所有可切换的 URL（用于切换逻辑）
+  const allUrls = useMemo(() => {
+    // 如果有视频，使用视频列表
+    if (hasVideo) return videoUrls;
+    // 如果没有视频，使用图片列表
+    return imageUrls;
+  }, [hasVideo, videoUrls, imageUrls]);
+  
+  const totalUrls = allUrls.length;
+  
+  // 性能优化：使用 useMemo 缓存高亮文本，避免每次渲染都重新计算
+  const highlightedName = useMemo(
+    () => highlightText(material.name, keyword || ''),
+    [material.name, keyword]
+  );
 
   // 获取当前主图 URL（用于 AI 分析）
   const getMainImageUrl = useCallback((): string | null => {
     // 如果当前是视频且有提取的帧，使用当前索引对应的帧
-    if (currentIsVideo && videoThumbnails.length > 0) {
+    if (hasVideo && videoThumbnails.length > 0) {
       const frameIndex = Math.min(currentIndex, videoThumbnails.length - 1);
       const frameUrl = videoThumbnails[frameIndex];
       if (frameUrl && frameUrl.startsWith('blob:')) {
@@ -337,7 +197,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
     }
     
     // 如果只有视频且已经抽帧生成了单帧预览图，使用它
-    if (imageUrls.length === 0 && videoThumbnail && videoThumbnail.startsWith('blob:')) {
+    if (hasVideo && !hasImage && videoThumbnail && videoThumbnail.startsWith('blob:')) {
       return videoThumbnail;
     }
     
@@ -367,28 +227,26 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
       return null;
     };
     
-    // 优先使用当前正在展示的图片
-    const currentUrl = tryGetUrl(currentSource);
-    if (currentUrl) return currentUrl;
-    
-    // 如果当前展示的是视频，尝试使用 gallery 中的第一张图片
-    if (currentIsVideo && galleryUrls.length > 0) {
-      for (const url of galleryUrls) {
-        const imageUrl = tryGetUrl(url);
-        if (imageUrl) return imageUrl;
-      }
+    // 如果有视频，尝试使用图片列表中的第一张图片
+    if (hasVideo && imageUrls.length > 0) {
+      const imageUrl = tryGetUrl(imageUrls[0]);
+      if (imageUrl) return imageUrl;
     }
     
-    // 回退到使用 thumbnail
-    const thumbnailUrl = tryGetUrl(material.thumbnail);
-    if (thumbnailUrl) return thumbnailUrl;
+    // 如果没有视频，使用当前图片
+    if (!hasVideo && currentImageUrl) {
+      const imageUrl = tryGetUrl(currentImageUrl);
+      if (imageUrl) return imageUrl;
+    }
     
-    // 最后尝试使用 src
-    const srcUrl = tryGetUrl(material.src);
-    if (srcUrl) return srcUrl;
+    // 回退到使用 thumbnail（如果它不是视频）
+    if (material.thumbnail && !isVideoUrl(material.thumbnail)) {
+      const thumbnailUrl = tryGetUrl(material.thumbnail);
+      if (thumbnailUrl) return thumbnailUrl;
+    }
     
     return null;
-  }, [currentIsVideo, videoThumbnails, currentIndex, currentSource, galleryUrls, material.thumbnail, material.src, imageUrls.length, videoThumbnail]);
+  }, [hasVideo, hasImage, videoThumbnails, currentIndex, imageUrls, currentImageUrl, material.thumbnail, videoThumbnail, isVideoUrl]);
 
   // 从localStorage加载已保存的分析
   useEffect(() => {
@@ -598,29 +456,37 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
     };
   }, [videoThumbnail, videoThumbnails]);
 
-  // 悬停时才播放视频（预览图区域）
+  // 简化逻辑：视频默认暂停在首帧，悬停时播放
   useEffect(() => {
-    galleryUrls.forEach((url, index) => {
-      const video = videoRefs.current[index];
-      if (!video) return;
-      if (index === currentIndex && isHoveringPreview && isVideoUrl(url)) {
-        // 确保视频已加载元数据后再播放，避免黑屏
-        if (video.readyState >= 2) {
-          video.muted = true;
-          video.play().catch(() => {});
-        } else {
-          video.load();
-          video.onloadeddata = () => {
-            video.muted = true;
-            video.play().catch(() => {});
-          };
-        }
+    // 只在有视频时才执行
+    if (!hasVideo || !currentVideoUrl) {
+      return;
+    }
+    
+    const currentVideo = videoRefs.current[currentIndex];
+    if (!currentVideo) {
+      return;
+    }
+    
+    // 悬停时播放
+    if (isHoveringPreview) {
+      if (currentVideo.readyState >= 2) {
+        currentVideo.muted = true;
+        currentVideo.play().catch(() => {});
       } else {
-        video.pause();
-        // 不重置 currentTime，保持视频位置，避免切换时的闪烁
+        currentVideo.onloadeddata = () => {
+          currentVideo.muted = true;
+          currentVideo.play().catch(() => {});
+        };
       }
-    });
-  }, [currentIndex, galleryUrls, isHoveringPreview, isVideoUrl]);
+    } else {
+      // 不悬停时暂停在首帧
+      currentVideo.pause();
+      if (currentVideo.readyState >= 1) {
+        currentVideo.currentTime = 0;
+      }
+    }
+  }, [hasVideo, currentVideoUrl, currentIndex, isHoveringPreview]);
 
 
   const handleDoubleClick = (e: React.MouseEvent) => {
@@ -633,7 +499,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
     setEnlarged(true);
   };
 
-  const validIndex = galleryUrls.length > 0 ? Math.min(currentIndex, galleryUrls.length - 1) : 0;
+  const validIndex = totalUrls > 0 ? Math.min(currentIndex, totalUrls - 1) : 0;
 
   return (
     <>
@@ -662,7 +528,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
             )}
           >
             {/* AI解析按钮 - 在有预览图或抽帧预览图时显示 */}
-            {((!currentIsVideo && currentUrl) || videoThumbnail) && (
+            {((!hasVideo && currentImageUrl) || videoThumbnail) && (
               <Button
                 type="button"
                 variant="ghost"
@@ -700,89 +566,81 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
               <span className="sr-only">查看详情</span>
             </Button>
           </div>
-          {galleryUrls.map((url, index) => {
-            if (!isVideoUrl(url)) {
-              return null;
-            }
-            return (
-              <video
-                key={`video-${index}`}
-                ref={(el) => {
-                  videoRefs.current[index] = el;
-                }}
-                src={getClientAssetUrl(url)}
-                preload="metadata"
-                className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-300 ${
-                  index === currentIndex && isHoveringPreview ? 'z-20 opacity-100' : 'pointer-events-none opacity-0 z-0'
-                }`}
-                muted
-                loop
-                playsInline
-                onLoadedData={() => {
-                  // 视频加载完成后，如果正在悬停，立即播放
-                  if (index === currentIndex && isHoveringPreview) {
-                    const video = videoRefs.current[index];
-                    if (video) {
-                      video.play().catch(() => {});
-                    }
+          {/* 简化逻辑：每个素材卡只显示一个内容，优先视频 */}
+          {/* 1. 如果有视频，只显示视频（不显示缩略图） */}
+          {hasVideo && currentVideoUrl && (
+            <video
+              key={`video-${currentIndex}`}
+              ref={(el) => {
+                videoRefs.current[currentIndex] = el;
+              }}
+              src={getClientAssetUrl(currentVideoUrl)}
+              preload="metadata"  // 预加载元数据以显示首帧
+              className="absolute inset-0 h-full w-full object-contain z-10 opacity-100"
+              muted
+              loop
+              playsInline
+              onLoadedMetadata={() => {
+                // 视频元数据加载完成后，确保在首帧并暂停
+                const video = videoRefs.current[currentIndex];
+                if (video) {
+                  video.currentTime = 0;
+                  video.pause();
+                }
+              }}
+              onLoadedData={() => {
+                // 视频数据加载完成后
+                const video = videoRefs.current[currentIndex];
+                if (video) {
+                  if (isHoveringPreview) {
+                    // 悬停时播放
+                    video.play().catch(() => {});
+                  } else {
+                    // 不悬停时暂停在首帧
+                    video.currentTime = 0;
+                    video.pause();
                   }
-                }}
-              />
-            );
-          })}
+                }
+              }}
+              onSeeked={() => {
+                // 当视频跳转到首帧时，确保暂停
+                const video = videoRefs.current[currentIndex];
+                if (video && !isHoveringPreview) {
+                  video.pause();
+                }
+              }}
+            />
+          )}
           
-          {/* 显示图片 */}
-          {!currentIsVideo && currentUrl && (
+          {/* 2. 如果没有视频，显示图片 */}
+          {!hasVideo && currentImageUrl && (
             <Image
-              src={currentUrl}
+              src={getOptimizedImageUrl(currentImageUrl, imageWidth)}
               alt={material.name}
               fill
               className="z-10 object-contain"
               loading={priority ? 'eager' : 'lazy'}
               priority={priority}
               sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, (max-width: 1536px) 16vw, 14vw"
-              unoptimized={currentUrl.includes('x-oss-process=image')}
+              unoptimized={currentImageUrl.includes('x-oss-process=image')}
             />
           )}
           
-          {/* 当只有视频时，显示视频首帧作为预览图（始终显示，视频在悬停时覆盖） */}
-          {imageUrls.length === 0 && videoUrls.length > 0 && (
-            <>
-              {videoThumbnail ? (
-                <Image
-                  src={videoThumbnail}
-                  alt={material.name}
-                  fill
-                  className={`z-10 object-contain transition-opacity duration-300 ${
-                    isHoveringPreview ? 'opacity-0' : 'opacity-100'
-                  }`}
-                  loading="lazy"
-                  sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, (max-width: 1536px) 16vw, 14vw"
-                />
-              ) : (
-                // 视频首帧提取中，显示占位符
-                <div className="flex items-center justify-center h-full bg-muted text-muted-foreground z-10">
-                  <span className="text-xs">加载中...</span>
-                </div>
-              )}
-            </>
-          )}
-          
-          {/* 无预览图 */}
-          {!currentIsVideo && !currentUrl && imageUrls.length === 0 && videoUrls.length === 0 && (
+          {/* 3. 无预览内容 */}
+          {!hasVideo && !hasImage && (
             <div className="flex items-center justify-center h-full bg-muted text-muted-foreground z-10">
               <span className="text-sm">无预览图</span>
             </div>
           )}
           
-          {galleryUrls.length > 1 && (
+          {totalUrls > 1 && (
             <>
               <div
                 className="absolute left-0 top-0 bottom-0 z-20 flex w-1/3 cursor-pointer items-center justify-start pl-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1));
+                  setCurrentIndex((prev) => (prev > 0 ? prev - 1 : totalUrls - 1));
                 }}
               >
                 <Button
@@ -792,7 +650,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1));
+                    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : totalUrls - 1));
                   }}
                 >
                   <ChevronLeft className="h-3 w-3" />
@@ -803,7 +661,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0));
+                  setCurrentIndex((prev) => (prev < totalUrls - 1 ? prev + 1 : 0));
                 }}
               >
                 <Button
@@ -813,14 +671,14 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0));
+                    setCurrentIndex((prev) => (prev < totalUrls - 1 ? prev + 1 : 0));
                   }}
                 >
                   <ChevronRight className="h-3 w-3" />
                 </Button>
               </div>
               <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1">
-                {galleryUrls.map((_, index) => (
+                {allUrls.map((_, index) => (
                   <div
                     key={index}
                     className={`h-1 rounded-full transition-all ${
@@ -923,7 +781,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
           onClick={() => setEnlarged(false)}
           onDoubleClick={(e) => {
-            if (!currentIsVideo) {
+            if (!hasVideo) {
               e.stopPropagation();
               setEnlarged(false);
             }
@@ -942,32 +800,32 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
             className="relative h-full w-full max-w-7xl" 
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => {
-              if (!currentIsVideo) {
+              if (!hasVideo) {
                 e.stopPropagation();
                 setEnlarged(false);
               }
             }}
           >
-            {currentIsVideo ? (
-              <video src={currentUrl} controls autoPlay className="h-full w-full object-contain" muted />
-            ) : (
+            {hasVideo && currentVideoUrl ? (
+              <video src={getClientAssetUrl(currentVideoUrl)} controls autoPlay className="h-full w-full object-contain" muted />
+            ) : currentImageUrl ? (
               <Image 
-                src={currentUrl} 
+                src={getOptimizedImageUrl(currentImageUrl, imageWidth)} 
                 alt={material.name} 
                 fill 
                 className="object-contain"
                 sizes="100vw"
                 priority
-                unoptimized={currentUrl.includes('x-oss-process=image')}
+                unoptimized={currentImageUrl.includes('x-oss-process=image')}
               />
-            )}
-            {galleryUrls.length > 1 && (
+            ) : null}
+            {totalUrls > 1 && (
               <>
                 <button
                   className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border border-white/30 rounded-full z-40"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1));
+                    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : totalUrls - 1));
                   }}
                 >
                   <ChevronLeft className="h-6 w-6" />
@@ -976,13 +834,13 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
                   className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/20 hover:bg-white/30 text-white border border-white/30 rounded-full z-40"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setCurrentIndex((prev) => (prev < galleryUrls.length - 1 ? prev + 1 : 0));
+                    setCurrentIndex((prev) => (prev < totalUrls - 1 ? prev + 1 : 0));
                   }}
                 >
                   <ChevronRight className="h-6 w-6" />
                 </button>
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-40">
-                  {galleryUrls.map((_, index) => (
+                  {allUrls.map((_, index) => (
                     <button
                       key={index}
                       className={`h-2 rounded-full transition-all ${
@@ -1012,4 +870,20 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
     </>
   );
 }
+
+// 性能优化：使用 memo 减少不必要的重渲染，只在关键 props 变化时重新渲染
+export const MaterialCardGallery = memo(MaterialCardGalleryComponent, (prevProps, nextProps) => {
+  // 自定义比较函数：只在关键 props 变化时重新渲染
+  return (
+    prevProps.material.id === nextProps.material.id &&
+    prevProps.material.thumbnail === nextProps.material.thumbnail &&
+    prevProps.material.src === nextProps.material.src &&
+    prevProps.material.gallery?.join(',') === nextProps.material.gallery?.join(',') &&
+    prevProps.keyword === nextProps.keyword &&
+    prevProps.priority === nextProps.priority &&
+    prevProps.thumbSize === nextProps.thumbSize
+  );
+});
+
+MaterialCardGallery.displayName = 'MaterialCardGallery';
 

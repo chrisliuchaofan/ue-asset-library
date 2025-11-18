@@ -31,6 +31,7 @@ yarn-error.log*
 .env
 .env.local.save
 .env*.save
+.env.local.backup
 vercel-env-template.txt
 
 # vercel

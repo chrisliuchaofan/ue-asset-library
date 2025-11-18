@@ -11,8 +11,9 @@ export const metadata: Metadata = {
   description: '浏览和管理视频素材文件',
 };
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// 性能优化：使用 ISR（增量静态再生），每 60 秒重新生成一次
+// 这样可以在性能和实时性之间取得平衡，避免每次请求都重新获取数据
+export const revalidate = 60; // 60 秒缓存
 
 export default async function MaterialsPage() {
   // Fast path: check count first

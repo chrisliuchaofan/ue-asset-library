@@ -657,7 +657,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
   const [activeTab, setActiveTab] = useState<'assets-new' | 'assets-manage' | 'materials-new' | 'materials-manage' | 'settings'>('assets-new');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [assetsExpanded, setAssetsExpanded] = useState(true);
-  const [materialsExpanded, setMaterialsExpanded] = useState(false);
+  const [materialsExpanded, setMaterialsExpanded] = useState(true); // 默认展开素材管理
   const [settingsExpanded, setSettingsExpanded] = useState(false);
 
   // 将 children 转换为数组

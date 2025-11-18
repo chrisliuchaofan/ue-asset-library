@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, Tags, CheckSquare, Edit, ThumbsUp } from 'lucide-react';
+import { Upload, X, ChevronLeft, ChevronRight, Trash2, Star, Search, Tags, CheckSquare, Edit, ThumbsUp, Eye } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { PROJECTS, getAllProjects, getProjectDisplayName } from '@/lib/constants';
@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
@@ -130,9 +131,78 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingMaterialInDialog, setEditingMaterialInDialog] = useState<Material | null>(null);
+  // 编辑对话框中的文件上传状态
+  const [editingDialogUploadedFiles, setEditingDialogUploadedFiles] = useState<Array<{
+    url: string;
+    originalName: string;
+    type: 'image' | 'video';
+    size: number;
+    width?: number;
+    height?: number;
+    hash?: string;
+  }>>([]);
+  const [editingDialogUploading, setEditingDialogUploading] = useState(false);
+  const [editingDialogUploadProgress, setEditingDialogUploadProgress] = useState<string | null>(null);
+  const editingDialogFileInputRef = useRef<HTMLInputElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [materialToDelete, setMaterialToDelete] = useState<Material | null>(null);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+  
+  // 待确认的素材列表（多文件上传时使用）
+  interface PendingMaterial {
+    name: string;
+    type: 'UE视频' | 'AE视频' | '混剪' | 'AI视频' | '图片';
+    project: '项目A' | '项目B' | '项目C';
+    tag: '爆款' | '优质' | '达标';
+    quality: ('高品质' | '常规' | '迭代')[];
+    thumbnail: string;
+    src: string;
+    gallery: string[];
+    filesize: number;
+    fileSize: number;
+    hash: string;
+    width?: number;
+    height?: number;
+    duration?: number;
+    originalName: string;
+    uploadData: {
+      url: string;
+      originalName: string;
+      type: 'image' | 'video';
+      size: number;
+      width?: number;
+      height?: number;
+      duration?: number;
+      hash?: string;
+    };
+  }
+  const [pendingMaterials, setPendingMaterials] = useState<PendingMaterial[]>([]);
+  const [editingPendingMaterialIndex, setEditingPendingMaterialIndex] = useState<number | null>(null);
+  const [pendingMaterialsDialogOpen, setPendingMaterialsDialogOpen] = useState(false);
+  // 编辑表单状态（用于待确认素材编辑）
+  const [pendingEditForm, setPendingEditForm] = useState<{
+    name: string;
+    type: 'UE视频' | 'AE视频' | '混剪' | 'AI视频' | '图片';
+    project: '项目A' | '项目B' | '项目C';
+    tag: '爆款' | '优质' | '达标';
+    quality: ('高品质' | '常规' | '迭代')[];
+  } | null>(null);
+  
+  // 当开始编辑待确认素材时，初始化表单
+  useEffect(() => {
+    if (editingPendingMaterialIndex !== null && pendingMaterials[editingPendingMaterialIndex]) {
+      const pendingMaterial = pendingMaterials[editingPendingMaterialIndex];
+      setPendingEditForm({
+        name: pendingMaterial.name,
+        type: pendingMaterial.type,
+        project: pendingMaterial.project,
+        tag: pendingMaterial.tag,
+        quality: pendingMaterial.quality,
+      });
+    } else {
+      setPendingEditForm(null);
+    }
+  }, [editingPendingMaterialIndex, pendingMaterials]);
   const [isLongPressing, setIsLongPressing] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const rowRefsRef = useRef<Map<string, HTMLTableRowElement>>(new Map());
@@ -234,7 +304,8 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
   const getMaterialMissingFields = useCallback((material: Material) => {
     const missing: string[] = [];
-    if (!material.thumbnail) missing.push('预览图');
+    // 预览图不是必填项，不再检查
+    // if (!material.thumbnail) missing.push('预览图');
     if (!material.src) missing.push('资源路径');
     if (!material.gallery || material.gallery.length === 0) missing.push('画廊');
     if (!material.quality || material.quality.length === 0) missing.push('质量');
@@ -389,47 +460,6 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     setMessage('已设置为预览图');
   }, []);
 
-  // 从视频中提取缩略图
-  const extractVideoThumbnail = useCallback(
-    async (videoFile: File): Promise<string | null> => {
-      return new Promise((resolve) => {
-        const video = document.createElement('video');
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        video.preload = 'metadata';
-        video.onloadedmetadata = () => {
-          video.currentTime = 0.1;
-        };
-
-        video.onseeked = () => {
-          if (ctx) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
-            canvas.toBlob(
-              (blob) => {
-                if (blob) {
-                  const url = URL.createObjectURL(blob);
-                  resolve(url);
-                } else {
-                  resolve(null);
-                }
-              },
-              'image/jpeg',
-              0.8
-            );
-          } else {
-            resolve(null);
-          }
-        };
-
-        video.onerror = () => resolve(null);
-        video.src = URL.createObjectURL(videoFile);
-      });
-    },
-    []
-  );
 
   const handleInputChange =
     (field: keyof FormState) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -476,11 +506,13 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     setUploadProgress(`正在处理 ${files.length} 个文件...`);
     setMessage(null);
 
-    let successCount = 0;
     let failCount = 0;
     let skippedCount = 0;
     const errors: string[] = [];
-    const createdMaterials: Material[] = [];
+    const pendingList: PendingMaterial[] = [];
+
+    // 多文件上传：所有文件都需要确认后才创建
+    const needConfirm = true;
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -589,9 +621,12 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           };
         }
 
-        // 为每个文件创建一个素材
-        const materialName = file.name.replace(/\.[^/.]+$/, '');
-        const fileType = uploadData.type === 'image' ? '图片' : 'UE视频'; // 默认类型，用户可以在列表中编辑
+        // 获取文件的 hash 和 fileSize（用于重复检测）
+        const fileHash = uploadData.hash || await calculateFileHash(file);
+        const fileSize = uploadData.size;
+
+        // 获取项目，如果表单中没有设置，使用默认值 '项目A'
+        const project = form.project || '项目A';
 
         // 判断文件类型
         let materialType: 'UE视频' | 'AE视频' | '混剪' | 'AI视频' | '图片' = '图片';
@@ -601,47 +636,28 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           materialType = '图片';
         }
 
-        // 获取文件的 hash 和 fileSize（用于重复检测）
-        const fileHash = uploadData.hash || await calculateFileHash(file);
-        const fileSize = uploadData.size;
+        const materialName = file.name.replace(/\.[^/.]+$/, '');
 
-        // 获取项目，如果表单中没有设置，使用默认值 '项目A'
-        const project = form.project || '项目A';
-
-        const materialPayload = {
+        // 统一逻辑：所有文件都添加到待确认列表
+        const pendingMaterial: PendingMaterial = {
           name: materialName,
           type: materialType,
           project: project as '项目A' | '项目B' | '项目C',
-          tag: '达标' as const,
-          quality: ['常规'] as ('高品质' | '常规' | '迭代')[],
+          tag: '达标',
+          quality: ['常规'],
           thumbnail: uploadData.url,
           src: uploadData.url,
           gallery: [uploadData.url],
           filesize: fileSize,
-          fileSize: fileSize, // 统一命名：文件大小（字节数）
-          hash: fileHash, // 文件内容的 SHA256 哈希值，用于重复检测
+          fileSize: fileSize,
+          hash: fileHash,
           width: uploadData.width ?? localMetadata.width,
           height: uploadData.height ?? localMetadata.height,
           duration: uploadData.duration ?? localMetadata.duration,
+          originalName: file.name,
+          uploadData,
         };
-
-        // 创建素材
-        const createResponse = await fetch('/api/materials', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(materialPayload),
-        });
-
-        if (!createResponse.ok) {
-          const error = await createResponse.json();
-          throw new Error(error.message || `创建素材失败: ${materialName}`);
-        }
-
-        const createdMaterial: Material = await createResponse.json();
-        createdMaterials.push(createdMaterial);
-        successCount++;
+        pendingList.push(pendingMaterial);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : '未知错误';
@@ -662,36 +678,24 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     setUploadProgress(null);
     setUploadProgressPercent(0);
 
-    if (createdMaterials.length > 0) {
-      setMaterials((prev) => [...createdMaterials, ...prev]);
-      await refreshMaterials();
-      // 如果是在 showOnlyForm 模式下，触发 Context 刷新以更新列表
-      if (showOnlyForm) {
-        triggerRefresh();
-      }
-      const successMessage = `成功创建 ${successCount} 个素材${failCount > 0 ? `，失败 ${failCount} 个` : ''}`;
-      setMessage(successMessage);
-      if (typeof window !== 'undefined') {
-        window.alert(successMessage);
-      }
-    } else if (successCount === 0 && failCount === 0 && skippedCount > 0) {
+    // 统一逻辑：所有文件都需要确认后才创建
+    if (pendingList.length > 0) {
+      setPendingMaterials(pendingList);
+      setPendingMaterialsDialogOpen(true);
+      setEditingPendingMaterialIndex(0); // 自动开始编辑第一个
+      setMessage(`上传完成！共 ${pendingList.length} 个素材待确认，请逐个编辑确认后创建。`);
+    } else if (skippedCount > 0) {
       const skipMessage = `已跳过 ${skippedCount} 个重复素材`;
       setMessage(skipMessage);
       if (typeof window !== 'undefined') {
         window.alert(skipMessage);
       }
-    } else if (failCount === files.length) {
+    } else if (failCount > 0) {
       const failureMessage =
         errors.length > 0 ? `所有文件处理失败：${errors.join('；')}` : '所有文件处理失败';
       setMessage(failureMessage);
       if (typeof window !== 'undefined') {
         window.alert(failureMessage);
-      }
-    } else if (failCount > 0) {
-      const partialMessage = `成功 ${successCount} 个，失败 ${failCount} 个${skippedCount > 0 ? `，跳过 ${skippedCount} 个重复素材` : ''}`;
-      setMessage(partialMessage);
-      if (typeof window !== 'undefined') {
-        window.alert(`${partialMessage}\n失败详情：\n${errors.join('\n')}`);
       }
     }
 
@@ -703,7 +707,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, [checkFileExists, calculateFileHash, refreshMaterials, getLocalMediaMetadata, storageMode, normalizedCdnBase, form]);
+  }, [checkFileExists, calculateFileHash, refreshMaterials, getLocalMediaMetadata, storageMode, normalizedCdnBase, form, showOnlyForm, triggerRefresh]);
 
   // 单文件上传（用于编辑时添加文件）
   const handleFileUpload = useCallback(async (file: File) => {
@@ -837,18 +841,6 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       if (typeof window !== 'undefined') {
         window.alert(successMessage);
       }
-
-      // 如果是视频，自动创建资产
-      if (data.type === 'video') {
-        const thumbnailUrl = await extractVideoThumbnail(file);
-        if (thumbnailUrl) {
-          setForm((prev) => ({
-            ...prev,
-            thumbnail: thumbnailUrl,
-          }));
-          setMessage('已从视频中提取缩略图');
-        }
-      }
     } catch (error) {
       console.error(error);
       const errorMessage = error instanceof Error ? error.message : '上传失败';
@@ -861,7 +853,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         fileInputRef.current.value = '';
       }
     }
-  }, [storageMode, normalizedCdnBase, uploadedFiles, checkFileExists, calculateFileHash, updateFormFromUploadedFiles, extractVideoThumbnail, getLocalMediaMetadata]);
+  }, [storageMode, normalizedCdnBase, uploadedFiles, checkFileExists, calculateFileHash, updateFormFromUploadedFiles, getLocalMediaMetadata]);
 
   const handleFileSelect = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -874,8 +866,13 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           await handleFileUpload(file);
         }
       } else {
-        // 如果是新建，多文件上传分别创建
-        await handleMultipleFilesUpload(files);
+        // 单文件上传：直接填充表单，用户填写信息后点击"创建素材"按钮创建
+        // 多文件上传：进入确认弹窗流程
+        if (files.length === 1) {
+          await handleFileUpload(files[0]);
+        } else {
+          await handleMultipleFilesUpload(files);
+        }
       }
     },
     [editingMaterialId, handleFileUpload, handleMultipleFilesUpload]
@@ -892,7 +889,13 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           await handleFileUpload(file);
         }
       } else {
-        await handleMultipleFilesUpload(files);
+        // 单文件上传：直接填充表单，用户填写信息后点击"创建素材"按钮创建
+        // 多文件上传：进入确认弹窗流程
+        if (files.length === 1) {
+          await handleFileUpload(files[0]);
+        } else {
+          await handleMultipleFilesUpload(files);
+        }
       }
     },
     [editingMaterialId, handleFileUpload, handleMultipleFilesUpload]
@@ -1086,11 +1089,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                       }}
                     />
                   )
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[11px] text-gray-500">
-                    无预览
-                  </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -1201,6 +1200,62 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
               className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               onClick={(e) => {
                 e.stopPropagation();
+                // 初始化编辑对话框时，识别已上传的素材
+                const isVideoUrl = (url: string) => {
+                  if (!url) return false;
+                  const lower = url.toLowerCase();
+                  return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
+                };
+                
+                const allMediaFiles: Array<{
+                  url: string;
+                  originalName: string;
+                  type: 'image' | 'video';
+                  size: number;
+                  width?: number;
+                  height?: number;
+                  hash?: string;
+                }> = [];
+                
+                // 添加 thumbnail
+                if (material.thumbnail) {
+                  allMediaFiles.push({
+                    url: material.thumbnail,
+                    originalName: material.thumbnail.split('/').pop() || 'thumbnail',
+                    type: isVideoUrl(material.thumbnail) ? 'video' : 'image',
+                    size: material.filesize || 0,
+                    width: material.width,
+                    height: material.height,
+                  });
+                }
+                
+                // 添加 src（如果与 thumbnail 不同）
+                if (material.src && material.src !== material.thumbnail) {
+                  allMediaFiles.push({
+                    url: material.src,
+                    originalName: material.src.split('/').pop() || 'src',
+                    type: isVideoUrl(material.src) ? 'video' : 'image',
+                    size: material.filesize || 0,
+                    width: material.width,
+                    height: material.height,
+                  });
+                }
+                
+                // 添加 gallery 中的文件
+                if (material.gallery && material.gallery.length > 0) {
+                  material.gallery.forEach((url) => {
+                    if (url && url !== material.thumbnail && url !== material.src) {
+                      allMediaFiles.push({
+                        url: url,
+                        originalName: url.split('/').pop() || `gallery-${allMediaFiles.length}`,
+                        type: isVideoUrl(url) ? 'video' : 'image',
+                        size: 0,
+                      });
+                    }
+                  });
+                }
+                
+                setEditingDialogUploadedFiles(allMediaFiles);
                 setEditingMaterialInDialog(material);
                 setEditDialogOpen(true);
               }}
@@ -1821,7 +1876,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   return (
     <div className="space-y-4 h-full flex flex-col">
       {!showOnlyForm && (
-      <div className="border border-gray-200 bg-white">
+      <div className="bg-white">
         <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-sm font-semibold text-gray-900">素材列表</h3>
@@ -1918,7 +1973,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden border border-gray-200 bg-white">
+          <div className="flex-1 overflow-hidden bg-white">
             <div 
               ref={tableContainerRef}
               className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)] relative"
@@ -2184,7 +2239,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       {!showOnlyList && (
       <div
         id="material-form-card"
-        className="border border-gray-200 bg-white"
+        className="bg-white"
       >
         <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
           <h3 className="text-sm font-semibold text-gray-900">{editingMaterialId ? '编辑素材' : '新增素材'}</h3>
@@ -2469,12 +2524,30 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">预览图路径</label>
-              <Input
-                placeholder="/demo/xxx.jpg 或完整 CDN 地址"
-                value={form.thumbnail}
-                onChange={handleInputChange('thumbnail')}
-                disabled={loading}
-              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="/demo/xxx.jpg 或完整 CDN 地址"
+                  value={form.thumbnail}
+                  onChange={handleInputChange('thumbnail')}
+                  disabled={loading}
+                  className="flex-1"
+                />
+                {form.thumbnail && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, thumbnail: '' }));
+                      setMessage('已清空预览图');
+                    }}
+                    disabled={loading}
+                    title="删除预览图"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">资源路径</label>
@@ -2563,6 +2636,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         setEditDialogOpen(open);
         if (!open) {
           setEditingMaterialInDialog(null);
+          setEditingDialogUploadedFiles([]);
+          setEditingDialogUploadProgress(null);
+          setEditingDialogUploading(false);
         }
       }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -2654,23 +2730,342 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                     })}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">预览图</label>
-                  <Input
-                    placeholder="/demo/xxx.jpg 或完整 CDN 地址"
-                    value={editingMaterialInDialog.thumbnail || ''}
-                    onChange={(e) => setEditingMaterialInDialog({ ...editingMaterialInDialog, thumbnail: e.target.value })}
-                    disabled={loading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">资源路径</label>
-                  <Input
-                    placeholder="/demo/xxx.jpg 或完整 CDN 地址"
-                    value={editingMaterialInDialog.src || ''}
-                    onChange={(e) => setEditingMaterialInDialog({ ...editingMaterialInDialog, src: e.target.value })}
-                    disabled={loading}
-                  />
+                {/* 预览图和资源路径编辑区域 */}
+                <div className="space-y-4 md:col-span-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">预览图/视频</label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="/demo/xxx.jpg 或完整 CDN 地址"
+                        value={editingMaterialInDialog.thumbnail || ''}
+                        onChange={(e) => setEditingMaterialInDialog({ ...editingMaterialInDialog, thumbnail: e.target.value })}
+                        disabled={loading}
+                        className="flex-1"
+                      />
+                      <input
+                        ref={editingDialogFileInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          
+                          setEditingDialogUploading(true);
+                          setEditingDialogUploadProgress(`正在上传 ${file.name}...`);
+                          
+                          try {
+                            const existingUrl = await checkFileExists(file);
+                            if (existingUrl) {
+                              setEditingDialogUploadProgress(null);
+                              setEditingDialogUploading(false);
+                              setMessage(`文件已存在: ${file.name}`);
+                              if (editingDialogFileInputRef.current) {
+                                editingDialogFileInputRef.current.value = '';
+                              }
+                              return;
+                            }
+                            
+                            const localMetadata = await getLocalMediaMetadata(file);
+                            
+                            let uploadData: {
+                              url: string;
+                              originalName: string;
+                              type: 'image' | 'video';
+                              size: number;
+                              width?: number;
+                              height?: number;
+                              duration?: number;
+                              hash?: string;
+                            };
+                            
+                            if (storageMode === 'oss') {
+                              const directResult = await uploadFileDirect(file, {
+                                onProgress: (percent) => {
+                                  setEditingDialogUploadProgress(`正在上传 ${file.name}... ${percent}%`);
+                                },
+                              });
+                              
+                              uploadData = {
+                                url: directResult.fileUrl,
+                                originalName: file.name,
+                                type: file.type.startsWith('image/') ? 'image' : 'video',
+                                size: file.size,
+                                width: localMetadata.width,
+                                height: localMetadata.height,
+                                duration: localMetadata.duration,
+                              };
+                            } else {
+                              const formData = new FormData();
+                              formData.append('file', file);
+                              
+                              const response = await fetch('/api/upload', {
+                                method: 'POST',
+                                body: formData,
+                              });
+                              
+                              if (!response.ok) {
+                                const error = await response.json();
+                                throw new Error(error.message || '上传失败');
+                              }
+                              
+                              const responseData = await response.json();
+                              uploadData = {
+                                url: responseData.url,
+                                originalName: responseData.originalName,
+                                type: responseData.type,
+                                size: responseData.size,
+                                width: responseData.width ?? localMetadata.width,
+                                height: responseData.height ?? localMetadata.height,
+                                duration: responseData.duration ?? localMetadata.duration,
+                                hash: responseData.hash,
+                              };
+                            }
+                            
+                            const fileHash = uploadData.hash || await calculateFileHash(file);
+                            const newFile = {
+                              url: uploadData.url,
+                              originalName: uploadData.originalName,
+                              type: uploadData.type,
+                              size: uploadData.size,
+                              width: uploadData.width,
+                              height: uploadData.height,
+                              hash: fileHash,
+                            };
+                            
+                            // 添加到已上传文件列表
+                            setEditingDialogUploadedFiles((prev) => [...prev, newFile]);
+                            
+                            // 直接设置为 thumbnail 和 src（不再自动抽帧）
+                            setEditingMaterialInDialog((prev) => prev ? {
+                              ...prev,
+                              thumbnail: uploadData.url,
+                              src: uploadData.url,
+                              gallery: prev.gallery && prev.gallery.length > 0 
+                                ? [uploadData.url, ...prev.gallery.filter(url => url !== prev.src && url !== prev.thumbnail)]
+                                : [uploadData.url],
+                              width: uploadData.width,
+                              height: uploadData.height,
+                              duration: uploadData.duration,
+                            } : null);
+                            
+                            setEditingDialogUploadProgress(null);
+                            setMessage(`文件上传成功: ${uploadData.originalName}`);
+                          } catch (error) {
+                            console.error(error);
+                            const errorMessage = error instanceof Error ? error.message : '上传失败';
+                            setMessage(errorMessage);
+                            setEditingDialogUploadProgress(null);
+                          } finally {
+                            setEditingDialogUploading(false);
+                            if (editingDialogFileInputRef.current) {
+                              editingDialogFileInputRef.current.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => editingDialogFileInputRef.current?.click()}
+                        disabled={loading || editingDialogUploading}
+                      >
+                        {editingDialogUploading ? '上传中...' : '上传文件'}
+                      </Button>
+                    </div>
+                    {editingDialogUploadProgress && (
+                      <p className="text-xs text-muted-foreground">{editingDialogUploadProgress}</p>
+                    )}
+                    
+                    {/* 显示当前预览 */}
+                    {editingMaterialInDialog.thumbnail && (() => {
+                      const getClientUrl = (url: string): string => {
+                        if (!url) return '';
+                        if (url.startsWith('http://') || url.startsWith('https://')) {
+                          return url;
+                        }
+                        if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+                          return `${normalizedCdnBase.replace(/\/+$/, '')}${url.startsWith('/') ? url : `/${url}`}`;
+                        }
+                        return url.startsWith('/') ? url : `/${url}`;
+                      };
+                      
+                      const isVideoUrl = (url: string) => {
+                        if (!url) return false;
+                        const lower = url.toLowerCase();
+                        return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
+                      };
+                      
+                      const previewUrl = getClientUrl(editingMaterialInDialog.thumbnail);
+                      const isVideo = isVideoUrl(editingMaterialInDialog.thumbnail);
+                      
+                      return (
+                        <div className="border rounded-md p-2 bg-muted/50">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="text-xs text-muted-foreground">当前预览：</div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingMaterialInDialog((prev) => prev ? { ...prev, thumbnail: '' } : null);
+                                setMessage('已清空预览图');
+                              }}
+                              disabled={loading}
+                              className="h-6 px-2 text-xs"
+                              title="删除预览图"
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              删除
+                            </Button>
+                          </div>
+                          <div className="relative w-full max-w-md mx-auto">
+                            {isVideo ? (
+                              <video
+                                src={previewUrl}
+                                className="max-w-full max-h-48 object-contain rounded"
+                                controls
+                                muted
+                              />
+                            ) : (
+                              <img
+                                src={previewUrl}
+                                alt="预览图"
+                                className="max-w-full max-h-48 object-contain rounded"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    
+                    {/* 显示已上传的文件列表 */}
+                    {editingDialogUploadedFiles.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs text-muted-foreground">已上传的文件 ({editingDialogUploadedFiles.length})</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {editingDialogUploadedFiles.map((file, index) => {
+                            const getClientUrl = (url: string): string => {
+                              if (!url) return '';
+                              if (url.startsWith('http://') || url.startsWith('https://')) {
+                                return url;
+                              }
+                              if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+                                return `${normalizedCdnBase.replace(/\/+$/, '')}${url.startsWith('/') ? url : `/${url}`}`;
+                              }
+                              return url.startsWith('/') ? url : `/${url}`;
+                            };
+                            
+                            const previewUrl = getClientUrl(file.url);
+                            const isVideo = file.type === 'video';
+                            const isThumbnail = editingMaterialInDialog.thumbnail === file.url;
+                            
+                            return (
+                              <div
+                                key={index}
+                                className={`relative group border rounded overflow-hidden ${
+                                  isThumbnail ? 'border-primary ring-2 ring-primary' : 'border-border'
+                                }`}
+                              >
+                                <div className="aspect-video relative bg-muted">
+                                  {isVideo ? (
+                                    <video
+                                      src={previewUrl}
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      playsInline
+                                    />
+                                  ) : (
+                                    <img
+                                      src={previewUrl}
+                                      alt={file.originalName}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                      }}
+                                    />
+                                  )}
+                                  {isThumbnail && (
+                                    <div className="absolute top-0 left-0 bg-primary text-primary-foreground px-1 py-0.5 text-xs">
+                                      预览图
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                                  <div className="flex gap-1">
+                                    {!isThumbnail && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          // 设置为预览图
+                                          setEditingMaterialInDialog((prev) => prev ? {
+                                            ...prev,
+                                            thumbnail: file.url,
+                                            src: file.url,
+                                          } : null);
+                                          setMessage(`已设置为预览图: ${file.originalName}`);
+                                        }}
+                                        className="p-1 bg-white/90 rounded hover:bg-white"
+                                        title="设为预览图"
+                                      >
+                                        <Star className="h-4 w-4 text-yellow-600" />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        // 删除文件
+                                        const newFiles = editingDialogUploadedFiles.filter((_, idx) => idx !== index);
+                                        setEditingDialogUploadedFiles(newFiles);
+                                        
+                                        // 如果删除的是预览图，清空预览图
+                                        if (isThumbnail) {
+                                          setEditingMaterialInDialog((prev) => prev ? {
+                                            ...prev,
+                                            thumbnail: '',
+                                            src: prev.src === file.url ? '' : prev.src,
+                                            gallery: prev.gallery?.filter(url => url !== file.url) || [],
+                                          } : null);
+                                        } else {
+                                          // 从 gallery 中移除
+                                          setEditingMaterialInDialog((prev) => prev ? {
+                                            ...prev,
+                                            gallery: prev.gallery?.filter(url => url !== file.url) || [],
+                                          } : null);
+                                        }
+                                        
+                                        setMessage(`已删除文件: ${file.originalName}`);
+                                      }}
+                                      className="p-1 bg-white/90 rounded hover:bg-white"
+                                      title="删除"
+                                    >
+                                      <Trash2 className="h-4 w-4 text-red-600" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate">
+                                  {file.originalName}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">资源路径</label>
+                    <Input
+                      placeholder="/demo/xxx.jpg 或完整 CDN 地址"
+                      value={editingMaterialInDialog.src || ''}
+                      onChange={(e) => setEditingMaterialInDialog({ ...editingMaterialInDialog, src: e.target.value })}
+                      disabled={loading}
+                    />
+                  </div>
                 </div>
                 {editingMaterialInDialog.type === 'UE视频' && (
                   <div className="space-y-2">
@@ -2717,6 +3112,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
               onClick={() => {
                 setEditDialogOpen(false);
                 setEditingMaterialInDialog(null);
+                setEditingDialogUploadedFiles([]);
+                setEditingDialogUploadProgress(null);
+                setEditingDialogUploading(false);
               }}
               disabled={loading}
             >
@@ -2741,6 +3139,24 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                     throw new Error('至少需要一个质量标签');
                   }
 
+                  // 构建 gallery：包含所有已上传的文件 URL，去重
+                  const allUrls = new Set<string>();
+                  if (editingMaterialInDialog.thumbnail) {
+                    allUrls.add(editingMaterialInDialog.thumbnail);
+                  }
+                  if (editingMaterialInDialog.src) {
+                    allUrls.add(editingMaterialInDialog.src);
+                  }
+                  if (editingMaterialInDialog.gallery && editingMaterialInDialog.gallery.length > 0) {
+                    editingMaterialInDialog.gallery.forEach(url => {
+                      if (url) allUrls.add(url);
+                    });
+                  }
+                  // 添加新上传的文件
+                  editingDialogUploadedFiles.forEach(file => {
+                    if (file.url) allUrls.add(file.url);
+                  });
+                  
                   const payload: any = {
                     id: editingMaterialInDialog.id,
                     name: editingMaterialInDialog.name.trim(),
@@ -2750,7 +3166,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                     quality: editingMaterialInDialog.quality,
                     thumbnail: editingMaterialInDialog.thumbnail?.trim() || undefined,
                     src: editingMaterialInDialog.src?.trim() || undefined,
-                    gallery: editingMaterialInDialog.gallery,
+                    gallery: Array.from(allUrls),
                   };
 
                   if (editingMaterialInDialog.type === 'UE视频' && editingMaterialInDialog.duration != null) {
@@ -2762,6 +3178,24 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                     }
                     if (editingMaterialInDialog.height != null) {
                       payload.height = editingMaterialInDialog.height;
+                    }
+                  }
+                  
+                  // 如果有新上传的文件，更新文件大小等信息
+                  if (editingDialogUploadedFiles.length > 0) {
+                    const latestFile = editingDialogUploadedFiles[editingDialogUploadedFiles.length - 1];
+                    if (latestFile.size) {
+                      payload.filesize = latestFile.size;
+                      payload.fileSize = latestFile.size;
+                    }
+                    // 如果新上传的是图片，更新宽高
+                    if (latestFile.type === 'image' && latestFile.width && latestFile.height) {
+                      payload.width = latestFile.width;
+                      payload.height = latestFile.height;
+                    }
+                    // 如果新上传的是视频，更新时长
+                    if (latestFile.type === 'video' && editingMaterialInDialog.duration != null) {
+                      payload.duration = editingMaterialInDialog.duration;
                     }
                   }
 
@@ -2781,6 +3215,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   await refreshMaterials();
                   setEditDialogOpen(false);
                   setEditingMaterialInDialog(null);
+                  setEditingDialogUploadedFiles([]);
+                  setEditingDialogUploadProgress(null);
+                  setEditingDialogUploading(false);
                   setMessage('素材已更新');
                 } catch (error) {
                   console.error(error);
@@ -2968,6 +3405,440 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         onSave={handleTagsSave}
         onTypesSave={handleTypesSave}
       />
+
+      {/* 待确认素材编辑对话框 */}
+      {pendingMaterialsDialogOpen && pendingMaterials.length > 0 && editingPendingMaterialIndex !== null && (
+        <Dialog open={true} onOpenChange={() => {}}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                编辑素材 ({editingPendingMaterialIndex + 1}/{pendingMaterials.length}): {pendingMaterials[editingPendingMaterialIndex].originalName}
+              </DialogTitle>
+              <DialogDescription>
+                修改素材信息后保存，可以继续编辑下一个
+              </DialogDescription>
+            </DialogHeader>
+            {pendingEditForm && (() => {
+              const pendingMaterial = pendingMaterials[editingPendingMaterialIndex!];
+              
+              // 获取客户端 URL 的辅助函数
+              const getClientUrl = (url: string): string => {
+                if (!url) return '';
+                if (url.startsWith('http://') || url.startsWith('https://')) {
+                  return url;
+                }
+                if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+                  return `${normalizedCdnBase.replace(/\/+$/, '')}${url.startsWith('/') ? url : `/${url}`}`;
+                }
+                return url.startsWith('/') ? url : `/${url}`;
+              };
+
+              const handleSave = async () => {
+                try {
+                  setLoading(true);
+                  const materialPayload = {
+                    name: pendingEditForm.name.trim(),
+                    type: pendingEditForm.type,
+                    project: pendingEditForm.project,
+                    tag: pendingEditForm.tag,
+                    quality: pendingEditForm.quality,
+                    thumbnail: pendingMaterial.thumbnail,
+                    src: pendingMaterial.src,
+                    gallery: pendingMaterial.gallery,
+                    filesize: pendingMaterial.filesize,
+                    fileSize: pendingMaterial.fileSize,
+                    hash: pendingMaterial.hash,
+                    width: pendingMaterial.width,
+                    height: pendingMaterial.height,
+                    duration: pendingMaterial.duration,
+                  };
+
+                  const createResponse = await fetch('/api/materials', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(materialPayload),
+                  });
+
+                  if (!createResponse.ok) {
+                    const error = await createResponse.json();
+                    throw new Error(error.message || '创建素材失败');
+                  }
+
+                  const createdMaterial: Material = await createResponse.json();
+                  setMaterials((prev) => [createdMaterial, ...prev]);
+                  
+                  // 从待确认列表中移除
+                  const newPending = pendingMaterials.filter((_, idx) => idx !== editingPendingMaterialIndex);
+                  setPendingMaterials(newPending);
+                  
+                  // 如果还有待确认的素材，继续编辑下一个
+                  if (newPending.length > 0) {
+                    setEditingPendingMaterialIndex(0);
+                  } else {
+                    // 全部完成
+                    setPendingMaterialsDialogOpen(false);
+                    setEditingPendingMaterialIndex(null);
+                    await refreshMaterials();
+                    if (showOnlyForm) {
+                      triggerRefresh();
+                    }
+                    setMessage('所有素材已创建完成！');
+                  }
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : '创建素材失败';
+                  setMessage(message);
+                  alert(message);
+                } finally {
+                  setLoading(false);
+                }
+              };
+
+              const handleSkip = () => {
+                // 跳过当前素材
+                const newPending = pendingMaterials.filter((_, idx) => idx !== editingPendingMaterialIndex);
+                setPendingMaterials(newPending);
+                
+                if (newPending.length > 0) {
+                  setEditingPendingMaterialIndex(0);
+                } else {
+                  setPendingMaterialsDialogOpen(false);
+                  setEditingPendingMaterialIndex(null);
+                  setMessage('已跳过所有待确认素材');
+                }
+              };
+
+              const handleCancel = () => {
+                if (confirm('确定取消吗？未确认的素材将不会创建。')) {
+                  setPendingMaterials([]);
+                  setPendingMaterialsDialogOpen(false);
+                  setEditingPendingMaterialIndex(null);
+                }
+              };
+
+              return (
+                <div className="space-y-4 py-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">名称 <span className="text-red-500">*</span></label>
+                      <Input
+                        value={pendingEditForm.name}
+                        onChange={(e) => setPendingEditForm({ ...pendingEditForm, name: e.target.value })}
+                        disabled={loading}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">类型 <span className="text-red-500">*</span></label>
+                      <select
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={pendingEditForm.type}
+                        onChange={(e) => setPendingEditForm({ ...pendingEditForm, type: e.target.value as any })}
+                        disabled={loading}
+                      >
+                        {MATERIAL_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">项目 <span className="text-red-500">*</span></label>
+                      <select
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={pendingEditForm.project}
+                        onChange={(e) => setPendingEditForm({ ...pendingEditForm, project: e.target.value as any })}
+                        disabled={loading}
+                        required
+                      >
+                        {PROJECTS.map((project) => (
+                          <option key={project} value={project}>
+                            {project}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">标签 <span className="text-red-500">*</span></label>
+                      <select
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={pendingEditForm.tag}
+                        onChange={(e) => setPendingEditForm({ ...pendingEditForm, tag: e.target.value as any })}
+                        disabled={loading}
+                      >
+                        {MATERIAL_TAGS.map((tag) => (
+                          <option key={tag} value={tag}>
+                            {tag}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="text-sm font-medium">质量（可多选）<span className="text-red-500">*</span></label>
+                      <div className="flex flex-wrap gap-2">
+                        {MATERIAL_QUALITIES.map((quality) => {
+                          const isSelected = pendingEditForm.quality.includes(quality as any);
+                          return (
+                            <label key={quality} className="flex items-center space-x-2 cursor-pointer">
+                              <Checkbox
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setPendingEditForm({
+                                      ...pendingEditForm,
+                                      quality: [...pendingEditForm.quality, quality as any],
+                                    });
+                                  } else {
+                                    setPendingEditForm({
+                                      ...pendingEditForm,
+                                      quality: pendingEditForm.quality.filter((q) => q !== quality),
+                                    });
+                                  }
+                                }}
+                                disabled={loading}
+                              />
+                              <span className="text-sm">{quality}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 预览 */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">预览</label>
+                    <div className="border rounded-md p-2 bg-muted/50">
+                      {pendingMaterial.uploadData.type === 'video' ? (
+                        <video
+                          src={getClientUrl(pendingMaterial.thumbnail)}
+                          className="max-w-full max-h-48 object-contain"
+                          controls
+                          muted
+                        />
+                      ) : (
+                        <img
+                          src={getClientUrl(pendingMaterial.thumbnail)}
+                          alt={pendingMaterial.name}
+                          className="max-w-full max-h-48 object-contain"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <DialogFooter className="flex justify-between">
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" onClick={handleSkip} disabled={loading}>
+                        跳过
+                      </Button>
+                      <Button type="button" variant="outline" onClick={handleCancel} disabled={loading}>
+                        取消全部
+                      </Button>
+                    </div>
+                    <Button type="button" onClick={handleSave} disabled={loading || !pendingEditForm.name.trim()}>
+                      {loading ? '创建中...' : '确认创建'}
+                    </Button>
+                  </DialogFooter>
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* 待确认素材列表对话框（首次打开时） */}
+      {pendingMaterialsDialogOpen && pendingMaterials.length > 0 && editingPendingMaterialIndex === null && (() => {
+        // 获取客户端 URL 的辅助函数
+        const getClientUrl = (url: string): string => {
+          if (!url) return '';
+          if (url.startsWith('http://') || url.startsWith('https://')) {
+            return url;
+          }
+          if (storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/') {
+            return `${normalizedCdnBase.replace(/\/+$/, '')}${url.startsWith('/') ? url : `/${url}`}`;
+          }
+          return url.startsWith('/') ? url : `/${url}`;
+        };
+        
+        return (
+          <Dialog open={true} onOpenChange={() => {}}>
+            <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] h-[85vh] flex flex-col overflow-hidden">
+              <DialogHeader className="flex-shrink-0">
+                <DialogTitle>待确认素材 ({pendingMaterials.length} 个)</DialogTitle>
+                <DialogDescription>
+                  上传完成！请逐个编辑确认后创建素材。点击编辑按钮开始。
+                </DialogDescription>
+              </DialogHeader>
+              
+              {/* 预览列表 */}
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      共 {pendingMaterials.length} 条素材待创建
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      if (confirm('确定取消吗？未确认的素材将不会创建。')) {
+                        setPendingMaterials([]);
+                        setPendingMaterialsDialogOpen(false);
+                      }
+                    }} disabled={loading}>
+                      <X className="h-4 w-4 mr-2" />
+                      返回
+                    </Button>
+                  </div>
+
+                  {/* 素材预览列表 */}
+                  <div className="max-h-[50vh] overflow-y-auto space-y-2 border rounded-lg p-4">
+                    {pendingMaterials.map((material, index) => (
+                      <div
+                        key={index}
+                        className="p-3 border rounded-lg bg-muted/50"
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* 预览图 */}
+                          {material.thumbnail && (
+                            <img
+                              src={getClientUrl(material.thumbnail)}
+                              alt={material.name}
+                              className="w-16 h-16 object-cover rounded border"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          )}
+                          
+                          {/* 素材信息 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-medium truncate">{material.name}</div>
+                              <div className="flex gap-1">
+                                {/* 编辑按钮 - 使用图标 */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingPendingMaterialIndex(index)}
+                                  disabled={loading}
+                                  className="h-6 w-6 p-0"
+                                  title="编辑"
+                                >
+                                  <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                </Button>
+                                {/* 删除按钮 */}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newPending = pendingMaterials.filter((_, idx) => idx !== index);
+                                    setPendingMaterials(newPending);
+                                    if (newPending.length === 0) {
+                                      setPendingMaterialsDialogOpen(false);
+                                    }
+                                  }}
+                                  disabled={loading}
+                                  className="h-6 w-6 p-0"
+                                  title="删除"
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                              <div>类型: {material.type}</div>
+                              <div>项目: {material.project}</div>
+                              <div>标签: {material.tag}</div>
+                            </div>
+                            
+                            {/* 已上传文件列表 */}
+                            {material.uploadData && (
+                              <div className="mt-3 space-y-1">
+                                <label className="text-xs font-medium text-muted-foreground">
+                                  已上传文件
+                                </label>
+                                <div className="grid grid-cols-3 gap-1">
+                                  <div
+                                    className={`relative group border rounded overflow-hidden cursor-pointer ${
+                                      material.thumbnail === material.uploadData.url
+                                        ? 'border-primary ring-2 ring-primary'
+                                        : 'border-border'
+                                    }`}
+                                  >
+                                    <div className="aspect-video relative bg-muted">
+                                      {material.uploadData.type === 'image' ? (
+                                        <img
+                                          src={getClientUrl(material.uploadData.url)}
+                                          alt={material.uploadData.originalName}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).style.display = 'none';
+                                          }}
+                                        />
+                                      ) : (
+                                        <video
+                                          src={getClientUrl(material.uploadData.url)}
+                                          className="w-full h-full object-cover"
+                                          muted
+                                          playsInline
+                                        />
+                                      )}
+                                      {material.thumbnail === material.uploadData.url && (
+                                        <div className="absolute top-0 left-0 bg-primary text-primary-foreground px-1 py-0.5 text-xs">
+                                          预览图
+                                        </div>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        // 设置为预览图
+                                        setPendingMaterials((prev) =>
+                                          prev.map((m, idx) =>
+                                            idx === index
+                                              ? { ...m, thumbnail: material.uploadData.url }
+                                              : m
+                                          )
+                                        );
+                                      }}
+                                      className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100"
+                                      title="设为预览图"
+                                    >
+                                      <Star className="h-4 w-4 text-white" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* 操作按钮 - 固定在底部 */}
+              <div className="flex justify-end gap-2 flex-shrink-0 pt-4 border-t bg-background">
+                <Button variant="outline" onClick={() => {
+                  if (confirm('确定取消吗？未确认的素材将不会创建。')) {
+                    setPendingMaterials([]);
+                    setPendingMaterialsDialogOpen(false);
+                  }
+                }} disabled={loading}>
+                  取消
+                </Button>
+                <Button
+                  onClick={() => setEditingPendingMaterialIndex(0)}
+                  disabled={loading}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  开始编辑第一个
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }
