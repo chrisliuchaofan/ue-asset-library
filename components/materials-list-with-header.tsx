@@ -374,40 +374,46 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
           </DropdownMenu>
           {/* 缩略图尺寸切换 */}
           <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
-          <button
-            type="button"
-            className={`h-7 px-2 text-xs rounded transition-colors ${
-              thumbSize === 'small'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-transparent hover:bg-muted'
-            }`}
-            onClick={() => setThumbSize('small')}
-          >
-            小
-          </button>
-          <button
-            type="button"
-            className={`h-7 px-2 text-xs rounded transition-colors ${
-              thumbSize === 'medium'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-transparent hover:bg-muted'
-            }`}
-            onClick={() => setThumbSize('medium')}
-          >
-            中
-          </button>
-          <button
-            type="button"
-            className={`h-7 px-2 text-xs rounded transition-colors ${
-              thumbSize === 'large'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-transparent hover:bg-muted'
-            }`}
-            onClick={() => setThumbSize('large')}
-          >
-            大
-          </button>
-        </div>
+            <Button
+              type="button"
+              variant={thumbSize === 'small' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setThumbSize('small');
+              }}
+            >
+              小
+            </Button>
+            <Button
+              type="button"
+              variant={thumbSize === 'medium' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setThumbSize('medium');
+              }}
+            >
+              中
+            </Button>
+            <Button
+              type="button"
+              variant={thumbSize === 'large' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setThumbSize('large');
+              }}
+            >
+              大
+            </Button>
+          </div>
         </div>
       </div>
       <div className="relative">
