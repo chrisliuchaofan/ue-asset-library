@@ -7,7 +7,7 @@ import { MaterialsList } from '@/components/materials-list';
 import { HeaderActions } from '@/components/header-actions';
 import { type Material } from '@/data/material.schema';
 import { useOfficeLocation } from '@/components/office-selector';
-import { Loader2, ArrowUpDown, Clock, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, ArrowUpDown, Clock, Star, ChevronDown, ChevronUp, Grid, LayoutGrid } from 'lucide-react';
 import type { MaterialFilterSnapshot } from '@/components/material-filter-sidebar';
 import type { MaterialsSummary } from '@/lib/materials-data';
 import {
@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 
-type ThumbSize = 'small' | 'medium' | 'large';
+type ThumbSize = 'compact' | 'expanded';
 type SortBy = 'latest' | 'recommended';
 type TimeSortDirection = 'newest-first' | 'oldest-first';
 
@@ -57,8 +57,8 @@ function applyFilters(source: Material[], keyword: string, snapshot: MaterialFil
 }
 
 export function MaterialsListWithHeader({ materials, optimisticFilters, summary }: MaterialsListWithHeaderProps) {
-  // 使用默认值 'medium' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
-  const [thumbSize, setThumbSize] = useState<ThumbSize>('medium');
+  // 使用默认值 'compact' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
+  const [thumbSize, setThumbSize] = useState<ThumbSize>('compact');
   const [sortBy, setSortBy] = useState<SortBy>('latest');
   const [timeSortDirection, setTimeSortDirection] = useState<TimeSortDirection>('newest-first');
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
@@ -89,14 +89,22 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
   const latestRequestId = useRef(0);
   const baseMaterialsRef = useRef<Material[]>(materials);
 
+  // 立即设置mounted，避免首次加载时卡在加载中
   useEffect(() => {
     setMounted(true);
     // 在客户端 mounted 后从 localStorage 读取 thumbSize
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem(THUMB_SIZE_STORAGE_KEY) as ThumbSize | null;
-        if (stored === 'small' || stored === 'medium' || stored === 'large') {
+        // 兼容旧数据：将 small/medium/large 转换为 compact/expanded
+        if (stored === 'compact' || stored === 'expanded') {
           setThumbSize(stored);
+        } else if (stored === 'small' || stored === 'medium') {
+          setThumbSize('compact');
+          localStorage.setItem(THUMB_SIZE_STORAGE_KEY, 'compact');
+        } else if (stored === 'large') {
+          setThumbSize('expanded');
+          localStorage.setItem(THUMB_SIZE_STORAGE_KEY, 'expanded');
         }
       } catch {
         // 忽略错误
@@ -128,12 +136,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
 
   // 服务器请求：当 URL 更新且没有乐观更新时发起
   useEffect(() => {
-    // 组件未挂载时不执行
-    if (!mounted) {
-      return;
-    }
-
-    // Fast path: if library is empty, skip all queries
+    // Fast path: if library is empty, skip all queries (不等待mounted，立即处理)
     if (summary.total === 0) {
       console.log('[MaterialsListWithHeader] Empty library fast path: skipping query request');
       setDisplayMaterials([]);
@@ -144,6 +147,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
 
     if (!hasServerFilters) {
       if (!optimisticFilters) {
+        // 立即显示数据，不等待mounted
         setDisplayMaterials(baseMaterialsRef.current);
         setIsFetching(false);
         setFilterDuration(null);
@@ -153,6 +157,11 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
 
     // 如果有乐观更新，等待它清除后再发起请求，避免状态切换闪烁
     if (optimisticFilters) {
+      return;
+    }
+
+    // 组件未挂载时不执行服务器请求（但数据已通过上面的逻辑显示）
+    if (!mounted) {
       return;
     }
 
@@ -305,19 +314,19 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          找到 {sortedDisplayMaterials.length} 个素材
+      <div className="mb-3 sm:mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-xs sm:text-sm text-muted-foreground flex-shrink-0 min-w-0 overflow-hidden">
+          <span className="whitespace-nowrap">找到 {sortedDisplayMaterials.length} 个素材</span>
           {summary.total > 0 && !hasServerFilters && (
-            <span className="ml-2 text-xs text-muted-foreground/80">共 {summary.total} 个</span>
+            <span className="ml-1 sm:ml-2 text-xs text-muted-foreground/80 whitespace-nowrap">共 {summary.total} 个</span>
           )}
           {filterDuration !== null && (
-            <span className="ml-2 text-xs text-muted-foreground/80">
+            <span className="ml-1 sm:ml-2 text-xs text-muted-foreground/80 whitespace-nowrap">
               ({Math.round(filterDuration)} ms)
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 w-full sm:w-auto justify-end sm:justify-start overflow-x-auto scrollbar-hide">
           {/* 排序按钮 */}
           <DropdownMenu open={isSortDropdownOpen} onOpenChange={setIsSortDropdownOpen}>
             <DropdownMenuTrigger asChild>
@@ -325,18 +334,18 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground transition hover:bg-transparent"
+                className="inline-flex items-center gap-1 sm:gap-2 px-1.5 sm:px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-medium text-foreground transition hover:bg-transparent flex-shrink-0"
               >
-                <ArrowUpDown className="h-4 w-4" />
-                <span className="hidden md:inline">
+                <ArrowUpDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">
                   {sortBy === 'latest' 
                     ? (timeSortDirection === 'newest-first' ? '按最新排序' : '按最旧排序')
                     : '按推荐排序'}
                 </span>
                 {isSortDropdownOpen ? (
-                  <ChevronUp className="h-4 w-4" />
+                  <ChevronUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 ) : (
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 )}
               </Button>
             </DropdownMenuTrigger>
@@ -372,46 +381,35 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          {/* 缩略图尺寸切换 */}
-          <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
+          {/* 预览模式切换 - 紧凑和展开预览两种模式 */}
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             <Button
               type="button"
-              variant={thumbSize === 'small' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-7 px-2 text-xs"
+              variant={thumbSize === 'compact' ? 'default' : 'outline'}
+              size="icon"
+              className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setThumbSize('small');
+                setThumbSize('compact');
               }}
+              title="紧凑模式"
             >
-              小
+              <Grid className="h-4 w-4" />
             </Button>
             <Button
               type="button"
-              variant={thumbSize === 'medium' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-7 px-2 text-xs"
+              variant={thumbSize === 'expanded' ? 'default' : 'outline'}
+              size="icon"
+              className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setThumbSize('medium');
+                setThumbSize('expanded');
               }}
+              title="展开预览"
             >
-              中
-            </Button>
-            <Button
-              type="button"
-              variant={thumbSize === 'large' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setThumbSize('large');
-              }}
-            >
-              大
+              <LayoutGrid className="h-4 w-4" />
             </Button>
           </div>
         </div>

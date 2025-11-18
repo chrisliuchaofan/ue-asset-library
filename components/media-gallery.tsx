@@ -35,6 +35,11 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   
+  // 视频抽帧相关状态
+  const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]);
+  const extractingFramesRef = useRef(false);
+  const lastVideoUrlRef = useRef<string | null>(null);
+  
   // AI 读图相关状态
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<AIAnalyzeResult | null>(null);
@@ -72,9 +77,207 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
   const currentUrl = currentSource ? getClientAssetUrl(currentSource) : '';
   const isVideo = isVideoUrl(currentUrl);
   
+  // 检查是否有图片
+  const hasImages = galleryUrls.some(url => {
+    const urlStr = getClientAssetUrl(url);
+    return urlStr && !isVideoUrl(urlStr);
+  });
+  
+  // 获取第一个视频URL
+  const firstVideoUrl = galleryUrls.find(url => {
+    const urlStr = getClientAssetUrl(url);
+    return urlStr && isVideoUrl(urlStr);
+  }) || null;
+  
+  // 视频抽帧：当只有视频没有图片时，提取视频帧
+  useEffect(() => {
+    // 如果已经有图片，不需要提取帧
+    if (hasImages || !firstVideoUrl) {
+      if (videoThumbnails.length > 0) {
+        // 清理之前的帧
+        videoThumbnails.forEach(url => {
+          if (url.startsWith('blob:')) {
+            URL.revokeObjectURL(url);
+          }
+        });
+        setVideoThumbnails([]);
+      }
+      return;
+    }
+    
+    // 如果已经在提取同一个视频，跳过
+    if (extractingFramesRef.current && lastVideoUrlRef.current === firstVideoUrl) {
+      return;
+    }
+    
+    // 如果已经提取过这个视频的帧，跳过
+    if (lastVideoUrlRef.current === firstVideoUrl && videoThumbnails.length > 0) {
+      return;
+    }
+    
+    extractingFramesRef.current = true;
+    lastVideoUrlRef.current = firstVideoUrl;
+    
+    const extractFrames = async () => {
+      try {
+        const video = document.createElement('video');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          extractingFramesRef.current = false;
+          return;
+        }
+        
+        const videoUrl = getClientAssetUrl(firstVideoUrl);
+        const isCrossOrigin = videoUrl.startsWith('http://') || videoUrl.startsWith('https://');
+        
+        if (isCrossOrigin) {
+          video.crossOrigin = 'anonymous';
+        }
+        
+        video.preload = 'metadata';
+        video.src = videoUrl;
+        
+        await new Promise<void>((resolve, reject) => {
+          let timeoutId: NodeJS.Timeout | null = null;
+          let resolved = false;
+          
+          const cleanup = () => {
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+              timeoutId = null;
+            }
+            video.onloadedmetadata = null;
+            video.onerror = null;
+          };
+          
+          const handleSuccess = () => {
+            if (!resolved) {
+              resolved = true;
+              cleanup();
+              resolve();
+            }
+          };
+          
+          const handleError = (errorMsg: string) => {
+            if (!resolved) {
+              resolved = true;
+              cleanup();
+              reject(new Error(errorMsg));
+            }
+          };
+          
+          video.onloadedmetadata = handleSuccess;
+          video.onerror = () => handleError('视频加载失败');
+          
+          timeoutId = setTimeout(() => {
+            if (!resolved && video.readyState < 2) {
+              handleError('视频加载超时');
+            }
+          }, 5000);
+        });
+        
+        const duration = video.duration;
+        if (!duration || !isFinite(duration)) {
+          extractingFramesRef.current = false;
+          return;
+        }
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        const frames: string[] = [];
+        const frameCount = 6;
+        const interval = duration / (frameCount + 1);
+        
+        // 提取多帧
+        for (let i = 1; i <= frameCount; i++) {
+          const time = interval * i;
+          video.currentTime = Math.min(time, duration - 0.1);
+          
+          await new Promise<void>((resolve) => {
+            video.onseeked = () => {
+              try {
+                ctx.drawImage(video, 0, 0);
+                
+                try {
+                  canvas.toBlob(
+                    (blob) => {
+                      if (blob) {
+                        const url = URL.createObjectURL(blob);
+                        frames.push(url);
+                      }
+                      resolve();
+                    },
+                    'image/jpeg',
+                    0.8
+                  );
+                } catch (blobError: any) {
+                  if (blobError.name === 'SecurityError' || blobError.message?.includes('Tainted')) {
+                    if (process.env.NODE_ENV !== 'production') {
+                      console.warn('无法提取视频帧（CORS 限制）');
+                    }
+                  }
+                  resolve();
+                }
+              } catch (drawError) {
+                resolve();
+              }
+            };
+          });
+        }
+        
+        if (frames.length > 0) {
+          setVideoThumbnails(frames);
+        }
+        extractingFramesRef.current = false;
+      } catch (error) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('提取视频帧失败:', error);
+        }
+        setVideoThumbnails([]);
+        extractingFramesRef.current = false;
+        lastVideoUrlRef.current = null;
+      }
+    };
+    
+    // 延迟执行，避免阻塞首屏渲染
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        setTimeout(() => {
+          extractFrames();
+        }, 1000);
+      }, { timeout: 2000 });
+    } else {
+      setTimeout(() => {
+        extractFrames();
+      }, 1000);
+    }
+    
+    // 清理函数
+    return () => {
+      videoThumbnails.forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    };
+  }, [hasImages, firstVideoUrl, videoThumbnails]);
+  
   // 获取当前主图 URL（用于 AI 分析）
   // 确保返回完整的 URL（http:// 或 https:// 开头）
   const getMainImageUrl = (): string | null => {
+    // 如果当前是视频且有提取的帧，使用当前索引对应的帧
+    if (isVideo && videoThumbnails.length > 0) {
+      const frameIndex = Math.min(currentIndex, videoThumbnails.length - 1);
+      const frameUrl = videoThumbnails[frameIndex];
+      if (frameUrl && frameUrl.startsWith('blob:')) {
+        // blob URL 可以直接用于分析（需要转换为 base64 或使用其他方式）
+        return frameUrl;
+      }
+    }
+    
     const tryGetUrl = (source: string | undefined): string | null => {
       if (!source || isVideoUrl(source)) return null;
       

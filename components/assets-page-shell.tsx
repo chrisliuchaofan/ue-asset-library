@@ -10,6 +10,22 @@ import { AssetsListWithSelection } from "@/components/assets-list-with-selection
 import { AssetsListSkeleton } from "@/components/assets-list";
 import type { Asset } from "@/data/manifest.schema";
 
+// 检测是否为移动端
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  return isMobile;
+}
+
 // 动态导入 FilterSidebar，只在侧边栏打开时加载
 const FilterSidebar = lazy(() => import("@/components/filter-sidebar").then(mod => ({ default: mod.FilterSidebar })));
 
@@ -34,6 +50,7 @@ export function AssetsPageShell({
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(220);
   const [optimisticFilters, setOptimisticFilters] = useState<FilterSnapshot | null>(null);
+  const isMobile = useIsMobile();
   const collapsedWidth = 48;
   const MIN_WIDTH = 220;
   const MAX_WIDTH = 420;
@@ -133,7 +150,9 @@ export function AssetsPageShell({
 
       <div className="relative flex flex-1 overflow-hidden">
         {/* Drawer */}
-        <div className="pointer-events-auto fixed left-0 bottom-0 top-[3.5rem] sm:top-16 z-30 flex">
+        <div className={`pointer-events-auto fixed left-0 bottom-0 top-[3.5rem] sm:top-16 z-30 flex transition-transform duration-300 ease-out ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'
+        }`}>
           <div
             className="transform-gpu transition-all duration-300 ease-out"
             style={{ width: effectiveSidebarWidth }}
@@ -181,10 +200,17 @@ export function AssetsPageShell({
           className="relative flex-1 overflow-hidden transform-gpu transition-all duration-300 ease-out"
           style={{
             minHeight: 'calc(100vh - 3.5rem)',
-            marginLeft: `${effectiveSidebarWidth}px`,
+            marginLeft: isMobile ? '0px' : `${effectiveSidebarWidth}px`,
           }}
         >
-          <div className="flex h-full flex-col">
+          {/* 移动端遮罩层 */}
+          {isSidebarOpen && (
+            <div
+              className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm sm:hidden"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+          )}
+          <div className="flex h-full flex-col overflow-y-auto">
             <Suspense fallback={<AssetsListSkeleton />}>
               <AssetsListWithSelection assets={assets} optimisticFilters={optimisticFilters ?? undefined} />
             </Suspense>

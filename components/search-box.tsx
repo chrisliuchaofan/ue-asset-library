@@ -82,9 +82,9 @@ export function SearchBox({ project }: SearchBoxProps = {}) {
   const isHomePage = pathname === '/';
 
   return (
-    <div className="relative w-full max-w-xs sm:max-w-md">
+    <div className="relative w-full max-w-xs sm:max-w-md min-w-0">
       <Search className={cn(
-        "absolute left-2 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 z-10 pointer-events-none",
+        "absolute left-2 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 z-10 pointer-events-none flex-shrink-0",
         isHomePage ? "text-white/80" : "text-muted-foreground"
       )} />
       <Input
@@ -94,7 +94,7 @@ export function SearchBox({ project }: SearchBoxProps = {}) {
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         className={cn(
-          "pl-8 sm:pl-10 h-8 sm:h-10 text-sm",
+          "pl-8 sm:pl-10 h-8 sm:h-10 text-sm min-w-0 w-full",
           isHomePage && "bg-white/10 backdrop-blur border-white/20 text-white placeholder:text-white/50 focus:bg-white/15 focus:border-white/30"
         )}
         disabled={isPending}

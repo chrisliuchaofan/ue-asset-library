@@ -46,13 +46,13 @@ export function HeaderActions({
 
   return (
     <>
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1 sm:gap-1.5 sm:gap-2 flex-shrink-0">
         {showOfficeSelector && <OfficeSelector value={officeLocation} onChange={onOfficeChange} />}
 
         {hasCart && (
           <button
             type="button"
-            className={`${navButtonBase} hover:bg-slate-100 dark:hover:bg-white/[0.08]`}
+            className={`${navButtonBase} hover:bg-slate-100 dark:hover:bg-white/[0.08] flex-shrink-0`}
             onClick={() => setShowCartDialog(true)}
             title={cartCount > 0 ? `我的清单 (${cartCount})` : '我的清单'}
             aria-label="我的清单"
@@ -66,26 +66,26 @@ export function HeaderActions({
           </button>
         )}
 
-        <ThemeToggle className={navButtonBase} />
+        <ThemeToggle className={`${navButtonBase} flex-shrink-0`} />
 
         {showSwitchButton && (
           <Link
             href={switchTarget}
-            className={`${navButtonBase} hover:bg-slate-100 dark:hover:bg-white/[0.08]`}
+            className={`${navButtonBase} hover:bg-slate-100 dark:hover:bg-white/[0.08] flex-shrink-0`}
             title={switchLabel}
             aria-label={switchLabel}
           >
-            <SwitchIcon className="h-4 w-4" />
+            <SwitchIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Link>
         )}
 
         <Link
           href="/"
-          className={`${navButtonBase} hover:bg-slate-100 dark:hover:bg-white/[0.08]`}
+          className={`${navButtonBase} hover:bg-slate-100 dark:hover:bg-white/[0.08] flex-shrink-0`}
           title="返回首页"
           aria-label="返回首页"
         >
-          <Home className="h-4 w-4" />
+          <Home className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </Link>
       </div>
 

@@ -8,14 +8,14 @@ import { type Material } from '@/data/material.schema';
 import { PAGINATION } from '@/lib/constants';
 import Link from 'next/link';
 
-type ThumbSize = 'small' | 'medium' | 'large';
+type ThumbSize = 'compact' | 'expanded';
 
 interface MaterialsListProps {
   materials: Material[];
   thumbSize?: ThumbSize;
 }
 
-function MaterialsListContent({ materials, thumbSize = 'medium' }: MaterialsListProps) {
+function MaterialsListContent({ materials, thumbSize = 'compact' }: MaterialsListProps) {
   const searchParams = useSearchParams();
   const page = parseInt(searchParams.get('page') || '1', 10);
   // 性能优化：减少初始每页显示数量，提升首屏性能
@@ -40,14 +40,22 @@ function MaterialsListContent({ materials, thumbSize = 'medium' }: MaterialsList
   };
 
   // 根据 thumbSize 计算卡片宽度（与 MaterialCardGallery 中的 actualCardWidth 保持一致）
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   const cardWidth = useMemo(() => {
-    switch (thumbSize) {
-      case 'small': return 180;
-      case 'medium': return 240;
-      case 'large': return 320;
-      default: return 240;
+    if (isMobile) {
+      return thumbSize === 'compact' ? 140 : 240;
     }
-  }, [thumbSize]);
+    return thumbSize === 'compact' ? 180 : 320;
+  }, [thumbSize, isMobile]);
 
   // 计算列数和间距（参考资产页面的实现）
   const [containerWidth, setContainerWidth] = useState(0);
@@ -68,8 +76,8 @@ function MaterialsListContent({ materials, thumbSize = 'medium' }: MaterialsList
 
   const { columns, horizontalGap } = useMemo(() => {
     if (!isMounted || containerWidth === 0) {
-      // 默认值
-      const defaultAvailableWidth = 1920 - 48; // 减去左右padding
+      // 默认值 - 移动端使用更小的默认宽度
+      const defaultAvailableWidth = typeof window !== 'undefined' && window.innerWidth < 640 ? 375 - 16 : 1920 - 48; // 移动端减去左右padding 8px，桌面端减去48px
       const minGap = 8;
       const defaultMaxColumns = Math.floor((defaultAvailableWidth + minGap) / (cardWidth + minGap));
       return {
@@ -78,7 +86,8 @@ function MaterialsListContent({ materials, thumbSize = 'medium' }: MaterialsList
       };
     }
 
-    const containerPadding = 48; // 左右各24px
+    // 移动端使用更小的 padding
+    const containerPadding = typeof window !== 'undefined' && window.innerWidth < 640 ? 16 : 48; // 移动端左右各8px，桌面端左右各24px
     const minGap = 8;
     const availableWidth = containerWidth - containerPadding;
     
@@ -200,7 +209,7 @@ function MaterialsListContent({ materials, thumbSize = 'medium' }: MaterialsList
   );
 }
 
-export function MaterialsList({ materials, thumbSize = 'medium' }: MaterialsListProps) {
+export function MaterialsList({ materials, thumbSize = 'compact' }: MaterialsListProps) {
   return (
     <Suspense fallback={<div>加载中...</div>}>
       <MaterialsListContent materials={materials} thumbSize={thumbSize} />

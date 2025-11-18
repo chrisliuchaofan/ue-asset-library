@@ -120,7 +120,8 @@ function AssetsListContent({
   // 根据容器宽度动态计算列数，保持间距不小于5px
   // 注意：在未 mounted 时使用固定的默认值，避免 hydration 不匹配
   const { cardWidth, estimatedRowHeight, columns, horizontalGap } = useMemo(() => {
-    const containerPadding = 48; // 左右各24px
+    // 移动端使用更小的 padding
+    const containerPadding = typeof window !== 'undefined' && window.innerWidth < 640 ? 16 : 48; // 移动端左右各8px，桌面端左右各24px
     const minGap = 5; // 最小间距
     
     // 在缩略图模式下，根据 thumbSize 确定最小卡片宽度
@@ -139,8 +140,11 @@ function AssetsListContent({
     // 服务器端和客户端首次渲染时都使用相同的默认值
     if (!isMounted || containerWidth === 0) {
       // 使用固定的默认值，确保服务器端和客户端一致
-      const defaultAvailableWidth = 1920 - containerPadding; // 默认使用 1920px 宽度
-      const defaultMinCardWidth = thumbSizeWidth || 200; // 缩略图模式使用 thumbSize 宽度，否则使用默认值
+      // 移动端使用更小的默认宽度
+      const defaultAvailableWidth = typeof window !== 'undefined' && window.innerWidth < 640 
+        ? 375 - 16  // 移动端减去左右padding 8px
+        : 1920 - containerPadding; // 桌面端使用 1920px 宽度减去padding
+      const defaultMinCardWidth = thumbSizeWidth || (typeof window !== 'undefined' && window.innerWidth < 640 ? 140 : 200); // 移动端使用更小的卡片宽度
       const defaultMaxColumns = Math.floor((defaultAvailableWidth + minGap) / (defaultMinCardWidth + minGap));
       const defaultColumns = Math.max(1, defaultMaxColumns);
       const defaultTotalGapWidth = (defaultColumns - 1) * minGap;

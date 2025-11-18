@@ -9,10 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { type Material } from '@/data/material.schema';
 import { cn, highlightText, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, X, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Eye, BarChart3, Loader2, RefreshCw } from 'lucide-react';
 import { MaterialDetailDialog } from '@/components/material-detail-dialog';
 
-type ThumbSize = 'small' | 'medium' | 'large';
+type ThumbSize = 'compact' | 'expanded';
 
 interface MaterialCardGalleryProps {
   material: Material;
@@ -22,19 +22,22 @@ interface MaterialCardGalleryProps {
 }
 
 // thumbSize 对应的卡片宽度（像素）
-const thumbSizeWidth: Record<ThumbSize, number> = {
-  small: 180,
-  medium: 240,
-  large: 320,
+// 移动端使用更小的宽度
+const getThumbSizeWidth = (thumbSize: ThumbSize, isMobile: boolean = false): number => {
+  if (isMobile) {
+    return thumbSize === 'compact' ? 140 : 240;
+  }
+  return thumbSize === 'compact' ? 180 : 320;
 };
 
-export function MaterialCardGallery({ material, keyword, priority = false, thumbSize = 'medium' }: MaterialCardGalleryProps) {
+export function MaterialCardGallery({ material, keyword, priority = false, thumbSize = 'compact' }: MaterialCardGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [enlarged, setEnlarged] = useState(false);
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
   const [isHoveringCard, setIsHoveringCard] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [videoThumbnail, setVideoThumbnail] = useState<string | null>(null);
+  const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]); // 多帧预览图
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const router = useRouter();
   const nameRef = useRef<HTMLHeadingElement>(null);
@@ -42,6 +45,23 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const extractingFrameRef = useRef(false);
   const lastVideoUrlRef = useRef<string | null>(null);
+  
+  // 检测是否为移动端
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // AI 分析相关状态
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiResult, setAiResult] = useState<{ description: string; tags?: string[] } | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [savedAnalysis, setSavedAnalysis] = useState<string | null>(null);
   
   // 获取所有预览图/视频 URL
   const galleryUrls = useMemo(() => {
@@ -77,14 +97,24 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
   // 稳定第一个视频 URL 的引用
   const firstVideoUrl = useMemo(() => videoUrls[0] || null, [videoUrls]);
 
-  // 当只有视频时，从第一个视频中提取首帧作为预览图
+  // 当只有视频时，从第一个视频中提取多帧作为预览图（类似media-gallery）
   useEffect(() => {
     // 只有当没有图片且有视频时才提取
     const shouldExtract = imageUrls.length === 0 && firstVideoUrl !== null && videoUrls.length > 0;
     
     if (!shouldExtract) {
       if (lastVideoUrlRef.current !== null) {
+        // 清理之前的帧
+        videoThumbnails.forEach(url => {
+          if (url.startsWith('blob:')) {
+            URL.revokeObjectURL(url);
+          }
+        });
+        if (videoThumbnail && videoThumbnail.startsWith('blob:')) {
+          URL.revokeObjectURL(videoThumbnail);
+        }
         setVideoThumbnail(null);
+        setVideoThumbnails([]);
         lastVideoUrlRef.current = null;
         extractingFrameRef.current = false;
       }
@@ -96,15 +126,15 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
       return;
     }
 
-    // 如果已经提取过这个视频的首帧，跳过
-    if (lastVideoUrlRef.current === firstVideoUrl && videoThumbnail) {
+    // 如果已经提取过这个视频的帧，跳过
+    if (lastVideoUrlRef.current === firstVideoUrl && (videoThumbnail || videoThumbnails.length > 0)) {
       return;
     }
 
     extractingFrameRef.current = true;
     lastVideoUrlRef.current = firstVideoUrl;
 
-    const extractFirstFrame = async () => {
+    const extractFrames = async () => {
       try {
         const video = document.createElement('video');
         const canvas = document.createElement('canvas');
@@ -161,7 +191,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
             if (!resolved && video.readyState < 2) {
               handleError('视频加载超时');
             }
-          }, 5000); // 减少超时时间到5秒
+          }, 5000);
         });
 
         const duration = video.duration;
@@ -173,58 +203,89 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
-        // 提取首帧（0.1秒位置，避免黑屏）
-        video.currentTime = Math.min(0.1, duration * 0.1);
-        
-        await new Promise<void>((resolve) => {
-          video.onseeked = () => {
-            try {
-              ctx.drawImage(video, 0, 0);
-              
+        const frames: string[] = [];
+        const frameCount = 6; // 提取6帧
+        const interval = duration / (frameCount + 1);
+
+        // 提取多帧
+        for (let i = 1; i <= frameCount; i++) {
+          const time = interval * i;
+          video.currentTime = Math.min(time, duration - 0.1);
+          
+          await new Promise<void>((resolve) => {
+            video.onseeked = () => {
               try {
-                canvas.toBlob(
-                  (blob) => {
-                    if (blob) {
-                      const url = URL.createObjectURL(blob);
-                      setVideoThumbnail(url);
+                ctx.drawImage(video, 0, 0);
+                
+                try {
+                  canvas.toBlob(
+                    (blob) => {
+                      if (blob) {
+                        const url = URL.createObjectURL(blob);
+                        frames.push(url);
+                      }
+                      resolve();
+                    },
+                    'image/jpeg',
+                    0.8
+                  );
+                } catch (blobError: any) {
+                  if (blobError.name === 'SecurityError' || blobError.message?.includes('Tainted')) {
+                    if (process.env.NODE_ENV !== 'production') {
+                      console.warn('无法提取视频帧（CORS 限制）');
                     }
-                    extractingFrameRef.current = false;
-                    resolve();
-                  },
-                  'image/jpeg',
-                  0.8
-                );
-              } catch (blobError: any) {
-                if (blobError.name === 'SecurityError' || blobError.message?.includes('Tainted')) {
-                  if (process.env.NODE_ENV !== 'production') {
-                    console.warn('无法提取视频帧（CORS 限制）');
                   }
+                  resolve();
                 }
-                extractingFrameRef.current = false;
+              } catch (drawError) {
                 resolve();
               }
-            } catch (drawError) {
-              extractingFrameRef.current = false;
-              resolve();
-            }
-          };
-        });
+            };
+          });
+        }
+        
+        if (frames.length > 0) {
+          // 第一帧作为主预览图
+          setVideoThumbnail(frames[0]);
+          setVideoThumbnails(frames);
+        }
+        extractingFrameRef.current = false;
       } catch (error) {
         if (process.env.NODE_ENV !== 'production') {
           console.warn('提取视频帧失败:', error);
         }
         setVideoThumbnail(null);
+        setVideoThumbnails([]);
         extractingFrameRef.current = false;
         lastVideoUrlRef.current = null;
       }
     };
 
-    // 立即执行视频帧提取，不再延迟
-    extractFirstFrame();
-  }, [imageUrls.length, firstVideoUrl, videoUrls.length, videoThumbnail]);
+    // 延迟执行，避免阻塞首屏渲染
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        setTimeout(() => {
+          extractFrames();
+        }, 1000);
+      }, { timeout: 2000 });
+    } else {
+      setTimeout(() => {
+        extractFrames();
+      }, 1000);
+    }
+    
+    // 清理函数
+    return () => {
+      videoThumbnails.forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    };
+  }, [imageUrls.length, firstVideoUrl, videoUrls.length, videoThumbnail, videoThumbnails]);
 
   // 根据 thumbSize 和实际图片尺寸计算卡片尺寸
-  const actualCardWidth = useMemo(() => thumbSizeWidth[thumbSize], [thumbSize]);
+  const actualCardWidth = useMemo(() => getThumbSizeWidth(thumbSize, isMobile), [thumbSize, isMobile]);
   
   // 根据素材的实际尺寸计算卡片高度（如果有尺寸信息）
   const aspectRatio = useMemo(() => {
@@ -263,6 +324,179 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
   const currentUrl = currentSource ? (currentIsVideo ? getClientAssetUrl(currentSource) : getOptimizedImageUrl(currentSource, imageWidth)) : '';
   
   const highlightedName = highlightText(material.name, keyword || '');
+
+  // 获取当前主图 URL（用于 AI 分析）
+  const getMainImageUrl = useCallback((): string | null => {
+    // 如果当前是视频且有提取的帧，使用当前索引对应的帧
+    if (currentIsVideo && videoThumbnails.length > 0) {
+      const frameIndex = Math.min(currentIndex, videoThumbnails.length - 1);
+      const frameUrl = videoThumbnails[frameIndex];
+      if (frameUrl && frameUrl.startsWith('blob:')) {
+        return frameUrl;
+      }
+    }
+    
+    // 如果只有视频且已经抽帧生成了单帧预览图，使用它
+    if (imageUrls.length === 0 && videoThumbnail && videoThumbnail.startsWith('blob:')) {
+      return videoThumbnail;
+    }
+    
+    const tryGetUrl = (source: string | undefined): string | null => {
+      if (!source || isVideoUrl(source)) return null;
+      
+      const url = getClientAssetUrl(source);
+      if (!url || url === '/') return null;
+      
+      // 确保是完整的 URL（http:// 或 https:// 开头）
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+      
+      // 如果是相对路径，尝试构建完整 URL
+      if (typeof window !== 'undefined') {
+        const ossConfig = window.__OSS_CONFIG__;
+        if (ossConfig && ossConfig.bucket && ossConfig.region) {
+          if (url.startsWith('/assets/')) {
+            const ossPath = url.substring(1);
+            const region = ossConfig.region.replace(/^oss-/, '');
+            return `https://${ossConfig.bucket}.oss-${region}.aliyuncs.com/${ossPath}`;
+          }
+        }
+      }
+      
+      return null;
+    };
+    
+    // 优先使用当前正在展示的图片
+    const currentUrl = tryGetUrl(currentSource);
+    if (currentUrl) return currentUrl;
+    
+    // 如果当前展示的是视频，尝试使用 gallery 中的第一张图片
+    if (currentIsVideo && galleryUrls.length > 0) {
+      for (const url of galleryUrls) {
+        const imageUrl = tryGetUrl(url);
+        if (imageUrl) return imageUrl;
+      }
+    }
+    
+    // 回退到使用 thumbnail
+    const thumbnailUrl = tryGetUrl(material.thumbnail);
+    if (thumbnailUrl) return thumbnailUrl;
+    
+    // 最后尝试使用 src
+    const srcUrl = tryGetUrl(material.src);
+    if (srcUrl) return srcUrl;
+    
+    return null;
+  }, [currentIsVideo, videoThumbnails, currentIndex, currentSource, galleryUrls, material.thumbnail, material.src, imageUrls.length, videoThumbnail]);
+
+  // 从localStorage加载已保存的分析
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const key = `ai_analysis_material_${material.id || 'unknown'}_${currentIndex}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        setSavedAnalysis(saved);
+      } else {
+        setSavedAnalysis(null);
+      }
+    }
+  }, [material.id, currentIndex]);
+
+  // 保存分析结果到localStorage
+  const saveAnalysis = useCallback((description: string) => {
+    if (typeof window !== 'undefined' && description) {
+      const key = `ai_analysis_material_${material.id || 'unknown'}_${currentIndex}`;
+      localStorage.setItem(key, description);
+      setSavedAnalysis(description);
+    }
+  }, [material.id, currentIndex]);
+
+  // AI 分析功能
+  const handleAIAnalyze = useCallback(async () => {
+    const imageUrl = getMainImageUrl();
+    
+    if (!imageUrl) {
+      setAiError('无法获取图片 URL，请检查图片路径配置');
+      return;
+    }
+    
+    setIsAnalyzing(true);
+    setAiError(null);
+    setAiResult(null);
+    
+    try {
+      // 从 localStorage 读取 AI 分析提示词
+      const promptKey = 'ai_material_analyze_prompt';
+      const customPrompt = typeof window !== 'undefined' ? localStorage.getItem(promptKey) : null;
+      
+      // 如果是 blob URL，需要转换为 base64
+      let finalImageUrl = imageUrl;
+      let imageBase64: string | undefined = undefined;
+      
+      if (imageUrl.startsWith('blob:')) {
+        try {
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          const reader = new FileReader();
+          imageBase64 = await new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          console.error('转换 blob URL 失败:', error);
+          setAiError('无法处理预览图');
+          return;
+        }
+      }
+      
+      const response = await fetch('/api/ai/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageUrl: imageBase64 ? undefined : finalImageUrl,
+          imageBase64: imageBase64,
+          customPrompt: (customPrompt && customPrompt.trim()) ? customPrompt : undefined,
+          skipTags: true, // 素材分析不需要标签，仅需要描述
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        const errorMessage = errorData.message || 'AI 分析失败';
+        throw new Error(errorMessage);
+      }
+      
+      const result = await response.json();
+      
+      if (result.raw?.error) {
+        setAiError(result.raw.error);
+        setAiResult(null);
+      } else {
+        const description = result.description || '';
+        const truncatedDescription = description.length > 50 ? description.substring(0, 50) + '...' : description;
+        setAiResult({ description: truncatedDescription });
+        saveAnalysis(truncatedDescription);
+        setAiError(null);
+      }
+    } catch (error) {
+      console.error('[AI 分析] 分析失败:', error);
+      setAiError(error instanceof Error ? error.message : '分析失败，请稍后重试');
+      setAiResult(null);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [getMainImageUrl, saveAnalysis]);
+
+  // 重新生成分析
+  const handleRegenerate = useCallback(() => {
+    setAiResult(null);
+    setAiError(null);
+    handleAIAnalyze();
+  }, [handleAIAnalyze]);
 
   // 自动滚动播放超长名称
   useEffect(() => {
@@ -346,7 +580,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
     };
   }, [material.name, highlightedName]);
 
-  // 清理定时器和视频首帧 blob URL
+  // 清理定时器和视频帧 blob URL
   useEffect(() => {
     return () => {
       if (clickTimeoutRef.current) {
@@ -356,8 +590,13 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
       if (videoThumbnail && videoThumbnail.startsWith('blob:')) {
         URL.revokeObjectURL(videoThumbnail);
       }
+      videoThumbnails.forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
     };
-  }, [videoThumbnail]);
+  }, [videoThumbnail, videoThumbnails]);
 
   // 悬停时才播放视频（预览图区域）
   useEffect(() => {
@@ -415,13 +654,36 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
           onMouseEnter={() => setIsHoveringPreview(true)}
           onMouseLeave={() => setIsHoveringPreview(false)}
         >
-          {/* 详情按钮 - 右上角 */}
+          {/* 详情按钮和AI解析按钮 - 右上角 */}
           <div 
             className={cn(
-              "absolute right-1.5 top-1.5 z-50 transition-opacity duration-200",
+              "absolute right-1.5 top-1.5 z-50 transition-opacity duration-200 flex items-center gap-1",
               !isHoveringCard && "opacity-0"
             )}
           >
+            {/* AI解析按钮 - 在有预览图或抽帧预览图时显示 */}
+            {((!currentIsVideo && currentUrl) || videoThumbnail) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                title="AI 分析"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleAIAnalyze();
+                }}
+                disabled={isAnalyzing}
+                className="h-6 w-6 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center pointer-events-auto"
+              >
+                {isAnalyzing ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <BarChart3 className="h-3 w-3" />
+                )}
+                <span className="sr-only">AI 分析</span>
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
@@ -606,7 +868,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
               dangerouslySetInnerHTML={{ __html: highlightedName }}
             />
           </Link>
-          <div className="flex flex-wrap items-center gap-1 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-1 flex-shrink-0 mb-0.5">
             <Badge 
               variant="secondary" 
               className="rounded-full font-normal text-[10px] px-1.5 py-0.5"
@@ -632,6 +894,26 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
               <span className="text-[10px] text-muted-foreground">+{material.quality.length - 2}</span>
             )}
           </div>
+          {/* AI分析结果 - 显示在文字信息区域，使用tooltip方式，保持卡片大小不变 */}
+          {(aiResult || aiError || savedAnalysis) && (
+            <div className="flex-shrink-0 min-h-0 overflow-hidden">
+              {aiResult && (
+                <div className="text-[9px] text-muted-foreground line-clamp-1 leading-tight" title={aiResult.description}>
+                  {aiResult.description}
+                </div>
+              )}
+              {aiError && (
+                <div className="text-[9px] text-destructive line-clamp-1 leading-tight" title={aiError}>
+                  {aiError}
+                </div>
+              )}
+              {savedAnalysis && !aiResult && !isAnalyzing && (
+                <div className="text-[9px] text-muted-foreground line-clamp-1 leading-tight" title={savedAnalysis}>
+                  {savedAnalysis}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
