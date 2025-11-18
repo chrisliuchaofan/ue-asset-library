@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Suspense } from 'react';
 import { createPortal } from 'react-dom';
@@ -40,6 +40,8 @@ export function MaterialsPageShell({ materials, summary }: MaterialsPageShellPro
   const collapsedWidth = 48;
   const MIN_WIDTH = 220;
   const MAX_WIDTH = 420;
+  // 性能优化：虚拟滚动需要滚动容器的引用
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -178,6 +180,7 @@ export function MaterialsPageShell({ materials, summary }: MaterialsPageShellPro
 
         {/* Content */}
         <main
+          ref={scrollContainerRef}
           className="relative flex-1 transform-gpu transition-all duration-300 ease-out overflow-y-auto"
           style={{
             minHeight: 'calc(100vh - 3.5rem)',
@@ -197,6 +200,7 @@ export function MaterialsPageShell({ materials, summary }: MaterialsPageShellPro
                 materials={materials}
                 optimisticFilters={optimisticFilters}
                 summary={summary}
+                scrollContainerRef={scrollContainerRef}
               />
             </Suspense>
           </div>

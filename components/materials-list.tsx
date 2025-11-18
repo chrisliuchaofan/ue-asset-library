@@ -1,43 +1,26 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useMemo, useState, useEffect, useRef } from 'react';
+import { Suspense, useMemo, useState, useEffect, useRef, type RefObject } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { MaterialCardGallery } from '@/components/material-card-gallery';
 import { EmptyState } from '@/components/empty-state';
 import { type Material } from '@/data/material.schema';
 import { PAGINATION } from '@/lib/constants';
-import Link from 'next/link';
 
 type ThumbSize = 'compact' | 'expanded';
 
 interface MaterialsListProps {
   materials: Material[];
   thumbSize?: ThumbSize;
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
-function MaterialsListContent({ materials, thumbSize = 'compact' }: MaterialsListProps) {
-  const searchParams = useSearchParams();
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  // 性能优化：减少初始每页显示数量，提升首屏性能
-  // 第一页使用较小的数量，后续页面使用标准数量
-  const itemsPerPage = page === 1 ? PAGINATION.INITIAL_ITEMS_PER_PAGE : PAGINATION.ITEMS_PER_PAGE;
-
-  const totalPages = Math.max(1, Math.ceil(materials.length / itemsPerPage));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedMaterials = materials.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  if (paginatedMaterials.length === 0) {
+function MaterialsListContent({ materials, thumbSize = 'compact', scrollContainerRef }: MaterialsListProps) {
+  // 性能优化：使用虚拟滚动替代分页，支持大量素材
+  if (materials.length === 0) {
     return <EmptyState />;
   }
-
-  const createPageUrl = (pageNum: number) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', pageNum.toString());
-    return `?${params.toString()}`;
-  };
 
   // 根据 thumbSize 计算卡片宽度（与 MaterialCardGallery 中的 actualCardWidth 保持一致）
   const [isMobile, setIsMobile] = useState(false);
@@ -46,8 +29,25 @@ function MaterialsListContent({ materials, thumbSize = 'compact' }: MaterialsLis
       setIsMobile(window.innerWidth < 640);
     };
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    
+    // 性能优化：使用防抖处理 resize 事件
+    let timeoutId: NodeJS.Timeout | null = null;
+    const debouncedCheckMobile = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        checkMobile();
+      }, 150);
+    };
+    
+    window.addEventListener('resize', debouncedCheckMobile, { passive: true });
+    return () => {
+      window.removeEventListener('resize', debouncedCheckMobile);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
   
   const cardWidth = useMemo(() => {
@@ -70,8 +70,25 @@ function MaterialsListContent({ materials, thumbSize = 'compact' }: MaterialsLis
       }
     };
     updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
+    
+    // 性能优化：使用防抖处理 resize 事件
+    let timeoutId: NodeJS.Timeout | null = null;
+    const debouncedUpdateWidth = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        updateWidth();
+      }, 150);
+    };
+    
+    window.addEventListener('resize', debouncedUpdateWidth, { passive: true });
+    return () => {
+      window.removeEventListener('resize', debouncedUpdateWidth);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   const { columns, horizontalGap } = useMemo(() => {
@@ -110,109 +127,101 @@ function MaterialsListContent({ materials, thumbSize = 'compact' }: MaterialsLis
   }, [isMounted, containerWidth, cardWidth]);
 
   const verticalGap = 12;
-  const gridTemplateColumns = `repeat(${columns}, ${cardWidth}px)`;
+  
+  // 计算行数和每行高度
+  const rowCount = useMemo(
+    () => Math.ceil(materials.length / columns),
+    [materials.length, columns]
+  );
 
-  return (
-    <>
-      <div 
-        ref={containerRef}
-        className="grid" 
-        style={{ 
-          gridTemplateColumns,
+  // 估算每行高度（根据卡片高度 + 垂直间距）
+  const estimatedRowHeight = useMemo(() => {
+    // 根据 thumbSize 估算卡片高度
+    const cardHeight = thumbSize === 'compact' 
+      ? (isMobile ? 200 : 240)  // 紧凑模式：预览区域 + 文字区域
+      : (isMobile ? 320 : 380); // 展开模式
+    return cardHeight + verticalGap;
+  }, [thumbSize, isMobile, verticalGap]);
+
+  // 虚拟滚动
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => scrollContainerRef?.current ?? null,
+    estimateSize: () => estimatedRowHeight,
+    // 性能优化：减少 overscan，降低初始渲染的 DOM 节点数量
+    overscan: PAGINATION.VIRTUAL_SCROLL_OVERSCAN,
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const totalHeight = rowVirtualizer.getTotalSize();
+
+  // 渲染一行卡片
+  const renderGridRow = (rowIndex: number) => {
+    const startIndex = rowIndex * columns;
+    const endIndex = Math.min(startIndex + columns, materials.length);
+    const rowMaterials = materials.slice(startIndex, endIndex);
+
+    return (
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: `repeat(${columns}, ${cardWidth}px)`,
           gap: `${verticalGap}px ${horizontalGap}px`,
         }}
       >
-        {paginatedMaterials.map((material, index) => (
-          <MaterialCardGallery
-            key={material.id}
-            material={material}
-            priority={index < PAGINATION.PRIORITY_IMAGES_COUNT}
-            thumbSize={thumbSize}
-          />
+        {rowMaterials.map((material, colIndex) => {
+          const globalIndex = startIndex + colIndex;
+          return (
+            <MaterialCardGallery
+              key={material.id}
+              material={material}
+              priority={globalIndex < PAGINATION.PRIORITY_IMAGES_COUNT}
+              thumbSize={thumbSize}
+            />
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <div ref={containerRef} className="relative" style={{ minHeight: '60vh' }}>
+      <div
+        style={{
+          height: totalHeight,
+          position: 'relative',
+        }}
+      >
+        {virtualRows.map((virtualRow) => (
+          <div
+            key={virtualRow.key}
+            ref={rowVirtualizer.measureElement}
+            data-index={virtualRow.index}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualRow.start}px)`,
+              paddingBottom: verticalGap,
+            }}
+          >
+            {renderGridRow(virtualRow.index)}
+          </div>
         ))}
       </div>
-      {totalPages > 1 && (
-        <div className="mt-8 flex flex-col items-center gap-4">
-          <div className="text-sm text-muted-foreground">
-            共 {materials.length} 个素材，第 {currentPage} / {totalPages} 页
-          </div>
-          <div className="flex flex-wrap justify-center gap-2">
-            {currentPage > 1 && (
-              <Link
-                href={createPageUrl(currentPage - 1)}
-                className="px-4 py-2 rounded border bg-background hover:bg-muted transition-colors"
-              >
-                上一页
-              </Link>
-            )}
-            {(() => {
-              const maxVisiblePages = 7;
-              let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-              let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-              if (endPage - startPage < maxVisiblePages - 1) {
-                startPage = Math.max(1, endPage - maxVisiblePages + 1);
-              }
-
-              const pages: (number | string)[] = [];
-
-              if (startPage > 1) {
-                pages.push(1);
-                if (startPage > 2) pages.push('...');
-              }
-
-              for (let i = startPage; i <= endPage; i++) {
-                pages.push(i);
-              }
-
-              if (endPage < totalPages) {
-                if (endPage < totalPages - 1) pages.push('...');
-                pages.push(totalPages);
-              }
-
-              return pages.map((pageNum, idx) => {
-                if (pageNum === '...') {
-                  return (
-                    <span key={`ellipsis-${idx}`} className="px-2 py-2 text-muted-foreground">
-                      ...
-                    </span>
-                  );
-                }
-                const pageNumValue = pageNum as number;
-                return (
-                  <Link
-                    key={pageNumValue}
-                    href={createPageUrl(pageNumValue)}
-                    className={`px-3 py-2 rounded min-w-[2.5rem] text-center transition-colors ${
-                      pageNumValue === currentPage
-                        ? 'bg-primary text-primary-foreground font-medium'
-                        : 'bg-muted hover:bg-muted/80'
-                    }`}
-                  >
-                    {pageNumValue}
-                  </Link>
-                );
-              });
-            })()}
-            {currentPage < totalPages && (
-              <Link
-                href={createPageUrl(currentPage + 1)}
-                className="px-4 py-2 rounded border bg-background hover:bg-muted transition-colors"
-              >
-                下一页
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 
-export function MaterialsList({ materials, thumbSize = 'compact' }: MaterialsListProps) {
+export function MaterialsList({ materials, thumbSize = 'compact', scrollContainerRef }: MaterialsListProps) {
   return (
     <Suspense fallback={<div>加载中...</div>}>
-      <MaterialsListContent materials={materials} thumbSize={thumbSize} />
+      <MaterialsListContent 
+        materials={materials} 
+        thumbSize={thumbSize}
+        scrollContainerRef={scrollContainerRef}
+      />
     </Suspense>
   );
 }

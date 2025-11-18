@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { MaterialsList } from '@/components/materials-list';
@@ -31,9 +31,14 @@ interface MaterialsListWithHeaderProps {
   materials: Material[];
   optimisticFilters?: MaterialFilterSnapshot | null;
   summary: MaterialsSummary;
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
 }
 
-function applyFilters(source: Material[], keyword: string, snapshot: MaterialFilterSnapshot): Material[] {
+function applyFilters(
+  source: Material[], 
+  keyword: string, 
+  snapshot: MaterialFilterSnapshot & { project?: string | null }
+): Material[] {
   let result = source;
 
   if (snapshot.type) {
@@ -48,6 +53,10 @@ function applyFilters(source: Material[], keyword: string, snapshot: MaterialFil
     result = result.filter((material) => snapshot.qualities.some((q) => material.quality.includes(q as any)));
   }
 
+  if (snapshot.project) {
+    result = result.filter((material) => material.project === snapshot.project);
+  }
+
   if (keyword) {
     const lower = keyword.toLowerCase();
     result = result.filter((material) => material.name.toLowerCase().includes(lower));
@@ -56,7 +65,7 @@ function applyFilters(source: Material[], keyword: string, snapshot: MaterialFil
   return result;
 }
 
-export function MaterialsListWithHeader({ materials, optimisticFilters, summary }: MaterialsListWithHeaderProps) {
+export function MaterialsListWithHeader({ materials, optimisticFilters, summary, scrollContainerRef }: MaterialsListWithHeaderProps) {
   // 使用默认值 'compact' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
   const [thumbSize, setThumbSize] = useState<ThumbSize>('compact');
   const [sortBy, setSortBy] = useState<SortBy>('latest');
@@ -88,6 +97,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
   const [filterDuration, setFilterDuration] = useState<number | null>(null);
   const latestRequestId = useRef(0);
   const baseMaterialsRef = useRef<Material[]>(materials);
+  const controllerRef = useRef<AbortController | null>(null);
 
   // 立即设置mounted，避免首次加载时卡在加载中
   useEffect(() => {
@@ -134,6 +144,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
     setFilterDuration(null);
   }, [keyword, optimisticFilters]);
 
+  // 性能优化：优先使用客户端筛选，避免不必要的服务端请求
   // 服务器请求：当 URL 更新且没有乐观更新时发起
   useEffect(() => {
     // Fast path: if library is empty, skip all queries (不等待mounted，立即处理)
@@ -160,6 +171,24 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
       return;
     }
 
+    // 性能优化：如果数据已经在客户端（baseMaterials），优先使用客户端筛选
+    // 只有在数据量很大或筛选条件复杂时才请求服务端
+    if (baseMaterialsRef.current.length > 0 && baseMaterialsRef.current.length < 1000) {
+      // 客户端筛选：数据量不大时，直接在前端筛选，避免网络请求
+      const start = performance.now();
+      const filtered = applyFilters(baseMaterialsRef.current, keyword, {
+        type: selectedType || null,
+        tag: selectedTag || null,
+        qualities: selectedQualities,
+        project: selectedProject || null,
+      });
+      const duration = performance.now() - start;
+      setDisplayMaterials(filtered);
+      setFilterDuration(duration);
+      setIsFetching(false);
+      return;
+    }
+
     // 组件未挂载时不执行服务器请求（但数据已通过上面的逻辑显示）
     if (!mounted) {
       return;
@@ -168,6 +197,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
     // 防抖：延迟500ms执行，如果用户在500ms内再次改变筛选条件，取消之前的请求
     const timeoutId = setTimeout(() => {
       const controller = new AbortController();
+      controllerRef.current = controller;
       const requestId = ++latestRequestId.current;
 
       // 在 effect 内部构建 payload，避免对象引用问题
@@ -182,7 +212,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
       const start = performance.now();
       // 只有在没有乐观更新时才显示加载状态，避免闪烁
       setIsFetching(true);
-      console.log('[MaterialsListWithHeader] Full list request (totalCount > 0)');
+      console.log('[MaterialsListWithHeader] Server-side filter request (large dataset)');
       fetch('/api/materials/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -221,14 +251,15 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
             setIsFetching(false);
           }
         });
-
-      return () => {
-        controller.abort();
-      };
     }, 500); // 增加到500ms防抖延迟，减少频繁请求
 
     return () => {
       clearTimeout(timeoutId);
+      // 取消正在进行的请求
+      if (controllerRef.current) {
+        controllerRef.current.abort();
+        controllerRef.current = null;
+      }
     };
   }, [filtersKey, mounted, hasServerFilters, optimisticFilters, keyword, selectedType, selectedTag, selectedQualities, selectedProject, summary.total]); // 使用 filtersKey 和原始值作为依赖项，避免对象引用问题
 
@@ -415,7 +446,11 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary 
         </div>
       </div>
       <div className="relative">
-        <MaterialsList materials={sortedDisplayMaterials} thumbSize={thumbSize} />
+        <MaterialsList 
+          materials={sortedDisplayMaterials} 
+          thumbSize={thumbSize}
+          scrollContainerRef={scrollContainerRef}
+        />
         {isFetching && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/70 backdrop-blur-sm">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />

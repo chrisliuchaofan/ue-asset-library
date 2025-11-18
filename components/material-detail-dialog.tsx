@@ -102,3 +102,5 @@ export function MaterialDetailDialog({ open, onOpenChange, material }: MaterialD
   );
 }
 
+
+
