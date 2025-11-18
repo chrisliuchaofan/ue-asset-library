@@ -10,6 +10,22 @@ import { MaterialsListWithHeader } from '@/components/materials-list-with-header
 import type { Material } from '@/data/material.schema';
 import type { MaterialsSummary } from '@/lib/materials-data';
 
+// 检测是否为移动端
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  return isMobile;
+}
+
 interface MaterialsPageShellProps {
   materials: Material[];
   summary: MaterialsSummary;
@@ -20,6 +36,7 @@ export function MaterialsPageShell({ materials, summary }: MaterialsPageShellPro
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(220);
   const [optimisticFilters, setOptimisticFilters] = useState<MaterialFilterSnapshot | null>(null);
+  const isMobile = useIsMobile();
   const collapsedWidth = 48;
   const MIN_WIDTH = 220;
   const MAX_WIDTH = 420;
@@ -117,7 +134,9 @@ export function MaterialsPageShell({ materials, summary }: MaterialsPageShellPro
 
       <div className="relative flex flex-1 overflow-hidden">
         {/* Drawer */}
-        <div className="pointer-events-auto fixed left-0 bottom-0 top-[3.5rem] sm:top-16 z-30 flex">
+        <div className={`pointer-events-auto fixed left-0 bottom-0 top-[3.5rem] sm:top-16 z-30 flex transition-transform duration-300 ease-out ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'
+        }`}>
           <div
             className="transform-gpu transition-all duration-300 ease-out"
             style={{ width: effectiveSidebarWidth }}
@@ -159,13 +178,20 @@ export function MaterialsPageShell({ materials, summary }: MaterialsPageShellPro
 
         {/* Content */}
         <main
-          className="relative flex-1 transform-gpu transition-all duration-300 ease-out"
+          className="relative flex-1 transform-gpu transition-all duration-300 ease-out overflow-y-auto"
           style={{
             minHeight: 'calc(100vh - 3.5rem)',
-            marginLeft: `${effectiveSidebarWidth}px`,
+            marginLeft: isMobile ? '0px' : `${effectiveSidebarWidth}px`,
           }}
         >
-          <div className="p-3 sm:p-5 lg:p-6">
+          {/* 移动端遮罩层 */}
+          {isSidebarOpen && (
+            <div
+              className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm sm:hidden"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+          )}
+          <div className="p-2 sm:p-4 lg:p-6 overflow-x-hidden">
             <Suspense fallback={<div>加载中...</div>}>
               <MaterialsListWithHeader
                 materials={materials}

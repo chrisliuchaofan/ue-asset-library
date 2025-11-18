@@ -599,8 +599,8 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
   return (
     <div className="flex h-full flex-col">
-      <div className="px-3 pt-3 sm:px-5 sm:pt-5 lg:px-6">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="px-2 pt-2 sm:px-5 sm:pt-5 lg:px-6">
+        <div className="mb-3 sm:mb-4 flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-muted-foreground">
             {useMemo(() => {
               if (sortedDisplayAssets.length === 0) {
@@ -705,7 +705,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
           </div>
         </div>
       </div>
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto px-3 pb-6 sm:px-5 lg:px-6">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto px-2 pb-4 sm:px-5 sm:pb-6 lg:px-6">
         <AssetsList
           assets={paginatedAssets}
           selectedAssetIds={selectedAssetIds}

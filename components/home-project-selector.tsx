@@ -45,15 +45,15 @@ export function HomeProjectSelector({ value, onChange }: HomeProjectSelectorProp
         <Button
           variant="outline"
           className={cn(
-            "h-10 w-fit px-3 justify-between gap-2 text-sm whitespace-nowrap",
+            "h-8 sm:h-10 w-full sm:w-fit px-2 sm:px-3 justify-between gap-1 sm:gap-2 text-xs sm:text-sm whitespace-nowrap",
             "bg-white/10 backdrop-blur border-white/30 text-white hover:bg-white/20",
             "transition-all duration-200 shadow-sm",
             "focus-visible:ring-2 focus-visible:ring-white/50",
             !selectedProject && "text-white/90"
           )}
         >
-          <span className="font-medium">{displayName}</span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-80 ml-1" />
+          <span className="font-medium truncate">{displayName}</span>
+          <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 opacity-80 ml-0.5 sm:ml-1" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent 

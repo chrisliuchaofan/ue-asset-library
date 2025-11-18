@@ -98,47 +98,53 @@ function SearchContent() {
     <div className="flex-1">
       {/* Tab 切换 */}
       {keyword.trim() && (
-        <div className="sticky top-[57px] sm:top-[65px] z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="flex gap-1.5 py-3">
+        <div className="sticky top-[56px] sm:top-[64px] z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 -mx-2 sm:-mx-4 lg:-mx-8 px-2 sm:px-4 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex gap-1 sm:gap-1.5 py-2 sm:py-3 overflow-x-auto scrollbar-hide">
               <Button
                 variant="ghost"
                 onClick={() => setActiveTab('all')}
                 className={cn(
-                  'rounded-xl px-4 py-2 text-sm font-medium transition',
+                  'rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition flex-shrink-0 whitespace-nowrap',
                   activeTab === 'all'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
               >
-                <Grid className="mr-2 h-4 w-4" />
-                全部 ({results.totalAssets + results.totalMaterials})
+                <Grid className="mr-1 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">全部</span>
+                <span className="xs:hidden">全</span>
+                <span className="ml-1">({results.totalAssets + results.totalMaterials})</span>
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => setActiveTab('assets')}
                 className={cn(
-                  'rounded-xl px-4 py-2 text-sm font-medium transition',
+                  'rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition flex-shrink-0 whitespace-nowrap',
                   activeTab === 'assets'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
               >
-                <Library className="mr-2 h-4 w-4" />
-                资产 ({results.totalAssets})
+                <Library className="mr-1 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">资产</span>
+                <span className="xs:hidden">资</span>
+                <span className="ml-1">({results.totalAssets})</span>
               </Button>
               <Button
                 variant="ghost"
                 onClick={() => setActiveTab('materials')}
                 className={cn(
-                  'rounded-xl px-4 py-2 text-sm font-medium transition',
+                  'rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition flex-shrink-0 whitespace-nowrap',
                   activeTab === 'materials'
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
               >
-                <Box className="mr-2 h-4 w-4" />
-                素材 ({results.totalMaterials})
+                <Box className="mr-1 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">素材</span>
+                <span className="xs:hidden">素</span>
+                <span className="ml-1">({results.totalMaterials})</span>
               </Button>
             </div>
           </div>
@@ -146,7 +152,7 @@ function SearchContent() {
       )}
 
       {/* 搜索结果 */}
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+      <div className="mx-auto max-w-7xl px-2 sm:px-4 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
         {!keyword.trim() ? (
           <EmptyState
             title="开始搜索"
@@ -197,7 +203,7 @@ function SearchContent() {
                       key={material.id}
                       material={material}
                       keyword={keyword}
-                      thumbSize="medium"
+                      thumbSize="expanded"
                     />
                   ))}
                 </div>
