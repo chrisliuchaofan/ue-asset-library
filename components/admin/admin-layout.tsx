@@ -97,8 +97,8 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
     if (storedAiAnalyzePrompt) {
       setAiAnalyzePrompt(storedAiAnalyzePrompt);
     } else {
-      // 默认提示词（用于资产详情页的AI分析，可以与上传时的提示词不同）
-      setAiAnalyzePrompt('请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的描述和标签。仅输出 JSON 格式：{"tags":[], "description":""}。');
+      // 默认提示词（用于资产详情页的AI分析，只要求描述，不要求标签）
+      setAiAnalyzePrompt('你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的中文描述。仅输出 JSON 格式：{"description":""}，不需要 tags 字段。');
     }
   }, []);
 
@@ -561,14 +561,14 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
             <div className="space-y-3">
               <div className="text-sm text-gray-600">
                 <p>自定义资产详情页 AI 分析的提示词。留空则使用默认提示词。</p>
-                <p className="mt-1 text-sm text-gray-500">提示：提示词应要求 AI 返回 JSON 格式，包含 tags 数组和 description 字符串。此提示词与上传时的提示词分开管理。</p>
+                <p className="mt-1 text-sm text-gray-500">提示：提示词应要求 AI 仅返回描述（description），不需要标签（tags）。建议使用 JSON 格式：{`{"description":""}`}。此提示词与上传时的提示词分开管理。</p>
               </div>
               <div>
                 <Label className="text-sm text-gray-700 mb-2 block">AI 分析提示词</Label>
                 <textarea
                   value={aiAnalyzePrompt}
                   onChange={(e) => setAiAnalyzePrompt(e.target.value)}
-                  placeholder="请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的描述和标签。"
+                  placeholder="你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的中文描述。"
                   rows={6}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 />
@@ -577,7 +577,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setAiAnalyzePrompt('请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的描述和标签。仅输出 JSON 格式：{"tags":[], "description":""}。');
+                  setAiAnalyzePrompt('你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的中文描述。仅输出 JSON 格式：{"description":""}，不需要 tags 字段。');
                 }}
                 className="h-9 text-sm"
               >

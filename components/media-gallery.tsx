@@ -147,6 +147,15 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
       // 从 localStorage 读取 AI 分析提示词（与上传时的提示词分开）
       const customPrompt = typeof window !== 'undefined' ? localStorage.getItem('ai_analyze_prompt') : null;
       
+      // 调试日志：记录提示词读取情况
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[AI 读图] 提示词读取情况:', {
+          hasCustomPrompt: !!customPrompt,
+          customPromptLength: customPrompt?.length || 0,
+          customPromptPreview: customPrompt ? customPrompt.substring(0, 50) + '...' : null,
+        });
+      }
+      
       const response = await fetch('/api/ai/analyze-image', {
         method: 'POST',
         headers: {
@@ -154,7 +163,10 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
         },
         body: JSON.stringify({
           imageUrl: imageUrl,
-          customPrompt: customPrompt || undefined,
+          // 如果 customPrompt 存在且非空，传递它；否则传递 undefined（让 API 使用默认提示词）
+          customPrompt: (customPrompt && customPrompt.trim()) ? customPrompt : undefined,
+          // 资产详情页的AI分析不需要标签，仅需要描述
+          skipTags: true,
         }),
       });
       
@@ -396,23 +408,11 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
             )}
           </div>
           
-          {/* AI 分析结果展示 */}
+          {/* AI 分析结果展示 - 仅显示描述，不显示标签 */}
           {(aiResult || aiError) && (
             <div className="mt-2 text-xs text-neutral-400 space-y-1">
               {aiResult && (
                 <>
-                  {aiResult.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {aiResult.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full border border-neutral-700 px-2 py-0.5"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                   {aiResult.description && (
                     <p className="text-neutral-300">
                       {aiResult.description}

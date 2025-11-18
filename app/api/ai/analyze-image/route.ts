@@ -10,6 +10,7 @@ const AnalyzeImageRequestSchema = z.object({
   imageUrl: z.string().url('图片 URL 格式不正确').optional(),
   imageBase64: z.string().optional(),
   customPrompt: z.string().optional(), // 自定义提示词（可选）
+  skipTags: z.boolean().optional(), // 是否跳过标签返回（用于资产详情页，仅返回描述）
   // 预留：未来支持文件上传
   // imageFile: z.instanceof(File).optional(),
 }).refine(
@@ -95,19 +96,22 @@ function parseAIResponse(data: any, provider: AIProvider): AIAnalyzeResponse {
           if (jsonMatch) {
             parsedContent = JSON.parse(jsonMatch[0]);
           } else {
-            // 如果完全无法解析，返回空结果
-            console.warn('[AI API] 无法解析阿里云返回的 JSON:', content);
+            // 如果完全无法解析，可能是纯文本描述（skipTags场景）
+            // 尝试将整个内容作为描述返回
+            console.warn('[AI API] 无法解析阿里云返回的 JSON，尝试作为纯文本描述:', content);
             return {
               tags: [],
-              description: content.substring(0, 50), // 至少返回部分内容
+              description: content.trim() || '',
               raw: data,
             };
           }
         }
         
+        // 如果JSON中没有tags字段，tags默认为空数组（符合skipTags场景）
+        // 如果JSON中没有description字段，尝试使用整个content作为描述
         return {
           tags: Array.isArray(parsedContent.tags) ? parsedContent.tags : [],
-          description: parsedContent.description || '',
+          description: parsedContent.description || (parsedContent.tags === undefined ? jsonStr.trim() : ''),
           raw: data,
         };
       } catch (error) {
@@ -182,7 +186,8 @@ async function callAIImageAPI(
   imageUrl: string,
   maxRetries: number = 2,
   retryDelay: number = 1000,
-  customPrompt?: string
+  customPrompt?: string,
+  skipTags: boolean = false
 ): Promise<AIAnalyzeResponse> {
   const apiEndpoint = process.env.AI_IMAGE_API_ENDPOINT;
   const apiKey = process.env.AI_IMAGE_API_KEY;
@@ -218,12 +223,30 @@ async function callAIImageAPI(
     // 检查是否是 base64 格式
     const isBase64 = imageUrl.startsWith('data:image/');
     
-    // 使用自定义提示词（如果提供），否则使用默认提示词
-    const defaultOpenAIPrompt = '请分析这张图片，提供标签（用逗号分隔）和简短描述。格式：标签：xxx,xxx,xxx\n描述：xxx';
-    const defaultAliyunPrompt = '你是资深游戏美术分析师，请先判断图片内容，再给出：1）不超过 8 个标签（每个不超过 6 字），2）一句不超过 25 字的中文描述。仅输出 JSON：{tags:[], description:\'\'}。';
+    // 根据 skipTags 参数决定默认提示词
+    // 如果 skipTags 为 true（资产详情页场景），只要求描述，不要求标签
+    const defaultOpenAIPrompt = skipTags 
+      ? '请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的中文描述。仅输出描述文本，不需要标签。'
+      : '请分析这张图片，提供标签（用逗号分隔）和简短描述。格式：标签：xxx,xxx,xxx\n描述：xxx';
     
-    const openAIPrompt = customPrompt || defaultOpenAIPrompt;
-    const aliyunPrompt = customPrompt || defaultAliyunPrompt;
+    const defaultAliyunPrompt = skipTags
+      ? '你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的中文描述。仅输出 JSON 格式：{"description":""}，不需要 tags 字段。'
+      : '你是资深游戏美术分析师，请先判断图片内容，再给出：1）不超过 8 个标签（每个不超过 6 字），2）一句不超过 25 字的中文描述。仅输出 JSON：{tags:[], description:\'\'}。';
+    
+    // 如果 customPrompt 存在且非空，使用自定义提示词；否则使用默认提示词
+    // 注意：如果 skipTags 为 true 且没有自定义提示词，会自动使用只返回描述的默认提示词
+    const openAIPrompt = (customPrompt && customPrompt.trim()) ? customPrompt : defaultOpenAIPrompt;
+    const aliyunPrompt = (customPrompt && customPrompt.trim()) ? customPrompt : defaultAliyunPrompt;
+    
+    // 调试日志：记录使用的提示词类型
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[AI API] 提示词使用情况:', {
+        hasCustomPrompt: !!(customPrompt && customPrompt.trim()),
+        customPromptLength: customPrompt?.length || 0,
+        usingCustom: !!(customPrompt && customPrompt.trim()),
+        provider,
+      });
+    }
     
     switch (provider) {
       case 'openai':
@@ -461,7 +484,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { imageUrl, imageBase64, customPrompt } = parsed.data;
+    const { imageUrl, imageBase64, customPrompt, skipTags } = parsed.data;
 
     // 优先使用 URL，如果提供了 base64 则先转换为 URL（预留功能）
     let finalImageUrl: string;
@@ -494,9 +517,16 @@ export async function POST(request: Request) {
     // 调用 AI API
     // 注意：如果环境变量未配置，callAIImageAPI 会返回 mock 结果，不会抛异常
     // 如果调用失败，callAIImageAPI 会返回 { tags: [], description: '', raw: { error: '...' } }
+    // 如果 skipTags 为 true，提示词会要求AI只返回描述，不返回标签
     const startTime = Date.now();
-    const result = await callAIImageAPI(finalImageUrl, 2, 1000, customPrompt);
+    const result = await callAIImageAPI(finalImageUrl, 2, 1000, customPrompt, skipTags || false);
     const duration = Date.now() - startTime;
+    
+    // 如果 skipTags 为 true（资产详情页场景），确保 tags 为空数组
+    // 即使AI返回了tags，也强制清空（双重保险）
+    if (skipTags) {
+      result.tags = [];
+    }
 
     // 记录请求日志（包括生产环境，方便排查问题）
     console.log(`[AI API] 请求完成，耗时: ${duration}ms`, {
@@ -504,6 +534,7 @@ export async function POST(request: Request) {
       isMock: result.raw?.mock,
       hasError: !!result.raw?.error,
       tagsCount: result.tags?.length || 0,
+      skipTags: skipTags || false,
     });
     
     if (result.raw?.mock) {
