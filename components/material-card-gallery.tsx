@@ -20,10 +20,11 @@ interface MaterialCardGalleryProps {
   thumbSize?: ThumbSize;
 }
 
-const thumbSizeClass: Record<ThumbSize, string> = {
-  small: 'w-24 h-16',
-  medium: 'w-40 h-24',
-  large: 'w-60 h-36',
+// thumbSize 对应的卡片宽度（像素）
+const thumbSizeWidth: Record<ThumbSize, number> = {
+  small: 180,
+  medium: 240,
+  large: 320,
 };
 
 export function MaterialCardGallery({ material, keyword, priority = false, thumbSize = 'medium' }: MaterialCardGalleryProps) {
@@ -75,7 +76,8 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
 
   // 当只有视频时，从第一个视频中提取首帧作为预览图
   useEffect(() => {
-    const shouldExtract = imageUrls.length === 0 && firstVideoUrl !== null;
+    // 只有当没有图片且有视频时才提取
+    const shouldExtract = imageUrls.length === 0 && firstVideoUrl !== null && videoUrls.length > 0;
     
     if (!shouldExtract) {
       if (lastVideoUrlRef.current !== null) {
@@ -86,7 +88,13 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
       return;
     }
 
-    if (extractingFrameRef.current || lastVideoUrlRef.current === firstVideoUrl) {
+    // 如果已经在提取同一个视频，跳过
+    if (extractingFrameRef.current && lastVideoUrlRef.current === firstVideoUrl) {
+      return;
+    }
+
+    // 如果已经提取过这个视频的首帧，跳过
+    if (lastVideoUrlRef.current === firstVideoUrl && videoThumbnail) {
       return;
     }
 
@@ -150,7 +158,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
             if (!resolved && video.readyState < 2) {
               handleError('视频加载超时');
             }
-          }, 10000);
+          }, 5000); // 减少超时时间到5秒
         });
 
         const duration = video.duration;
@@ -208,81 +216,50 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
       }
     };
 
-    // 延迟执行视频帧提取，优先保证首屏渲染
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      requestIdleCallback(() => {
-        setTimeout(() => {
-          extractFirstFrame();
-        }, 2000);
-      }, { timeout: 3000 });
-    } else {
-      setTimeout(() => {
-        extractFirstFrame();
-      }, 3000);
-    }
-  }, [imageUrls.length, firstVideoUrl]);
+    // 立即执行视频帧提取，不再延迟
+    extractFirstFrame();
+  }, [imageUrls.length, firstVideoUrl, videoUrls.length, videoThumbnail]);
 
-  // 根据实际显示尺寸优化图片宽度
-  const [imageWidth, setImageWidth] = useState(400);
-  useEffect(() => {
-    const updateImageWidth = () => {
-      if (typeof window === 'undefined') return;
-      const viewportWidth = window.innerWidth;
-      let cardWidth = 300; // 默认值，缩小了
-      if (viewportWidth >= 1536) cardWidth = 240; // 2xl: 7列
-      else if (viewportWidth >= 1280) cardWidth = 260; // xl: 6列
-      else if (viewportWidth >= 1024) cardWidth = 280; // lg: 5列
-      else if (viewportWidth >= 768) cardWidth = 300; // md: 4列
-      else if (viewportWidth >= 640) cardWidth = 360; // sm: 3列
-      else cardWidth = 400; // 2列
-      setImageWidth(Math.min(Math.ceil(cardWidth * 1.5), 480));
-    };
-    
-    updateImageWidth();
-    window.addEventListener('resize', updateImageWidth);
-    return () => window.removeEventListener('resize', updateImageWidth);
-  }, []);
-
-  // 智能缩放：根据卡片宽度动态计算高度
-  const [cardWidth, setCardWidth] = useState(300);
-  useEffect(() => {
-    const updateCardWidth = () => {
-      if (typeof window === 'undefined') return;
-      const viewportWidth = window.innerWidth;
-      let width = 300;
-      if (viewportWidth >= 1536) width = 240;
-      else if (viewportWidth >= 1280) width = 260;
-      else if (viewportWidth >= 1024) width = 280;
-      else if (viewportWidth >= 768) width = 300;
-      else if (viewportWidth >= 640) width = 360;
-      else width = 400;
-      setCardWidth(width);
-    };
-    
-    updateCardWidth();
-    window.addEventListener('resize', updateCardWidth);
-    return () => window.removeEventListener('resize', updateCardWidth);
-  }, []);
-
-  const baseCardWidth = 300;
-  const basePreviewHeight = 200; // 预览区域基准高度
+  // 根据 thumbSize 和实际图片尺寸计算卡片尺寸
+  const actualCardWidth = useMemo(() => thumbSizeWidth[thumbSize], [thumbSize]);
   
-  const currentSource = galleryUrls[currentIndex] || '';
+  // 根据素材的实际尺寸计算卡片高度（如果有尺寸信息）
+  const aspectRatio = useMemo(() => {
+    if (material.width && material.height) {
+      return material.width / material.height;
+    }
+    // 默认使用 4:3 比例
+    return 4 / 3;
+  }, [material.width, material.height]);
+
+  // 计算预览区域高度（根据实际宽高比）
+  const previewHeight = useMemo(() => Math.floor(actualCardWidth / aspectRatio), [actualCardWidth, aspectRatio]);
+  
+  // 文字区域高度（紧凑显示，减少占用空间）
+  const textAreaHeight = 60; // 固定较小的高度
+  
+  // 卡片总高度
+  const totalCardHeight = useMemo(() => previewHeight + textAreaHeight, [previewHeight]);
+  
+  // 图片优化宽度
+  const imageWidth = useMemo(() => Math.min(Math.ceil(actualCardWidth * 1.5), 480), [actualCardWidth]);
+  
+  // 优先使用图片，如果没有图片则使用视频
+  const currentSource = useMemo(() => {
+    // 如果有图片，优先显示图片
+    if (imageUrls.length > 0) {
+      const imageIndex = Math.min(currentIndex, imageUrls.length - 1);
+      return imageUrls[imageIndex] || galleryUrls[currentIndex] || '';
+    }
+    // 如果没有图片，使用当前索引的URL（可能是视频）
+    return galleryUrls[currentIndex] || '';
+  }, [imageUrls, galleryUrls, currentIndex]);
+  
   const currentIsVideo = isVideoUrl(currentSource);
   
   const currentUrl = currentSource ? (currentIsVideo ? getClientAssetUrl(currentSource) : getOptimizedImageUrl(currentSource, imageWidth)) : '';
   
   const highlightedName = highlightText(material.name, keyword || '');
-  
-  const widthRatio = cardWidth / baseCardWidth;
-  const previewAreaHeight = Math.floor(basePreviewHeight * widthRatio);
-  
-  // 计算卡片总高度（预览区域 + 文字区域）
-  // 文字区域占卡片总高度的30%
-  // 设总高度为 H，预览区域 = H * 0.7，文字区域 = H * 0.3
-  // 所以 H = 预览区域 / 0.7
-  const totalCardHeight = Math.floor(previewAreaHeight / 0.7);
-  const textAreaHeight = Math.floor(totalCardHeight * 0.3);
 
   // 自动滚动播放超长名称
   useEffect(() => {
@@ -419,15 +396,16 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
   return (
     <>
       <Card
-        className="group overflow-hidden transition-shadow hover:shadow-lg h-full flex flex-col relative border"
-        style={{ height: totalCardHeight }}
+        className="group overflow-hidden transition-shadow hover:shadow-lg flex flex-col relative border"
+        style={{ 
+          width: actualCardWidth,
+          height: totalCardHeight 
+        }}
       >
         {/* 预览区域 */}
         <div
-          className={cn(
-            "relative overflow-hidden bg-muted flex items-center justify-center cursor-pointer",
-            thumbSizeClass[thumbSize]
-          )}
+          className="relative overflow-hidden bg-muted flex items-center justify-center cursor-pointer"
+          style={{ height: previewHeight }}
           onDoubleClick={handleDoubleClick}
           onMouseEnter={() => setIsHoveringPreview(true)}
           onMouseLeave={() => setIsHoveringPreview(false)}
@@ -463,7 +441,7 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
             );
           })}
           
-          {/* 显示图片或视频首帧 */}
+          {/* 显示图片 */}
           {!currentIsVideo && currentUrl && (
             <Image
               src={currentUrl}
@@ -478,20 +456,30 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
           )}
           
           {/* 当只有视频时，显示视频首帧作为预览图（始终显示，视频在悬停时覆盖） */}
-          {currentIsVideo && videoThumbnail && (
-            <Image
-              src={videoThumbnail}
-              alt={material.name}
-              fill
-              className={`z-10 object-contain transition-opacity duration-300 ${
-                isHoveringPreview ? 'opacity-0' : 'opacity-100'
-              }`}
-              loading="lazy"
-              sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, (max-width: 1536px) 16vw, 14vw"
-            />
+          {imageUrls.length === 0 && videoUrls.length > 0 && (
+            <>
+              {videoThumbnail ? (
+                <Image
+                  src={videoThumbnail}
+                  alt={material.name}
+                  fill
+                  className={`z-10 object-contain transition-opacity duration-300 ${
+                    isHoveringPreview ? 'opacity-0' : 'opacity-100'
+                  }`}
+                  loading="lazy"
+                  sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, (max-width: 1280px) 20vw, (max-width: 1536px) 16vw, 14vw"
+                />
+              ) : (
+                // 视频首帧提取中，显示占位符
+                <div className="flex items-center justify-center h-full bg-muted text-muted-foreground z-10">
+                  <span className="text-xs">加载中...</span>
+                </div>
+              )}
+            </>
           )}
           
-          {!currentUrl && !videoThumbnail && (
+          {/* 无预览图 */}
+          {!currentIsVideo && !currentUrl && imageUrls.length === 0 && videoUrls.length === 0 && (
             <div className="flex items-center justify-center h-full bg-muted text-muted-foreground z-10">
               <span className="text-sm">无预览图</span>
             </div>
@@ -577,67 +565,44 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
         </div>
         
         <CardContent 
-          className="flex flex-col relative overflow-hidden justify-center"
+          className="flex flex-col relative overflow-hidden p-2"
           style={{ 
             height: textAreaHeight,
-            padding: `${Math.floor(textAreaHeight * 0.1)}px ${Math.floor(textAreaHeight * 0.08)}px`
+            minHeight: textAreaHeight
           }}
         >
-          <Link href={`/materials/${material.id}`} className="block flex-shrink-0">
+          <Link href={`/materials/${material.id}`} className="block flex-shrink-0 mb-1">
             <h3
               ref={nameRef}
-              className="font-medium leading-tight hover:text-primary transition-colors cursor-pointer whitespace-nowrap overflow-x-auto scrollbar-hide"
-              style={{ 
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                fontSize: `${Math.floor(textAreaHeight * 0.15)}px`,
-                marginBottom: `${Math.floor(textAreaHeight * 0.08)}px`
-              }}
+              className="font-medium leading-tight hover:text-primary transition-colors cursor-pointer whitespace-nowrap overflow-x-auto scrollbar-hide text-xs"
               dangerouslySetInnerHTML={{ __html: highlightedName }}
             />
           </Link>
-          <div className="flex-shrink-0 space-y-0.5" style={{ marginBottom: `${Math.floor(textAreaHeight * 0.05)}px` }}>
-            {/* 第一行：类型 */}
-            <div className="flex flex-wrap gap-0.5">
+          <div className="flex flex-wrap items-center gap-1 flex-shrink-0">
+            <Badge 
+              variant="secondary" 
+              className="rounded-full font-normal text-[10px] px-1.5 py-0.5"
+            >
+              {material.type}
+            </Badge>
+            <Badge 
+              variant="secondary" 
+              className="rounded-full font-normal text-[10px] px-1.5 py-0.5"
+            >
+              {material.tag}
+            </Badge>
+            {material.quality.slice(0, 2).map((q) => (
               <Badge 
-                variant="secondary" 
-                className="rounded-full font-normal"
-                style={{
-                  fontSize: `${Math.floor(textAreaHeight * 0.12)}px`,
-                  padding: `${Math.floor(textAreaHeight * 0.04)}px ${Math.floor(textAreaHeight * 0.08)}px`
-                }}
+                key={q} 
+                variant="outline" 
+                className="rounded-full font-normal text-[10px] px-1.5 py-0.5"
               >
-                {material.type}
+                {q}
               </Badge>
-            </div>
-            {/* 第二行：标签 */}
-            <div className="flex flex-wrap gap-0.5">
-              <Badge 
-                variant="secondary" 
-                className="rounded-full font-normal"
-                style={{
-                  fontSize: `${Math.floor(textAreaHeight * 0.12)}px`,
-                  padding: `${Math.floor(textAreaHeight * 0.04)}px ${Math.floor(textAreaHeight * 0.08)}px`
-                }}
-              >
-                {material.tag}
-              </Badge>
-            </div>
-            {/* 第三行：质量 */}
-            <div className="flex flex-wrap gap-0.5">
-              {material.quality.map((q) => (
-                <Badge 
-                  key={q} 
-                  variant="outline" 
-                  className="rounded-full font-normal"
-                  style={{
-                    fontSize: `${Math.floor(textAreaHeight * 0.12)}px`,
-                    padding: `${Math.floor(textAreaHeight * 0.04)}px ${Math.floor(textAreaHeight * 0.08)}px`
-                  }}
-                >
-                  {q}
-                </Badge>
-              ))}
-            </div>
+            ))}
+            {material.quality.length > 2 && (
+              <span className="text-[10px] text-muted-foreground">+{material.quality.length - 2}</span>
+            )}
           </div>
         </CardContent>
       </Card>
