@@ -200,10 +200,10 @@ function MaterialsListContent({ materials, thumbSize = 'medium' }: MaterialsList
   );
 }
 
-export function MaterialsList({ materials }: MaterialsListProps) {
+export function MaterialsList({ materials, thumbSize = 'medium' }: MaterialsListProps) {
   return (
     <Suspense fallback={<div>加载中...</div>}>
-      <MaterialsListContent materials={materials} />
+      <MaterialsListContent materials={materials} thumbSize={thumbSize} />
     </Suspense>
   );
 }

@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { type Material } from '@/data/material.schema';
 import { cn, highlightText, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Eye } from 'lucide-react';
+import { MaterialDetailDialog } from '@/components/material-detail-dialog';
 
 type ThumbSize = 'small' | 'medium' | 'large';
 
@@ -31,6 +32,8 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
   const [currentIndex, setCurrentIndex] = useState(0);
   const [enlarged, setEnlarged] = useState(false);
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
+  const [isHoveringCard, setIsHoveringCard] = useState(false);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [videoThumbnail, setVideoThumbnail] = useState<string | null>(null);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const router = useRouter();
@@ -401,6 +404,8 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
           width: actualCardWidth,
           height: totalCardHeight 
         }}
+        onMouseEnter={() => setIsHoveringCard(true)}
+        onMouseLeave={() => setIsHoveringCard(false)}
       >
         {/* 预览区域 */}
         <div
@@ -410,6 +415,29 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
           onMouseEnter={() => setIsHoveringPreview(true)}
           onMouseLeave={() => setIsHoveringPreview(false)}
         >
+          {/* 详情按钮 - 右上角 */}
+          <div 
+            className={cn(
+              "absolute right-1.5 top-1.5 z-50 transition-opacity duration-200",
+              !isHoveringCard && "opacity-0"
+            )}
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title="查看详情"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDetailDialogOpen(true);
+              }}
+              className="h-6 w-6 rounded-full bg-black/60 text-white transition hover:bg-black/80 flex-shrink-0 flex items-center justify-center pointer-events-auto"
+            >
+              <Eye className="h-3 w-3" />
+              <span className="sr-only">查看详情</span>
+            </Button>
+          </div>
           {galleryUrls.map((url, index) => {
             if (!isVideoUrl(url)) {
               return null;
@@ -692,6 +720,13 @@ export function MaterialCardGallery({ material, keyword, priority = false, thumb
           </div>
         </div>
       )}
+
+      {/* 素材详情对话框 */}
+      <MaterialDetailDialog
+        open={isDetailDialogOpen}
+        onOpenChange={setIsDetailDialogOpen}
+        material={material}
+      />
     </>
   );
 }

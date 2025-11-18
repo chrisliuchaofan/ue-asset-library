@@ -35,6 +35,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
   const [aiPromptExpanded, setAiPromptExpanded] = useState(false);
   const [aiPrompt, setAiPrompt] = useState<string>('');
   const [aiAnalyzePrompt, setAiAnalyzePrompt] = useState<string>('');
+  const [aiMaterialAnalyzePrompt, setAiMaterialAnalyzePrompt] = useState<string>('');
 
   // 从 localStorage 加载项目配置
   useEffect(() => {
@@ -97,8 +98,17 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
     if (storedAiAnalyzePrompt) {
       setAiAnalyzePrompt(storedAiAnalyzePrompt);
     } else {
-      // 默认提示词（用于资产详情页的AI分析，只要求描述，不要求标签）
-      setAiAnalyzePrompt('你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的中文描述。仅输出 JSON 格式：{"description":""}，不需要 tags 字段。');
+      // 默认提示词（用于资产详情页的AI分析，只要求描述，不要求标签，限制50字以内）
+      setAiAnalyzePrompt('你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供简洁的中文描述。描述总字数不超过50字。仅输出 JSON 格式：{"description":""}，不需要 tags 字段。描述应为纯文本，不要包含代码、标记或特殊格式。');
+    }
+    
+    // 加载素材 AI 分析提示词（用于素材详情页的AI分析）
+    const storedAiMaterialAnalyzePrompt = localStorage.getItem('ai_material_analyze_prompt');
+    if (storedAiMaterialAnalyzePrompt) {
+      setAiMaterialAnalyzePrompt(storedAiMaterialAnalyzePrompt);
+    } else {
+      // 默认提示词（用于素材详情页的AI分析，只要求描述，不要求标签，限制50字以内）
+      setAiMaterialAnalyzePrompt('你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供简洁的中文描述。描述总字数不超过50字。仅输出 JSON 格式：{"description":""}，不需要 tags 字段。描述应为纯文本，不要包含代码、标记或特殊格式。');
     }
   }, []);
 
@@ -234,6 +244,9 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
       
       // 保存 AI 分析提示词（用于资产详情页的AI分析）
       localStorage.setItem('ai_analyze_prompt', aiAnalyzePrompt);
+      
+      // 保存素材 AI 分析提示词（用于素材详情页的AI分析）
+      localStorage.setItem('ai_material_analyze_prompt', aiMaterialAnalyzePrompt);
       
       setMessage('保存成功！页面将刷新以应用更改');
       setTimeout(() => {
@@ -577,7 +590,38 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setAiAnalyzePrompt('你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的中文描述。仅输出 JSON 格式：{"description":""}，不需要 tags 字段。');
+                  setAiAnalyzePrompt('你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供简洁的中文描述。描述总字数不超过50字。仅输出 JSON 格式：{"description":""}，不需要 tags 字段。描述应为纯文本，不要包含代码、标记或特殊格式。');
+                }}
+                className="h-9 text-sm"
+              >
+                重置为默认值
+              </Button>
+            </div>
+          </div>
+
+          {/* AI 分析提示词设置（用于素材详情页的AI分析） */}
+          <div className="space-y-4 p-4 border rounded-lg bg-white">
+            <div className="text-sm font-semibold text-gray-900">AI 分析提示词设置（素材详情页）</div>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600">
+                <p>自定义素材详情页 AI 分析的提示词。留空则使用默认提示词。</p>
+                <p className="mt-1 text-sm text-gray-500">提示：提示词应要求 AI 仅返回描述（description），不需要标签（tags）。建议使用 JSON 格式：{`{"description":""}`}。此提示词与资产详情页的提示词分开管理。</p>
+              </div>
+              <div>
+                <Label className="text-sm text-gray-700 mb-2 block">AI 分析提示词</Label>
+                <textarea
+                  value={aiMaterialAnalyzePrompt}
+                  onChange={(e) => setAiMaterialAnalyzePrompt(e.target.value)}
+                  placeholder="你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供详细的中文描述。"
+                  rows={6}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAiMaterialAnalyzePrompt('你是资深游戏美术分析师，请详细分析这张图片的内容，包括风格、主题、元素、色彩、构图等方面，提供简洁的中文描述。描述总字数不超过50字。仅输出 JSON 格式：{"description":""}，不需要 tags 字段。描述应为纯文本，不要包含代码、标记或特殊格式。');
                 }}
                 className="h-9 text-sm"
               >
