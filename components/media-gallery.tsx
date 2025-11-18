@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { type Asset } from '@/data/manifest.schema';
-import { X, ZoomIn, ChevronLeft, ChevronRight, Heart, Loader2 } from 'lucide-react';
+import { X, ZoomIn, ChevronLeft, ChevronRight, BarChart3, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
 
@@ -39,6 +39,29 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<AIAnalyzeResult | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [savedAnalysis, setSavedAnalysis] = useState<string | null>(null); // 保存已分析的内容
+  
+  // 从localStorage加载已保存的分析
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const key = `ai_analysis_${asset.id || 'unknown'}_${currentIndex}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        setSavedAnalysis(saved);
+      } else {
+        setSavedAnalysis(null); // 如果没有保存的分析，清空状态
+      }
+    }
+  }, [asset.id, currentIndex]);
+  
+  // 保存分析结果到localStorage
+  const saveAnalysis = (description: string) => {
+    if (typeof window !== 'undefined' && description) {
+      const key = `ai_analysis_${asset.id || 'unknown'}_${currentIndex}`;
+      localStorage.setItem(key, description);
+      setSavedAnalysis(description);
+    }
+  };
   
   // 获取所有预览图/视频 URL
   const galleryUrls = asset.gallery && asset.gallery.length > 0 
@@ -144,8 +167,11 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
     setAiResult(null);
     
     try {
-      // 从 localStorage 读取 AI 分析提示词（与上传时的提示词分开）
-      const customPrompt = typeof window !== 'undefined' ? localStorage.getItem('ai_analyze_prompt') : null;
+      // 从 localStorage 读取 AI 分析提示词
+      // 判断是资产还是素材：素材有 quality 字段（数组），资产有 tags 字段（数组）
+      const isMaterial = asset && 'quality' in asset && Array.isArray((asset as any).quality);
+      const promptKey = isMaterial ? 'ai_material_analyze_prompt' : 'ai_analyze_prompt';
+      const customPrompt = typeof window !== 'undefined' ? localStorage.getItem(promptKey) : null;
       
       // 调试日志：记录提示词读取情况
       if (process.env.NODE_ENV !== 'production') {
@@ -194,10 +220,18 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
         setAiResult(null);
       } else if (result.raw?.mock) {
         // Mock 结果也正常显示
-        setAiResult(result);
+        const description = result.description || '';
+        // 限制字数不超过50字
+        const truncatedDescription = description.length > 50 ? description.substring(0, 50) + '...' : description;
+        setAiResult({ ...result, description: truncatedDescription });
+        saveAnalysis(truncatedDescription);
         setAiError(null);
       } else {
-        setAiResult(result);
+        const description = result.description || '';
+        // 限制字数不超过50字
+        const truncatedDescription = description.length > 50 ? description.substring(0, 50) + '...' : description;
+        setAiResult({ ...result, description: truncatedDescription });
+        saveAnalysis(truncatedDescription);
         setAiError(null);
       }
     } catch (error) {
@@ -226,11 +260,19 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
     });
   }, [currentIndex, galleryUrls]);
   
-  // 切换图片时清除 AI 分析结果
+  // 切换图片时清除当前分析结果（已保存的分析会从localStorage重新加载）
   useEffect(() => {
     setAiResult(null);
     setAiError(null);
+    // 已保存的分析会通过上面的useEffect从localStorage重新加载
   }, [currentIndex]);
+  
+  // 重新生成分析
+  const handleRegenerate = () => {
+    setAiResult(null);
+    setAiError(null);
+    handleAIAnalyze();
+  };
 
   const handlePrev = () => {
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : galleryUrls.length - 1));
@@ -379,7 +421,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
 
       {/* AI 分析功能区域 */}
       {!isVideo && (
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 space-y-3">
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -396,7 +438,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                 </>
               ) : (
                 <>
-                  <Heart className="mr-2 h-4 w-4" />
+                  <BarChart3 className="mr-2 h-4 w-4" />
                   AI 分析
                 </>
               )}
@@ -408,22 +450,55 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
             )}
           </div>
           
-          {/* AI 分析结果展示 - 仅显示描述，不显示标签 */}
+          {/* 已保存的分析内容 */}
+          {savedAnalysis && !aiResult && !isAnalyzing && (
+            <div className="space-y-2">
+              <div className="rounded-md border border-neutral-700 bg-neutral-900/50 p-3">
+                <p className="text-sm text-neutral-200 leading-relaxed whitespace-normal break-words">
+                  {savedAnalysis}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleRegenerate}
+                className="text-xs text-neutral-400 hover:text-neutral-200"
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                重新生成
+              </Button>
+            </div>
+          )}
+          
+          {/* 当前分析结果展示 - 纯文本样式 */}
           {(aiResult || aiError) && (
-            <div className="mt-2 text-xs text-neutral-400 space-y-1">
+            <div className="space-y-2">
               {aiResult && (
-                <>
-                  {aiResult.description && (
-                    <p className="text-neutral-300">
-                      {aiResult.description}
-                    </p>
-                  )}
-                </>
+                <div className="rounded-md border border-neutral-700 bg-neutral-900/50 p-3">
+                  <p className="text-sm text-neutral-200 leading-relaxed whitespace-normal break-words">
+                    {aiResult.description}
+                  </p>
+                </div>
               )}
               {aiError && (
-                <p className="text-red-400">
-                  {aiError}
-                </p>
+                <div className="rounded-md border border-red-800/50 bg-red-900/20 p-3">
+                  <p className="text-sm text-red-400">
+                    {aiError}
+                  </p>
+                </div>
+              )}
+              {aiResult && !isAnalyzing && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRegenerate}
+                  className="text-xs text-neutral-400 hover:text-neutral-200"
+                >
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  重新生成
+                </Button>
               )}
             </div>
           )}
