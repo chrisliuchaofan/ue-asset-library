@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { Suspense, useMemo, useState, useEffect, useRef } from 'react';
 import { MaterialCardGallery } from '@/components/material-card-gallery';
 import { EmptyState } from '@/components/empty-state';
 import { type Material } from '@/data/material.schema';
@@ -39,9 +39,80 @@ function MaterialsListContent({ materials, thumbSize = 'medium' }: MaterialsList
     return `?${params.toString()}`;
   };
 
+  // 根据 thumbSize 计算卡片宽度（与 MaterialCardGallery 中的 actualCardWidth 保持一致）
+  const cardWidth = useMemo(() => {
+    switch (thumbSize) {
+      case 'small': return 180;
+      case 'medium': return 240;
+      case 'large': return 320;
+      default: return 240;
+    }
+  }, [thumbSize]);
+
+  // 计算列数和间距（参考资产页面的实现）
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [isMounted, setIsMounted] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
+  const { columns, horizontalGap } = useMemo(() => {
+    if (!isMounted || containerWidth === 0) {
+      // 默认值
+      const defaultAvailableWidth = 1920 - 48; // 减去左右padding
+      const minGap = 8;
+      const defaultMaxColumns = Math.floor((defaultAvailableWidth + minGap) / (cardWidth + minGap));
+      return {
+        columns: Math.max(1, defaultMaxColumns),
+        horizontalGap: minGap
+      };
+    }
+
+    const containerPadding = 48; // 左右各24px
+    const minGap = 8;
+    const availableWidth = containerWidth - containerPadding;
+    
+    // 计算最多能放多少个卡片
+    const maxColumns = Math.floor((availableWidth + minGap) / (cardWidth + minGap));
+    const calculatedColumns = Math.max(1, maxColumns);
+    
+    // 计算间距：尽量平均分配剩余空间
+    const totalCardWidth = calculatedColumns * cardWidth;
+    const remainingForGap = availableWidth - totalCardWidth;
+    let actualGap = minGap;
+    if (calculatedColumns > 1 && remainingForGap > 0) {
+      actualGap = Math.min(12, Math.floor(remainingForGap / (calculatedColumns - 1)));
+    }
+    
+    return {
+      columns: calculatedColumns,
+      horizontalGap: actualGap
+    };
+  }, [isMounted, containerWidth, cardWidth]);
+
+  const verticalGap = 12;
+  const gridTemplateColumns = `repeat(${columns}, ${cardWidth}px)`;
+
   return (
     <>
-      <div className="grid gap-2 sm:gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+      <div 
+        ref={containerRef}
+        className="grid" 
+        style={{ 
+          gridTemplateColumns,
+          gap: `${verticalGap}px ${horizontalGap}px`,
+        }}
+      >
         {paginatedMaterials.map((material, index) => (
           <MaterialCardGallery
             key={material.id}
