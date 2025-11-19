@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LayoutPanelTop, Film, Grid3x3, ChevronDown, ChevronUp, ArrowUpDown, Clock, Star } from 'lucide-react';
 import { getAssetsIndex } from '@/lib/asset-index';
-import { PAGINATION, getDescription } from '@/lib/constants';
+import { getDescription } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 interface AssetsListWithSelectionProps {
@@ -124,7 +124,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const [isFetching, setIsFetching] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
   // 使用默认值 'medium' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
   const [thumbSize, setThumbSize] = useState<ThumbSize>('medium');
   const [sortBy, setSortBy] = useState<SortBy>('latest');
@@ -228,19 +227,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     if (typeof window === 'undefined') return;
     localStorage.setItem(TIME_SORT_DIRECTION_STORAGE_KEY, timeSortDirection);
   }, [timeSortDirection]);
-
-  // 从 URL 参数读取页码
-  useEffect(() => {
-    const pageParam = searchParams.get('page');
-    if (pageParam) {
-      const page = parseInt(pageParam, 10);
-      if (page > 0) {
-        setCurrentPage(page);
-      }
-    } else {
-      setCurrentPage(1);
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     if (hasHydratedSelection) return;
@@ -458,16 +444,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     }
     return sortAssets(displayAssets);
   }, [displayAssets, sortAssets, optimisticFilters]);
-
-  // 计算分页数据（使用 useMemo 优化性能）
-  const itemsPerPage = PAGINATION.ASSETS_PER_PAGE; // 100个
-  const { totalPages, paginatedAssets } = useMemo(() => {
-    const total = Math.ceil(sortedDisplayAssets.length / itemsPerPage);
-    const start = (currentPage - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
-    const paginated = sortedDisplayAssets.slice(start, end);
-    return { totalPages: total, paginatedAssets: paginated };
-  }, [sortedDisplayAssets, currentPage]); // itemsPerPage 是常量，不需要放在依赖数组中
 
   // 没有筛选条件时使用初始数据
   // 但如果有项目参数，需要根据项目筛选
@@ -707,7 +683,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       </div>
       <div ref={scrollContainerRef} className="flex-1 overflow-auto px-2 pb-4 sm:px-5 sm:pb-6 lg:px-6">
         <AssetsList
-          assets={paginatedAssets}
+          assets={sortedDisplayAssets}
           selectedAssetIds={selectedAssetIds}
           onToggleSelection={handleToggleSelection}
           officeLocation={officeLocation}
@@ -720,128 +696,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
           onCompactModeToggle={handleCompactModeToggle}
           thumbSize={thumbSize}
         />
-        
-        {/* 分页控件 */}
-        {totalPages > 1 && (
-          <div className="mt-8 flex flex-col items-center gap-4">
-            <div className="text-sm text-muted-foreground">
-              共 {displayAssets.length} 个资产，第 {currentPage} / {totalPages} 页
-            </div>
-            <div className="flex flex-wrap justify-center gap-2">
-              {currentPage > 1 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const newPage = currentPage - 1;
-                    setCurrentPage(newPage);
-                    const params = new URLSearchParams(searchParams.toString());
-                    if (newPage === 1) {
-                      params.delete('page');
-                    } else {
-                      params.set('page', newPage.toString());
-                    }
-                    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-                    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                >
-                  上一页
-                </Button>
-              )}
-              {(() => {
-                const maxVisiblePages = 7;
-                let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-                if (endPage - startPage < maxVisiblePages - 1) {
-                  startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                }
-                const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
-                
-                return (
-                  <>
-                    {startPage > 1 && (
-                      <>
-                        <Button
-                          type="button"
-                          variant={currentPage === 1 ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => {
-                            setCurrentPage(1);
-                            const params = new URLSearchParams(searchParams.toString());
-                            params.delete('page');
-                            window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-                            scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                        >
-                          1
-                        </Button>
-                        {startPage > 2 && <span className="px-2 text-muted-foreground">...</span>}
-                      </>
-                    )}
-                    {pages.map((page) => (
-                      <Button
-                        key={page}
-                        type="button"
-                        variant={currentPage === page ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => {
-                          setCurrentPage(page);
-                          const params = new URLSearchParams(searchParams.toString());
-                          if (page === 1) {
-                            params.delete('page');
-                          } else {
-                            params.set('page', page.toString());
-                          }
-                          window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-                          scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                      >
-                        {page}
-                      </Button>
-                    ))}
-                    {endPage < totalPages && (
-                      <>
-                        {endPage < totalPages - 1 && <span className="px-2 text-muted-foreground">...</span>}
-                        <Button
-                          type="button"
-                          variant={currentPage === totalPages ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => {
-                            setCurrentPage(totalPages);
-                            const params = new URLSearchParams(searchParams.toString());
-                            params.set('page', totalPages.toString());
-                            window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-                            scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                        >
-                          {totalPages}
-                        </Button>
-                      </>
-                    )}
-                  </>
-                );
-              })()}
-              {currentPage < totalPages && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const newPage = currentPage + 1;
-                    setCurrentPage(newPage);
-                    const params = new URLSearchParams(searchParams.toString());
-                    params.set('page', newPage.toString());
-                    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
-                    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                >
-                  下一页
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
       {headerPortal && createPortal(
         <HeaderActions
