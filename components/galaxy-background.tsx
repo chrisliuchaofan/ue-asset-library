@@ -20,6 +20,7 @@ interface GalaxyProps {
   autoCenterRepulsion?: number;
   transparent?: boolean;
   className?: string;
+  targetFPS?: number; // 目标帧率，用于性能优化（默认60，可设置为30等）
 }
 
 const vertexShader = `
@@ -200,6 +201,7 @@ export function GalaxyBackground({
   autoCenterRepulsion = 0,
   transparent = true,
   className = '',
+  targetFPS = 60,
 }: GalaxyProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const targetMousePosRef = useRef({ x: 0.5, y: 0.5 });
@@ -304,10 +306,19 @@ export function GalaxyBackground({
       const mesh = new Mesh(gl, { geometry, program });
 
       let animateId: number;
+      let lastFrameTime = 0;
+      const frameInterval = 1000 / targetFPS; // 计算每帧间隔（毫秒）
 
       function update(t: number) {
         if (!isRunning) return;
         animateId = requestAnimationFrame(update);
+
+        // 帧率控制：如果目标帧率低于60fps，跳过部分帧
+        const elapsed = t - lastFrameTime;
+        if (elapsed < frameInterval) {
+          return;
+        }
+        lastFrameTime = t - (elapsed % frameInterval);
 
         if (!disableAnimation) {
           program.uniforms.uTime.value = t * 0.001;
@@ -328,8 +339,18 @@ export function GalaxyBackground({
 
       animateId = requestAnimationFrame(update);
 
+      // 性能优化：节流鼠标事件（100ms）
+      let lastMouseUpdate = 0;
+      const mouseThrottleInterval = 100;
+
       function handleMouseMove(e: MouseEvent) {
         if (!container || !isRunning) return;
+        const now = performance.now();
+        if (now - lastMouseUpdate < mouseThrottleInterval) {
+          return;
+        }
+        lastMouseUpdate = now;
+        
         const rect = container.getBoundingClientRect();
         const x = (e.clientX - rect.left) / rect.width;
         const y = 1.0 - (e.clientY - rect.top) / rect.height;
@@ -395,6 +416,7 @@ export function GalaxyBackground({
     repulsionStrength,
     autoCenterRepulsion,
     transparent,
+    targetFPS,
   ]);
 
   return (

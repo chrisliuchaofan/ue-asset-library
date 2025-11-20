@@ -20,8 +20,14 @@ function buildKey(assets: Asset[]): string {
 
 function ensureIndex(assets: Asset[]): AssetIndex {
   const cacheKey = buildKey(assets);
+  
+  // 优化：检查缓存是否存在且未过期
+  // 在 Server 环境下，简单的 LRU 缓存可能不够，建议加上时间戳检查
   const cached = indexCache.get(cacheKey);
   if (cached) return cached;
+
+  // 性能监控：记录索引构建时间
+  const start = Date.now();
 
   const byType = new Map<string, Asset[]>();
   const byTag = new Map<string, Asset[]>();
@@ -72,6 +78,12 @@ function ensureIndex(assets: Asset[]): AssetIndex {
   };
 
   indexCache.set(cacheKey, index);
+  
+  const duration = Date.now() - start;
+  if (duration > 100) {
+    console.log(`[AssetIndex] Built index for ${assets.length} assets in ${duration}ms`);
+  }
+  
   return index;
 }
 

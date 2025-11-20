@@ -8,9 +8,11 @@ import { cn } from '@/lib/utils';
 
 interface SearchBoxProps {
   project?: string | null;
+  className?: string;
+  iconClassName?: string;
 }
 
-export function SearchBox({ project }: SearchBoxProps = {}) {
+export function SearchBox({ project, className, iconClassName }: SearchBoxProps = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -56,7 +58,7 @@ export function SearchBox({ project }: SearchBoxProps = {}) {
         router.push(`${pathname}?${params.toString()}`);
       });
     },
-    [router, pathname, searchParams]
+    [router, pathname, searchParams, project]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -81,11 +83,14 @@ export function SearchBox({ project }: SearchBoxProps = {}) {
 
   const isHomePage = pathname === '/';
 
+  // 判断是否在 Hero 卡片中使用（通过 className 判断）
+  const isInHeroCard = className?.includes('h-10') || className?.includes('h-12');
+
   return (
-    <div className="relative w-full max-w-xs sm:max-w-md min-w-0">
+    <div className={cn("relative w-full min-w-0", !isInHeroCard && "max-w-xs sm:max-w-md")}>
       <Search className={cn(
         "absolute left-2 sm:left-3 top-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 -translate-y-1/2 z-10 pointer-events-none flex-shrink-0",
-        isHomePage ? "text-white/80" : "text-muted-foreground"
+        iconClassName || (isHomePage ? "text-white/80" : "text-muted-foreground")
       )} />
       <Input
         type="search"
@@ -95,12 +100,14 @@ export function SearchBox({ project }: SearchBoxProps = {}) {
         onKeyDown={handleKeyDown}
         className={cn(
           "pl-8 sm:pl-10 h-8 sm:h-10 text-sm min-w-0 w-full",
-          isHomePage && "bg-white/10 backdrop-blur border-white/20 text-white placeholder:text-white/50 focus:bg-white/15 focus:border-white/30"
+          // 如果在 Hero 卡片中，使用透明背景样式
+          isInHeroCard 
+            ? "bg-transparent border-0 shadow-none focus:bg-transparent focus:ring-0 text-white placeholder:text-white/40 h-auto"
+            : isHomePage && "bg-white/10 backdrop-blur border-white/20 text-white placeholder:text-white/50 focus:bg-white/15 focus:border-white/30",
+          className
         )}
         disabled={isPending}
       />
     </div>
   );
 }
-
-

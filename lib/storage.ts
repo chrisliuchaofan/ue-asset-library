@@ -43,13 +43,52 @@ const MANIFEST_CACHE_TTL_MS = (() => {
   const rawTTL =
     process.env.ASSET_MANIFEST_CACHE_TTL ??
     process.env.MANIFEST_CACHE_TTL ??
-    '60000';
+    (STORAGE_MODE === 'local' ? '3600000' : '60000'); // Local模式默认缓存1小时，依赖Watcher失效
   const parsed = Number.parseInt(rawTTL, 10);
   if (Number.isNaN(parsed) || !Number.isFinite(parsed)) {
     return 60000;
   }
   return Math.max(0, parsed);
 })();
+
+// 全局 watcher 状态
+declare global {
+  var __manifestWatcher: import('fs').FSWatcher | undefined;
+}
+
+function setupLocalManifestWatcher() {
+  if (STORAGE_MODE !== 'local') return;
+  if (globalThis.__manifestWatcher) return; // 已存在
+
+  try {
+    const fs = require('fs');
+    if (!fs.existsSync(manifestPath)) return;
+
+    console.log('[Storage] Setting up manifest watcher');
+    // 监听文件变动
+    globalThis.__manifestWatcher = fs.watch(manifestPath, { persistent: false }, (eventType: string) => {
+      console.log(`[Storage] Manifest ${eventType}, invalidating cache`);
+      invalidateAssetManifestCache();
+    });
+    
+    // 防止进程退出时报错
+    if (globalThis.__manifestWatcher) {
+        globalThis.__manifestWatcher.on('error', (error: Error) => {
+            console.error('[Storage] Watcher error:', error);
+            // 出错时清理 watcher
+            if (globalThis.__manifestWatcher) {
+                try {
+                  globalThis.__manifestWatcher.close();
+                } catch {}
+                globalThis.__manifestWatcher = undefined;
+            }
+        });
+    }
+  } catch (e) {
+    console.warn('[Storage] Failed to setup manifest watcher:', e);
+  }
+}
+
 
 interface AssetManifestCacheEntry {
   data: {
@@ -206,6 +245,18 @@ export function getOSSClient(): OSS {
 }
 
 async function readLocalManifest(): Promise<{ assets: Asset[]; allowedTypes: string[] }> {
+  // 尝试读取缓存
+  const cached = readAssetManifestCache();
+  if (cached) {
+    return {
+      assets: cached.assets,
+      allowedTypes: [...cached.allowedTypes],
+    };
+  }
+
+  // 确保 watcher 已设置 (仅在首次读取时尝试)
+  setupLocalManifestWatcher();
+
   try {
     const file = await fs.readFile(manifestPath, 'utf-8');
     const data = JSON.parse(file);

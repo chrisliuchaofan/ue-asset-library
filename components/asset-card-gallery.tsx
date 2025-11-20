@@ -302,15 +302,11 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   // 稳定第一个视频 URL 的引用
   const firstVideoUrl = useMemo(() => videoUrls[0] || null, [videoUrls]);
 
-  // 当只有视频时，从第一个视频中提取6帧作为缩略图
-  // 提取条件：
-  // 1. 经典模式或宫格模式：只有视频时才提取
-  // 2. 缩略图模式：只有视频时才提取（如果图片和视频混合，不提取）
-  // 使用 requestIdleCallback 延迟执行，避免阻塞主线程和影响 LCP
+  // 禁用客户端自动抽帧，因为这会严重影响性能
+  // 视频应该在上传时由后端生成缩略图
+  // 如果没有缩略图，显示默认占位符，Hover 时播放视频
   useEffect(() => {
-    // 如果不需要提取帧，清空并返回
-    // 所有模式下，只有视频（没有图片）时才提取帧
-    const shouldExtract = imageUrls.length === 0 && firstVideoUrl !== null && (viewMode === 'classic' || viewMode === 'grid' || viewMode === 'thumbnail');
+    const shouldExtract = false;
     
     if (!shouldExtract) {
       // 只在确实需要清空时才调用 setState，避免不必要的更新
@@ -323,7 +319,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     }
 
     // 如果正在提取或已经提取过这个视频，跳过
-    if (extractingFramesRef.current || lastVideoUrlRef.current === firstVideoUrl) {
+    if (extractingFramesRef.current || lastVideoUrlRef.current === firstVideoUrl || !firstVideoUrl) {
       return;
     }
 
