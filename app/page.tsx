@@ -7,8 +7,30 @@ import { AnimatedHero } from '@/components/AnimatedHero';
 // 动态导入星系组件，禁用 SSR
 const GalaxyBackground = dynamic(
   () => import('@/components/galaxy-background').then((mod) => ({ default: mod.GalaxyBackground })),
-  { ssr: false }
-);
+  { 
+    ssr: false,
+    loading: () => <div className="absolute inset-0 bg-black" />
+  }
+) as React.ComponentType<{
+  focal?: [number, number];
+  rotation?: [number, number];
+  starSpeed?: number;
+  density?: number;
+  hueShift?: number;
+  disableAnimation?: boolean;
+  speed?: number;
+  mouseInteraction?: boolean;
+  glowIntensity?: number;
+  saturation?: number;
+  mouseRepulsion?: boolean;
+  twinkleIntensity?: number;
+  rotationSpeed?: number;
+  repulsionStrength?: number;
+  autoCenterRepulsion?: number;
+  transparent?: boolean;
+  className?: string;
+  targetFPS?: number;
+}>;
 
 export default function HomePage() {
   const [cardVisible, setCardVisible] = useState(false);
