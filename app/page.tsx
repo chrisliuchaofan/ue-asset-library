@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { AnimatedHero } from '@/components/AnimatedHero';
 
 // 动态导入星系组件，禁用 SSR
