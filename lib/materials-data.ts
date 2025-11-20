@@ -21,13 +21,48 @@ const MATERIALS_CACHE_TTL_MS = (() => {
   const rawTTL =
     process.env.MATERIALS_CACHE_TTL ??
     process.env.MANIFEST_CACHE_TTL ??
-    '60000';
+    (STORAGE_MODE === 'local' ? '3600000' : '60000');
   const parsed = Number.parseInt(rawTTL, 10);
   if (Number.isNaN(parsed) || !Number.isFinite(parsed)) {
     return 60000;
   }
   return Math.max(0, parsed);
 })();
+
+// 全局 watcher 状态
+declare global {
+  var __materialsWatcher: import('fs').FSWatcher | undefined;
+}
+
+function setupLocalMaterialsWatcher() {
+  if (STORAGE_MODE !== 'local') return;
+  if (globalThis.__materialsWatcher) return; // 已存在
+
+  try {
+    const fs = require('fs');
+    if (!fs.existsSync(materialsPath)) return;
+
+    console.log('[Materials] Setting up materials watcher');
+    globalThis.__materialsWatcher = fs.watch(materialsPath, { persistent: false }, (eventType: string) => {
+      console.log(`[Materials] File ${eventType}, invalidating cache`);
+      invalidateMaterialsCache();
+    });
+    
+    if (globalThis.__materialsWatcher) {
+      globalThis.__materialsWatcher.on('error', (error: Error) => {
+        console.error('[Materials] Watcher error:', error);
+        if (globalThis.__materialsWatcher) {
+          try {
+            globalThis.__materialsWatcher.close();
+          } catch {}
+          globalThis.__materialsWatcher = undefined;
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('[Materials] Failed to setup watcher:', e);
+  }
+}
 
 // 优化：空结果的缓存时间更长（5分钟），因为空结果通常不会很快变化
 const EMPTY_RESULT_CACHE_TTL_MS = 300_000; // 5分钟
@@ -77,6 +112,14 @@ async function ensureLocalDir() {
 
 // 本地模式：读取素材清单
 async function readLocalMaterials(): Promise<Material[]> {
+  const cacheKey = MATERIALS_CACHE_KEY;
+  const cached = readMaterialsCache(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  setupLocalMaterialsWatcher();
+
   try {
     const file = await fs.readFile(materialsPath, 'utf-8');
     const data = JSON.parse(file);
@@ -93,6 +136,7 @@ async function readLocalMaterials(): Promise<Material[]> {
         });
       }
       const validated = MaterialsManifestSchema.parse(data);
+      writeMaterialsCache(cacheKey, validated.materials);
       return validated.materials;
     } catch (parseError) {
       console.error('素材数据格式验证失败:', parseError);
@@ -115,16 +159,20 @@ async function readLocalMaterials(): Promise<Material[]> {
               return false;
             }
           });
+        writeMaterialsCache(cacheKey, validMaterials);
         return validMaterials;
       }
+      writeMaterialsCache(cacheKey, []);
       return [];
     }
   } catch (error) {
     // 如果文件不存在或格式错误，返回空数组
     if ((error as any).code === 'ENOENT') {
+      writeMaterialsCache(cacheKey, []);
       return [];
     }
     console.error('读取素材清单失败:', error);
+    writeMaterialsCache(cacheKey, []);
     return [];
   }
 }

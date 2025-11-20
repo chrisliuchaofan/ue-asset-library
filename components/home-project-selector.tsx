@@ -12,12 +12,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-interface HomeProjectSelectorProps {
+export interface HomeProjectSelectorProps {
   value?: string | null;
   onChange?: (project: string | null) => void;
+  className?: string;
 }
 
-export function HomeProjectSelector({ value, onChange }: HomeProjectSelectorProps) {
+export function HomeProjectSelector({ value, onChange, className }: HomeProjectSelectorProps) {
   const [selectedProject, setSelectedProject] = useState<string | null>(value ?? null);
 
   // 同步外部传入的 value
@@ -49,7 +50,8 @@ export function HomeProjectSelector({ value, onChange }: HomeProjectSelectorProp
             "bg-white/10 backdrop-blur border-white/30 text-white hover:bg-white/20",
             "transition-all duration-200 shadow-sm",
             "focus-visible:ring-2 focus-visible:ring-white/50",
-            !selectedProject && "text-white/90"
+            !selectedProject && "text-white/90",
+            className
           )}
         >
           <span className="font-medium truncate">{displayName}</span>
@@ -89,4 +91,3 @@ export function HomeProjectSelector({ value, onChange }: HomeProjectSelectorProp
     </DropdownMenu>
   );
 }
-

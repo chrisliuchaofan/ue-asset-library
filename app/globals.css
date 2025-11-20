@@ -150,6 +150,31 @@
   .scrollbar-track-transparent::-webkit-scrollbar-track {
     background: transparent;
   }
+
+  /* 骨架屏加载动画 */
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+
+  /* 文字流光动画 */
+  @keyframes shine {
+    to {
+      background-position: 200% center;
+    }
+  }
+
+  .animate-shine {
+    animation: shine 8s linear infinite;
+  }
 }
 
 /* ============================================
