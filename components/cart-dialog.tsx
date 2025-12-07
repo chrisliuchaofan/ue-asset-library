@@ -36,6 +36,18 @@ export function CartDialog({ open, onOpenChange, selectedAssets, onRemove, onCle
     }
     setExporting(true);
     try {
+      // 记录导出操作（用于统计资产热度）
+      const assetIds = selectedAssets.map((asset) => asset.id);
+      try {
+        await fetch('/api/activity/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assetIds }),
+        });
+      } catch (error) {
+        // 静默失败，不影响导出功能
+        console.warn('记录导出日志失败:', error);
+      }
       // 只保留指定的字段：名称、类型、风格、引擎版本、来源、广州NAS、深圳NAS、创建时间、更新时间、预览图url
       const headers = [
         '名称',

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -18,25 +19,43 @@ interface AdminPasswordDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin123'; // 默认密码，建议通过环境变量配置
-
 export function AdminPasswordDialog({ open, onOpenChange }: AdminPasswordDialogProps) {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    if (password === ADMIN_PASSWORD) {
-      // 密码正确，跳转到管理页面
-      router.push('/admin');
-      onOpenChange(false);
+    try {
+      const result = await signIn('credentials', {
+        username,
+        password,
+        redirect: false,
+        callbackUrl: '/admin',
+      });
+
+      if (result?.error) {
+        setError('用户名或密码错误');
+        setPassword('');
+      } else if (result?.ok || !result?.error) {
+        // 登录成功，跳转到管理页面
+        router.push('/admin');
+        router.refresh();
+        onOpenChange(false);
+        setUsername('');
+        setPassword('');
+      }
+    } catch (err) {
+      console.error('登录错误:', err);
+      setError('登录失败，请重试');
       setPassword('');
-    } else {
-      setError('密码错误，请重试');
-      setPassword('');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -51,6 +70,20 @@ export function AdminPasswordDialog({ open, onOpenChange }: AdminPasswordDialogP
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Input
+                type="text"
+                placeholder="请输入用户名"
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  setError('');
+                }}
+                autoFocus
+                required
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Input
                 type="password"
                 placeholder="请输入密码"
                 value={password}
@@ -58,16 +91,19 @@ export function AdminPasswordDialog({ open, onOpenChange }: AdminPasswordDialogP
                   setPassword(e.target.value);
                   setError('');
                 }}
-                autoFocus
+                required
+                disabled={loading}
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               取消
             </Button>
-            <Button type="submit">确认</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? '登录中...' : '确认'}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
