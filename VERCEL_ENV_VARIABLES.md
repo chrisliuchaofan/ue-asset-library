@@ -38,6 +38,19 @@
 |--------|-----|------|------|
 | `NEXT_PUBLIC_CDN_BASE` | `/` 或 `https://你的CDN域名` | CDN 基础路径<br>- 使用 `/` 时，客户端会自动使用 OSS 外网域名<br>- 使用 CDN 域名时，填写完整域名（如 `https://cdn.example.com`） | Production, Preview |
 
+### 用户认证配置（必需）
+
+| 变量名 | 值 | 说明 | 环境 |
+|--------|-----|------|------|
+| `NEXTAUTH_SECRET` | `生成的随机密钥` | NextAuth 加密密钥（必须）<br>生成方法：`openssl rand -base64 32` | Production, Preview |
+| `NEXTAUTH_URL` | `https://your-domain.vercel.app` | 应用完整 URL（必须） | Production, Preview |
+| `ADMIN_USERS` | `admin:password123,user1:pass1` | 管理员账号列表<br>格式：`用户名:密码,用户名:密码` | Production, Preview |
+
+**重要**：
+- `NEXTAUTH_SECRET` 必须使用强随机密钥，不要使用默认值
+- `NEXTAUTH_URL` 必须与你的实际域名一致（包括 `https://` 前缀）
+- 多个管理员账号用逗号分隔，每个账号格式为 `用户名:密码`
+
 ### AI 图像分析配置（可选）
 
 | 变量名 | 值 | 说明 | 环境 |
@@ -103,6 +116,7 @@ NEXT_PUBLIC_OSS_REGION=oss-cn-guangzhou
 在 Vercel 中添加环境变量时，可以按以下顺序添加：
 
 ```
+# 存储配置
 STORAGE_MODE=oss
 NEXT_PUBLIC_STORAGE_MODE=oss
 NEXT_PUBLIC_CDN_BASE=/
@@ -112,9 +126,18 @@ OSS_ACCESS_KEY_ID=你的AccessKeyId
 OSS_ACCESS_KEY_SECRET=你的AccessKeySecret
 NEXT_PUBLIC_OSS_BUCKET=guangzhougamead
 NEXT_PUBLIC_OSS_REGION=oss-cn-guangzhou
+
+# 认证配置（必需）
+NEXTAUTH_SECRET=你的随机密钥（使用 openssl rand -base64 32 生成）
+NEXTAUTH_URL=https://your-domain.vercel.app
+ADMIN_USERS=admin:your-password,user1:password1
 ```
 
-**注意**：将 `你的AccessKeyId` 和 `你的AccessKeySecret` 替换为实际的阿里云 AccessKey。
+**注意**：
+- 将 `你的AccessKeyId` 和 `你的AccessKeySecret` 替换为实际的阿里云 AccessKey
+- 将 `NEXTAUTH_SECRET` 替换为生成的随机密钥（使用 `openssl rand -base64 32` 生成）
+- 将 `NEXTAUTH_URL` 替换为你的实际域名
+- 将 `ADMIN_USERS` 中的密码替换为实际的管理员密码
 
 ## 验证配置
 

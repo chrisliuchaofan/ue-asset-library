@@ -41,3 +41,7 @@ vercel-env-template.txt
 *.tsbuildinfo
 next-env.d.ts
 
+# activity logs and stats (用户操作日志，不提交到 Git)
+data/export-logs.json
+data/asset-stats.json
+

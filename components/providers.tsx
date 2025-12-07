@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { SessionProvider } from 'next-auth/react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ToastProvider } from '@/components/toast-provider';
 import { initPerformanceMonitoring } from '@/lib/performance';
@@ -12,11 +13,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <ErrorBoundary>
-      <ToastProvider>
-        {children}
-      </ToastProvider>
-    </ErrorBoundary>
+    <SessionProvider>
+      <ErrorBoundary>
+        <ToastProvider>
+          {children}
+        </ToastProvider>
+      </ErrorBoundary>
+    </SessionProvider>
   );
 }
 

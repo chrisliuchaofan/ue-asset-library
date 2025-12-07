@@ -2,6 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import React, { Suspense, useState } from 'react';
+import Link from 'next/link';
+import { Settings } from 'lucide-react';
 import { AnimatedHero } from '@/components/AnimatedHero';
 
 // 动态导入星系组件，禁用 SSR
@@ -67,6 +69,16 @@ export default function HomePage() {
       <Suspense fallback={<div className="flex-1" />}>
         <AnimatedHero onCardVisible={setCardVisible} />
       </Suspense>
+
+      {/* 右下角管理按钮 */}
+      <Link
+        href="/admin"
+        className="fixed bottom-6 right-6 z-50 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black/20 backdrop-blur-md border border-[#CFE0FF]/40 shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_1px_rgba(207,224,255,0.2)] hover:bg-white/5 hover:border-[#CFE0FF]/60 hover:shadow-[0_6px_16px_rgba(0,0,0,0.2),0_0_2px_rgba(207,224,255,0.3)] transition-all duration-300 group active:scale-95"
+        aria-label="管理后台"
+        title="管理后台"
+      >
+        <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-zinc-100 group-hover:text-white group-hover:rotate-90 transition-all duration-300" />
+      </Link>
     </div>
   );
 }
