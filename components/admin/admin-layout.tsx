@@ -4,10 +4,11 @@ import { useState, Children, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FolderOpen, Video, ChevronLeft, ChevronRight, Settings, Plus, List, ChevronDown, ChevronUp, Save, X, Edit, Trash2 } from 'lucide-react';
+import { FolderOpen, Video, ChevronLeft, ChevronRight, Settings, Plus, List, ChevronDown, ChevronUp, Save, X, Edit, Trash2, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AdminRefreshProvider } from './admin-refresh-context';
 import { PROJECTS, PROJECT_PASSWORDS, PROJECT_DISPLAY_NAMES, getAllProjects, getProjectDisplayName, DEFAULT_DESCRIPTIONS, getAllDescriptions, saveDescriptions, type DescriptionKey } from '@/lib/constants';
+import { signOut } from 'next-auth/react';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -830,6 +831,24 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
             </button>
           </div>
         </nav>
+
+        {/* 底部登出按钮 */}
+        <div className="border-t border-gray-200 p-2">
+          <Button
+            variant="ghost"
+            className={cn(
+              'w-full justify-start text-gray-700 hover:bg-gray-100 hover:text-gray-900',
+              sidebarCollapsed && 'justify-center px-2'
+            )}
+            onClick={() => {
+              signOut({ callbackUrl: '/' });
+            }}
+            title="登出"
+          >
+            <LogOut className="h-5 w-5 shrink-0" />
+            {!sidebarCollapsed && <span className="ml-3">登出</span>}
+          </Button>
+        </div>
       </aside>
 
       {/* 右侧内容区域 */}

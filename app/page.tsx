@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Settings } from 'lucide-react';
 import { AnimatedHero } from '@/components/AnimatedHero';
@@ -36,9 +36,15 @@ const GalaxyBackground = dynamic(
 
 export default function HomePage() {
   const [cardVisible, setCardVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
   
   // 性能优化：卡片显示时降低背景帧率至30fps，否则保持60fps
   const backgroundFPS = cardVisible ? 30 : 60;
+
+  // 确保客户端挂载后才渲染管理按钮，避免 hydration 错误
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col relative overflow-hidden">
@@ -70,15 +76,17 @@ export default function HomePage() {
         <AnimatedHero onCardVisible={setCardVisible} />
       </Suspense>
 
-      {/* 右下角管理按钮 */}
-      <Link
-        href="/admin"
-        className="fixed bottom-6 right-6 z-50 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black/20 backdrop-blur-md border border-[#CFE0FF]/40 shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_1px_rgba(207,224,255,0.2)] hover:bg-white/5 hover:border-[#CFE0FF]/60 hover:shadow-[0_6px_16px_rgba(0,0,0,0.2),0_0_2px_rgba(207,224,255,0.3)] transition-all duration-300 group active:scale-95"
-        aria-label="管理后台"
-        title="管理后台"
-      >
-        <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-zinc-100 group-hover:text-white group-hover:rotate-90 transition-all duration-300" />
-      </Link>
+      {/* 右下角管理按钮 - 只在客户端挂载后渲染，避免 hydration 错误 */}
+      {mounted && (
+        <Link
+          href="/admin"
+          className="fixed bottom-6 right-6 z-50 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black/20 backdrop-blur-md shadow-[0_4px_12px_rgba(0,0,0,0.15)] hover:bg-white/5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.2)] transition-all duration-300 group active:scale-95"
+          aria-label="管理后台"
+          title="管理后台"
+        >
+          <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-zinc-100 group-hover:text-white group-hover:rotate-90 transition-all duration-300" />
+        </Link>
+      )}
     </div>
   );
 }

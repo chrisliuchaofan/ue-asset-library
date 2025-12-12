@@ -41,8 +41,12 @@ function LoginForm() {
       if (result?.error) {
         setError('用户名或密码错误');
         setPassword('');
-      } else if (result?.ok || !result?.error) {
+      } else if (result?.ok) {
         // 登录成功，跳转到目标页面
+        // 使用 window.location 确保完全刷新页面和 session
+        window.location.href = callbackUrl;
+      } else {
+        // 如果 result 为 undefined 或没有 error，也尝试跳转
         router.push(callbackUrl);
         router.refresh();
       }
