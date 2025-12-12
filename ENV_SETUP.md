@@ -35,6 +35,31 @@ NEXT_PUBLIC_CDN_BASE=https://你的CDN域名
 NEXT_PUBLIC_CDN_BASE=/
 ```
 
+## AI 服务配置（千问/梦工厂）
+
+```env
+# AI 服务配置（统一使用千问 API）
+# 阿里云百炼/DashScope API Endpoint
+AI_IMAGE_API_ENDPOINT=https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation
+# 你的阿里云 API Key
+AI_IMAGE_API_KEY=your_qwen_api_key
+# 默认模型
+AI_IMAGE_API_MODEL=qwen-plus-latest
+# 提供商标识
+AI_IMAGE_API_PROVIDER=aliyun
+
+# 视觉模型配置（用于图像理解）
+AI_VISION_MODEL=qwen-vl-plus-latest
+
+# 即梦 API 配置（预留，待接入）
+# JIMENG_API_KEY=
+# JIMENG_API_ENDPOINT=
+
+# 可灵 API 配置（预留，待接入）
+# KLING_API_KEY=
+# KLING_API_ENDPOINT=
+```
+
 ## 为什么需要 NEXT_PUBLIC_OSS_BUCKET 和 NEXT_PUBLIC_OSS_REGION？
 
 在 Next.js 中：
@@ -58,29 +83,10 @@ OSS_REGION=oss-cn-guangzhou
 OSS_ACCESS_KEY_ID=你的AccessKeyId
 OSS_ACCESS_KEY_SECRET=你的AccessKeySecret
 
-# OSS 客户端配置（必须添加）
+# OSS 客户端配置（必须与服务端配置一致）
 NEXT_PUBLIC_OSS_BUCKET=guangzhougamead
 NEXT_PUBLIC_OSS_REGION=oss-cn-guangzhou
+
+# AI 服务配置
+AI_IMAGE_API_KEY=sk-xxxxxx
 ```
-
-## 配置后
-
-1. 保存 `.env.local` 文件
-2. **重启开发服务器**（重要！）
-3. 刷新浏览器页面
-4. 检查浏览器控制台，应该能看到 `window.__OSS_CONFIG__` 已正确设置
-
-## 验证配置
-
-在浏览器控制台运行：
-
-```javascript
-console.log('CDN Base:', window.__CDN_BASE__);
-console.log('Storage Mode:', window.__STORAGE_MODE__);
-console.log('OSS Config:', window.__OSS_CONFIG__);
-```
-
-如果 `OSS Config` 显示 `{bucket: "...", region: "..."}`，说明配置正确。
-
-
-
