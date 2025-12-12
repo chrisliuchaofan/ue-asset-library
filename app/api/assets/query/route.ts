@@ -5,6 +5,7 @@ import { filterAssetsByOptions } from '@/lib/asset-filters';
 import { getAssetsIndex } from '@/lib/asset-index';
 import { createHash } from 'crypto';
 import { createLRUCache } from '@/lib/lru-cache';
+import { handleApiError } from '@/lib/error-handler';
 import type { Asset } from '@/data/manifest.schema';
 
 interface CachedResult {
@@ -123,8 +124,6 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error) {
-    console.error('资产筛选请求失败', error);
-
     const err = error as any;
     
     // 对于网络错误和超时，返回空结果而不是 500 错误
@@ -138,25 +137,18 @@ export async function POST(request: Request) {
       err?.message?.includes?.('connect ETIMEDOUT')
     ) {
       console.warn('资产筛选接口网络错误，返回空结果:', err?.message || err?.code);
-        return NextResponse.json({
-          assets: [],
-          total: 0,
-          returned: 0,
-          summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {}, projects: {} },
-          cache: 'error',
-          message: '网络连接超时，请稍后重试',
-        }, { status: 200 }); // 返回 200 而不是 500，避免前端显示错误页面
+      return NextResponse.json({
+        assets: [],
+        total: 0,
+        returned: 0,
+        summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {}, projects: {} },
+        cache: 'error',
+        message: '网络连接超时，请稍后重试',
+      }, { status: 200 }); // 返回 200 而不是 500，避免前端显示错误页面
     }
     
-    const message = error instanceof Error ? error.message : '资产筛选失败';
-    return NextResponse.json({ 
-      message, 
-      assets: [], 
-      total: 0, 
-      returned: 0,
-      summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {}, projects: {} },
-      cache: 'error',
-    }, { status: 200 }); // 返回 200，让前端处理空状态
+    // 使用统一的错误处理
+    return handleApiError(error, '资产筛选失败');
   }
 }
 

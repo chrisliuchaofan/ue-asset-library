@@ -1,6 +1,6 @@
 # UE 资产库
 
-基于 Next.js 15 (App Router) + TypeScript + Tailwind CSS + shadcn/ui 构建的 Unreal Engine 资产展示库。
+基于 Next.js 16 (App Router) + TypeScript + Tailwind CSS + shadcn/ui 构建的 Unreal Engine 资产展示库。
 
 ## 功能特性
 
@@ -18,12 +18,13 @@
 
 ## 技术栈
 
-- **框架**: Next.js 15 (App Router)
+- **框架**: Next.js 16.0.8 (App Router)
 - **语言**: TypeScript
 - **样式**: Tailwind CSS
-- **UI 组件**: shadcn/ui
+- **UI 组件**: shadcn/ui (Radix UI)
 - **图标**: lucide-react
 - **数据验证**: Zod
+- **认证**: NextAuth v5
 
 ## 项目结构
 

@@ -27,11 +27,25 @@ export function AnimatedHero({ onCardVisible }: { onCardVisible?: (visible: bool
     setMounted(true);
     // 获取视口高度用于收缩动画
     setViewportHeight(window.innerHeight);
+    
+    // 性能优化：使用防抖处理 resize 事件，避免频繁触发
+    let timeoutId: NodeJS.Timeout | null = null;
     const handleResize = () => {
-      setViewportHeight(window.innerHeight);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        setViewportHeight(window.innerHeight);
+      }, 150); // 150ms 防抖延迟
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   // 通知父组件卡片可见性变化（用于控制背景帧率）

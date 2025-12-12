@@ -447,10 +447,12 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
   // 没有筛选条件时使用初始数据
   // 但如果有项目参数，需要根据项目筛选
-  useEffect(() => {
+  // 使用 useMemo 缓存客户端筛选结果，减少重复计算
+  const clientFilteredAssets = useMemo(() => {
     if (optimisticFilters) {
-      return;
+      return null; // 有乐观更新时，不进行客户端筛选
     }
+    
     // 检查是否有除了项目之外的其他筛选条件
     const hasOtherFilters = 
       keyword.trim() !== '' ||
@@ -462,24 +464,30 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     
     // 如果没有其他筛选条件，但有项目参数，使用客户端筛选
     if (!hasOtherFilters && selectedProjects.length > 0) {
-      const start = performance.now();
-      const filtered = assetsIndex.filter({
+      return assetsIndex.filter({
         projects: selectedProjects,
       });
-      const duration = performance.now() - start;
-      setDisplayAssets(filtered);
-      setFilterDurationMs(duration);
-      setIsFetching(false);
-      return;
     }
     
     // 如果没有任何筛选条件，使用初始数据
     if (!hasServerFilters) {
-      setDisplayAssets(assets);
-      setFilterDurationMs(null);
-      setIsFetching(false);
+      return assets;
     }
+    
+    return null; // 需要服务端筛选
   }, [assets, hasServerFilters, optimisticFilters, selectedProjects, assetsIndex, keyword, selectedTypes, selectedStyles, selectedTags, selectedSources, selectedVersions]);
+
+  useEffect(() => {
+    if (clientFilteredAssets === null) {
+      return; // 需要服务端筛选或已有乐观更新
+    }
+    
+    const start = performance.now();
+    setDisplayAssets(clientFilteredAssets);
+    const duration = performance.now() - start;
+    setFilterDurationMs(duration);
+    setIsFetching(false);
+  }, [clientFilteredAssets]);
 
   // 服务端筛选 - 添加防抖优化，减少频繁请求
   useEffect(() => {
@@ -499,7 +507,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       return;
     }
 
-    // 防抖：延迟300ms执行，如果用户在300ms内再次改变筛选条件，取消之前的请求
+    // 防抖：延迟100ms执行（进一步优化），如果用户在100ms内再次改变筛选条件，取消之前的请求
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       const payload = {
@@ -514,7 +522,10 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
       const start = performance.now();
       setIsFetching(true);
-      console.log('[AssetsListWithSelection] Full list request (totalCount > 0)');
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assets-list-with-selection.tsx:519',message:'开始筛选请求',data:{keyword:payload.keyword,typesCount:payload.types?.length,stylesCount:payload.styles?.length,tagsCount:payload.tags?.length},timestamp:Date.now(),sessionId:'filter-optimization',runId:'pre-fix',hypothesisId:'perf-1'})}).catch(()=>{});
+      // #endregion
 
       fetch('/api/assets/query', {
       method: 'POST',
@@ -533,17 +544,25 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
         const duration = performance.now() - start;
         setDisplayAssets(nextAssets);
         setFilterDurationMs(duration);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assets-list-with-selection.tsx:536',message:'筛选请求完成',data:{duration,assetsCount:nextAssets.length},timestamp:Date.now(),sessionId:'filter-optimization',runId:'pre-fix',hypothesisId:'perf-1'})}).catch(()=>{});
+        // #endregion
       })
       .catch((error) => {
         if (error.name === 'AbortError') return;
         console.error('筛选接口错误:', error);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assets-list-with-selection.tsx:540',message:'筛选请求失败',data:{error:error.message},timestamp:Date.now(),sessionId:'filter-optimization',runId:'pre-fix',hypothesisId:'perf-1'})}).catch(()=>{});
+        // #endregion
       })
       .finally(() => {
         if (!controller.signal.aborted) {
           setIsFetching(false);
         }
       });
-    }, 300); // 300ms 防抖延迟
+    }, 100); // 100ms 防抖延迟（进一步优化）
 
     return () => {
       clearTimeout(timeoutId);

@@ -19,8 +19,25 @@ function useIsMobile() {
       setIsMobile(window.innerWidth < 640);
     };
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    
+    // 性能优化：使用防抖处理 resize 事件，避免频繁触发
+    let timeoutId: NodeJS.Timeout | null = null;
+    const debouncedCheckMobile = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        checkMobile();
+      }, 150); // 150ms 防抖延迟
+    };
+    
+    window.addEventListener('resize', debouncedCheckMobile, { passive: true });
+    return () => {
+      window.removeEventListener('resize', debouncedCheckMobile);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
   
   return isMobile;

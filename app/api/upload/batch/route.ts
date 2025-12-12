@@ -4,30 +4,12 @@ import { join } from 'path';
 import { createHash } from 'crypto';
 import { getStorageMode } from '@/lib/storage';
 import { FILE_UPLOAD_LIMITS, ALLOWED_FILE_EXTENSIONS, ALLOWED_MIME_TYPES, BATCH_UPLOAD_CONFIG } from '@/lib/constants';
-import OSS from 'ali-oss';
+import { getOSSClient } from '@/lib/oss-client';
+import { handleApiError } from '@/lib/error-handler';
 import sharp from 'sharp';
 
-const STORAGE_MODE = (process.env.STORAGE_MODE as 'local' | 'oss' | undefined) ?? 'local';
-
-function getOSSClient(): OSS {
-  const bucket = process.env.OSS_BUCKET;
-  const region = process.env.OSS_REGION;
-  const accessKeyId = process.env.OSS_ACCESS_KEY_ID;
-  const accessKeySecret = process.env.OSS_ACCESS_KEY_SECRET;
-  const endpoint = process.env.OSS_ENDPOINT;
-
-  if (!bucket || !region || !accessKeyId || !accessKeySecret) {
-    throw new Error('OSS 配置不完整');
-  }
-
-  return new OSS({
-    region,
-    bucket,
-    accessKeyId,
-    accessKeySecret,
-    ...(endpoint && { endpoint }),
-  });
-}
+// 使用统一的存储模式判断函数，确保本地和线上行为一致
+const STORAGE_MODE = getStorageMode();
 
 
 async function uploadFile(
@@ -311,9 +293,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error('批量上传文件失败:', error);
-    const message = error instanceof Error ? error.message : '上传文件失败';
-    return NextResponse.json({ message }, { status: 500 });
+    return handleApiError(error, '批量上传文件失败');
   }
 }
 

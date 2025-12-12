@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback, useEffect } from 'react';
+import { useState, useTransition, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -102,17 +102,18 @@ export function FilterSidebar({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const selectedTypes = searchParams.get('types')?.split(',').filter(Boolean) || [];
-  const selectedStyles = searchParams.get('styles')?.split(',').filter(Boolean) || [];
-  const selectedTags = searchParams.get('tags')?.split(',').filter(Boolean) || [];
-  const selectedSources = searchParams.get('sources')?.split(',').filter(Boolean) || [];
-  const selectedVersions = searchParams.get('versions')?.split(',').filter(Boolean) || [];
+  // 使用 useMemo 缓存 URL 参数解析结果，避免每次渲染都重新解析
+  const selectedTypes = useMemo(() => searchParams.get('types')?.split(',').filter(Boolean) || [], [searchParams]);
+  const selectedStyles = useMemo(() => searchParams.get('styles')?.split(',').filter(Boolean) || [], [searchParams]);
+  const selectedTags = useMemo(() => searchParams.get('tags')?.split(',').filter(Boolean) || [], [searchParams]);
+  const selectedSources = useMemo(() => searchParams.get('sources')?.split(',').filter(Boolean) || [], [searchParams]);
+  const selectedVersions = useMemo(() => searchParams.get('versions')?.split(',').filter(Boolean) || [], [searchParams]);
 
-  const selectedTypesKey = selectedTypes.join('|');
-  const selectedStylesKey = selectedStyles.join('|');
-  const selectedTagsKey = selectedTags.join('|');
-  const selectedSourcesKey = selectedSources.join('|');
-  const selectedVersionsKey = selectedVersions.join('|');
+  const selectedTypesKey = useMemo(() => selectedTypes.join('|'), [selectedTypes]);
+  const selectedStylesKey = useMemo(() => selectedStyles.join('|'), [selectedStyles]);
+  const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags]);
+  const selectedSourcesKey = useMemo(() => selectedSources.join('|'), [selectedSources]);
+  const selectedVersionsKey = useMemo(() => selectedVersions.join('|'), [selectedVersions]);
 
   const areSnapshotsEqual = useCallback((a: FilterSnapshot, b: FilterSnapshot) => {
     return (
@@ -137,48 +138,51 @@ export function FilterSidebar({
     versions: selectedVersions,
   });
 
+  // 使用 useMemo 缓存 synced 对象，减少不必要的重新创建
+  const synced = useMemo<FilterSnapshot>(() => ({
+    types: selectedTypes,
+    styles: selectedStyles,
+    tags: selectedTags,
+    sources: selectedSources,
+    versions: selectedVersions,
+  }), [selectedTypesKey, selectedStylesKey, selectedTagsKey, selectedSourcesKey, selectedVersionsKey]);
+
+  // 使用 useRef 存储回调，避免作为依赖项导致循环更新
+  const onOptimisticFiltersChangeRef = useRef(onOptimisticFiltersChange);
+  useEffect(() => {
+    onOptimisticFiltersChangeRef.current = onOptimisticFiltersChange;
+  }, [onOptimisticFiltersChange]);
+
   useEffect(() => {
     if (isPending) {
       return;
     }
 
-    const synced: FilterSnapshot = {
-      types: selectedTypes,
-      styles: selectedStyles,
-      tags: selectedTags,
-      sources: selectedSources,
-      versions: selectedVersions,
-    };
-
-    let didUpdate = false;
     setLocalFilters((prev) => {
       if (areSnapshotsEqual(prev, synced)) {
         return prev;
       }
-      didUpdate = true;
       return synced;
     });
 
     // 无论本地状态是否改变，只要 URL 参数已同步，通知外层清除乐观过滤
-    onOptimisticFiltersChange?.(null);
+    // 使用 requestAnimationFrame 确保在下一个渲染周期清除，避免闪烁
+    requestAnimationFrame(() => {
+      onOptimisticFiltersChangeRef.current?.(null);
+    });
   }, [
     areSnapshotsEqual,
     isPending,
-    selectedSources,
-    selectedSourcesKey,
-    selectedStyles,
-    selectedStylesKey,
-    selectedTags,
-    selectedTagsKey,
-    selectedTypes,
-    selectedTypesKey,
-    selectedVersions,
-    selectedVersionsKey,
-    onOptimisticFiltersChange,
+    synced,
   ]);
 
   const updateFilters = useCallback(
     (key: 'types' | 'styles' | 'tags' | 'sources' | 'versions', value: string, checked: boolean) => {
+      // #region agent log
+      const filterStart = performance.now();
+      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filter-sidebar.tsx:updateFilters',message:'筛选变更开始',data:{key,value,checked},timestamp:Date.now(),sessionId:'filter-optimization',runId:'debug-1',hypothesisId:'perf-3'})}).catch(()=>{});
+      // #endregion
+
       const currentSnapshot = localFilters;
       const params = new URLSearchParams(searchParams.toString());
       const current = currentSnapshot[key];
@@ -197,12 +201,24 @@ export function FilterSidebar({
         ...currentSnapshot,
         [key]: updated,
       };
+      
+      // 立即更新本地状态和乐观更新，不等待 URL 更新
       setLocalFilters(nextSnapshot);
       onOptimisticFiltersChange?.(nextSnapshot);
+
+      // #region agent log
+      const optimisticUpdateTime = performance.now() - filterStart;
+      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filter-sidebar.tsx:updateFilters',message:'乐观更新完成',data:{optimisticUpdateTime},timestamp:Date.now(),sessionId:'filter-optimization',runId:'debug-1',hypothesisId:'perf-3'})}).catch(()=>{});
+      // #endregion
 
       startTransition(() => {
         // 使用 replace 而不是 push，避免添加到历史记录，提升性能
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        
+        // #region agent log
+        const urlUpdateTime = performance.now() - filterStart;
+        fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filter-sidebar.tsx:updateFilters',message:'URL更新完成',data:{urlUpdateTime},timestamp:Date.now(),sessionId:'filter-optimization',runId:'debug-1',hypothesisId:'perf-3'})}).catch(()=>{});
+        // #endregion
       });
     },
     [router, pathname, searchParams, localFilters, onOptimisticFiltersChange, startTransition]

@@ -151,14 +151,29 @@ const ThumbnailPreviewPopover = memo(function ThumbnailPreviewPopover({ position
     
     // 使用 passive 选项优化滚动性能
     const scrollOptions = { passive: true, capture: true } as AddEventListenerOptions;
+    
+    // 性能优化：使用防抖处理 resize 事件，避免频繁触发
+    let resizeTimeoutId: NodeJS.Timeout | null = null;
+    const debouncedUpdatePosition = () => {
+      if (resizeTimeoutId) {
+        clearTimeout(resizeTimeoutId);
+      }
+      resizeTimeoutId = setTimeout(() => {
+        updatePosition();
+      }, 150); // 150ms 防抖延迟
+    };
+    
     const resizeOptions = { passive: true } as AddEventListenerOptions;
     
     window.addEventListener('scroll', updatePosition, scrollOptions);
-    window.addEventListener('resize', updatePosition, resizeOptions);
+    window.addEventListener('resize', debouncedUpdatePosition, resizeOptions);
 
     return () => {
       window.removeEventListener('scroll', updatePosition, scrollOptions);
-      window.removeEventListener('resize', updatePosition, resizeOptions);
+      window.removeEventListener('resize', debouncedUpdatePosition, resizeOptions);
+      if (resizeTimeoutId) {
+        clearTimeout(resizeTimeoutId);
+      }
     };
   }, [elementRef, position, mounted]);
 

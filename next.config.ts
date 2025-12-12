@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { join } from 'path';
 
 const nextConfig: NextConfig = {
   // 启用压缩
@@ -54,8 +55,17 @@ const nextConfig: NextConfig = {
     ppr: false, // 暂时禁用，等稳定后启用
   },
   
+  // 明确使用 webpack（因为项目中有自定义 webpack 配置）
+  // 设置空的 turbopack 配置来明确表示使用 webpack
+  // 这样可以避免 Next.js 16 默认使用 Turbopack 时的配置冲突
+  turbopack: {},
+  
   // 优化输出
   output: 'standalone',
+  
+  // 修复 workspace root 警告：明确指定工作区根目录
+  // 这可以避免 Next.js 因为检测到多个 lockfiles 而推断错误的工作区根目录
+  outputFileTracingRoot: process.cwd(),
   
   // 编译器优化
   compiler: {

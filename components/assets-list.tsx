@@ -96,11 +96,26 @@ function AssetsListContent({
     });
 
     resizeObserver.observe(scrollElement);
-    window.addEventListener('resize', computeWidth);
+    
+    // 性能优化：使用防抖处理 window.resize 事件，避免频繁触发
+    let timeoutId: NodeJS.Timeout | null = null;
+    const debouncedComputeWidth = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        computeWidth();
+      }, 150); // 150ms 防抖延迟
+    };
+    
+    window.addEventListener('resize', debouncedComputeWidth, { passive: true });
 
     return () => {
       resizeObserver.disconnect();
-      window.removeEventListener('resize', computeWidth);
+      window.removeEventListener('resize', debouncedComputeWidth);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [scrollElement]);
 

@@ -4,30 +4,12 @@ import { join } from 'path';
 import { createHash } from 'crypto';
 import { getStorageMode } from '@/lib/storage';
 import { FILE_UPLOAD_LIMITS, ALLOWED_FILE_EXTENSIONS, ALLOWED_MIME_TYPES } from '@/lib/constants';
-import OSS from 'ali-oss';
+import { getOSSClient } from '@/lib/oss-client';
+import { handleApiError } from '@/lib/error-handler';
 import sharp from 'sharp';
 
-const STORAGE_MODE = (process.env.STORAGE_MODE as 'local' | 'oss' | undefined) ?? 'local';
-
-function getOSSClient(): OSS {
-  const bucket = process.env.OSS_BUCKET;
-  const region = process.env.OSS_REGION;
-  const accessKeyId = process.env.OSS_ACCESS_KEY_ID;
-  const accessKeySecret = process.env.OSS_ACCESS_KEY_SECRET;
-  const endpoint = process.env.OSS_ENDPOINT;
-
-  if (!bucket || !region || !accessKeyId || !accessKeySecret) {
-    throw new Error('OSS 配置不完整');
-  }
-
-  return new OSS({
-    region,
-    bucket,
-    accessKeyId,
-    accessKeySecret,
-    ...(endpoint && { endpoint }),
-  });
-}
+// 使用统一的存储模式判断函数，确保本地和线上行为一致
+const STORAGE_MODE = getStorageMode();
 
 export async function POST(request: Request) {
   try {
@@ -220,24 +202,8 @@ export async function POST(request: Request) {
       hash: fileHash, // 返回文件 hash（SHA256），用于重复检测
     });
   } catch (error) {
-    // 错误日志在生产环境也保留
-    console.error('上传文件失败:', error);
-    let message = '上传文件失败';
-    if (error instanceof Error) {
-      // 将常见错误信息转换为中文
-      if (error.message.includes('OSS') || error.message.includes('配置')) {
-        message = 'OSS配置错误，请检查环境变量';
-      } else if (error.message.includes('permission') || error.message.includes('权限')) {
-        message = '没有权限上传文件，请检查OSS权限配置';
-      } else if (error.message.includes('network') || error.message.includes('网络')) {
-        message = '网络错误，请检查网络连接';
-      } else if (error.message.includes('timeout') || error.message.includes('超时')) {
-        message = '上传超时，请重试';
-      } else {
-        message = error.message || '上传文件失败';
-      }
-    }
-    return NextResponse.json({ message }, { status: 500 });
+    // 使用统一的错误处理
+    return handleApiError(error, '上传文件失败');
   }
 }
 

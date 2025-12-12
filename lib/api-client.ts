@@ -31,26 +31,33 @@ export async function apiFetch<T = unknown>(
     headers = {},
   } = clientOptions;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-  const fetchOptions: RequestInit = {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-      ...options.headers,
-    },
-    signal: controller.signal,
-  };
-
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    // 每次重试都创建新的 AbortController 和 timeout
+    const controller = new AbortController();
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+        ...options.headers,
+      },
+      signal: controller.signal,
+    };
+
+    // 设置超时
+    timeoutId = setTimeout(() => controller.abort(), timeout);
+
     try {
       const response = await fetch(url, fetchOptions);
 
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
 
       if (!response.ok) {
         // 对于 4xx 错误（客户端错误），不重试
@@ -80,7 +87,11 @@ export async function apiFetch<T = unknown>(
 
       return await response.json();
     } catch (error) {
-      clearTimeout(timeoutId);
+      // 清理超时
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
 
       if (error instanceof ApiErrorImpl) {
         throw error;

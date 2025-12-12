@@ -72,9 +72,25 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
     };
     
     updateMenuWidth();
-    // 监听窗口大小变化
-    window.addEventListener('resize', updateMenuWidth);
-    return () => window.removeEventListener('resize', updateMenuWidth);
+    
+    // 性能优化：使用防抖处理 resize 事件，避免频繁触发
+    let timeoutId: NodeJS.Timeout | null = null;
+    const debouncedUpdateMenuWidth = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        updateMenuWidth();
+      }, 150); // 150ms 防抖延迟
+    };
+    
+    window.addEventListener('resize', debouncedUpdateMenuWidth, { passive: true });
+    return () => {
+      window.removeEventListener('resize', debouncedUpdateMenuWidth);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [currentProject]);
 
   const handleProjectClick = useCallback(

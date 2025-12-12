@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
 import OSS from 'ali-oss';
+import { getOSSClient } from './oss-client';
 import {
   AssetSchema,
   ManifestSchema,
@@ -213,36 +214,8 @@ function generateUUID(): string {
   ].join('-');
 }
 
-// 初始化 OSS 客户端（仅在 OSS 模式下使用）
-let ossClient: OSS | null = null;
-
-export function getOSSClient(): OSS {
-  if (ossClient) {
-    return ossClient;
-  }
-
-  const bucket = process.env.OSS_BUCKET;
-  const region = process.env.OSS_REGION;
-  const accessKeyId = process.env.OSS_ACCESS_KEY_ID;
-  const accessKeySecret = process.env.OSS_ACCESS_KEY_SECRET;
-  const endpoint = process.env.OSS_ENDPOINT;
-
-  if (!bucket || !region || !accessKeyId || !accessKeySecret) {
-    throw new Error(
-      'OSS 配置不完整，请检查环境变量：OSS_BUCKET, OSS_REGION, OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET'
-    );
-  }
-
-  ossClient = new OSS({
-    region,
-    bucket,
-    accessKeyId,
-    accessKeySecret,
-    ...(endpoint && { endpoint }),
-  });
-
-  return ossClient;
-}
+// 重新导出统一的 OSS 客户端工具
+export { getOSSClient } from './oss-client';
 
 async function readLocalManifest(): Promise<{ assets: Asset[]; allowedTypes: string[] }> {
   // 尝试读取缓存
@@ -494,6 +467,7 @@ async function writeLocalManifest(assets: Asset[], allowedTypes?: string[]): Pro
 async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: string[] }> {
   const cached = readAssetManifestCache();
   if (cached) {
+    console.info('[OSS Manifest] 使用缓存，资产数量:', cached.assets.length);
     return {
       assets: cached.assets,
       allowedTypes: [...cached.allowedTypes],
@@ -505,8 +479,9 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
     let client: OSS;
     try {
       client = getOSSClient();
+      console.info('[OSS Manifest] OSS 客户端创建成功');
     } catch (configError: any) {
-      console.warn('OSS 配置不完整，返回空数组:', configError.message);
+      console.warn('[OSS Manifest] OSS 配置不完整，返回空数组:', configError.message);
       const manifest: Manifest = {
         assets: [],
         allowedTypes: [...DEFAULT_ASSET_TYPES],
@@ -515,7 +490,9 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
       return { assets: [], allowedTypes: [...DEFAULT_ASSET_TYPES] };
     }
     
+    console.info('[OSS Manifest] 开始读取 manifest.json...');
     const result = await client.get(MANIFEST_FILE_NAME);
+    console.info('[OSS Manifest] manifest.json 读取成功，大小:', result.content.length, 'bytes');
     const data = JSON.parse(result.content.toString('utf-8'));
     
     // 先获取 allowedTypes（如果存在）
@@ -588,6 +565,8 @@ async function readOSSManifest(): Promise<{ assets: Asset[]; allowedTypes: strin
         allowedTypes: manifest.allowedTypes || [...DEFAULT_ASSET_TYPES],
       };
       writeAssetManifestCache(manifestForCache);
+      
+      console.info('[OSS Manifest] 解析完成，资产数量:', finalAssets.length);
 
       return { assets: finalAssets, allowedTypes: manifestForCache.allowedTypes || [...DEFAULT_ASSET_TYPES] };
     } catch (parseError: any) {
@@ -1050,7 +1029,26 @@ export async function deleteAsset(id: string): Promise<void> {
 }
 
 export function getStorageMode(): StorageMode {
-  return STORAGE_MODE;
+  // 运行时读取环境变量，而不是使用模块加载时的常量
+  // 这样可以确保在环境变量更新后能正确读取
+  const envMode =
+    (process.env.STORAGE_MODE as StorageMode | undefined) ??
+    (process.env.NEXT_PUBLIC_STORAGE_MODE as StorageMode | undefined);
+
+  if (envMode === 'local' || envMode === 'oss') {
+    return envMode;
+  }
+
+  // 如果没有明确设置，根据环境推断
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL === '1' ||
+    process.env.NEXT_RUNTIME === 'edge'
+  ) {
+    return 'oss';
+  }
+
+  return 'local';
 }
 
 
