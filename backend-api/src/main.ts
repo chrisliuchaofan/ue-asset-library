@@ -3,6 +3,9 @@
  * 如果使用 Express，请参考 src/index-express.ts
  */
 
+// 加载 .env 文件
+import 'dotenv/config';
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
