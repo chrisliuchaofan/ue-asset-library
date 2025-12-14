@@ -15,11 +15,20 @@ export class LogsService {
    */
   async create(
     userId: string,
-    logData: { action: string; details?: any; success: boolean; timestamp: string }
+    logData: {
+      action: string;
+      details?: any;
+      success: boolean;
+      timestamp: string;
+      logType?: 'business' | 'system';
+      level?: 'info' | 'warn' | 'error';
+    }
   ): Promise<{ logId: string }> {
     const logEntry = this.logRepository.create({
       userId,
       action: logData.action,
+      logType: logData.logType || 'business', // 默认为业务日志
+      level: logData.level || (logData.logType === 'system' ? 'info' : null),
       details: logData.details || null,
       success: logData.success,
       timestamp: logData.timestamp ? new Date(logData.timestamp) : new Date(),
@@ -32,6 +41,8 @@ export class LogsService {
       logId: saved.id,
       userId: saved.userId,
       action: saved.action,
+      logType: saved.logType,
+      level: saved.level,
       success: saved.success,
       timestamp: saved.timestamp,
     }, null, 2));

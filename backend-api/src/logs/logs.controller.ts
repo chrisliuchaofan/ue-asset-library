@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Headers, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { LogsService } from './logs.service';
 import { AuthGuard } from '../credits/auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('logs')
 @UseGuards(AuthGuard)
@@ -9,10 +10,18 @@ export class LogsController {
 
   @Post('create')
   async create(
-    @Headers('x-user-id') userId: string,
-    @Body() body: { action: string; details?: any; success: boolean; timestamp: string }
+    @CurrentUser() user: { userId: string; email: string },
+    @Body() body: {
+      action: string;
+      details?: any;
+      success: boolean;
+      timestamp: string;
+      logType?: 'business' | 'system';
+      level?: 'info' | 'warn' | 'error';
+    }
   ) {
-    return this.logsService.create(userId, body);
+    // ✅ 从 JWT token 解析，前端无法伪造
+    return this.logsService.create(user.userId, body);
   }
 }
 

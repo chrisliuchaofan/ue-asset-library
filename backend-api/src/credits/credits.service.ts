@@ -55,12 +55,48 @@ export class CreditsService {
   }
 
   /**
-   * 获取用户积分余额
+   * 获取用户积分余额（账本化：从 transaction 表 sum 计算）
+   * 
+   * 这是唯一真实来源（Single Source of Truth）
+   * user.credits 仅作为缓存，用于快速查询
    */
   async getBalance(userId: string): Promise<{ balance: number }> {
+    // ✅ 从 transaction 表 sum 计算，这是账本的真实余额
+    const result = await this.transactionRepository
+      .createQueryBuilder('txn')
+      .select('COALESCE(SUM(txn.amount), 0)', 'balance')
+      .where('txn.userId = :userId', { userId })
+      .getRawOne();
+    
+    const ledgerBalance = parseInt(result.balance) || 0;
+    
+    // 可选：同步更新 user.credits 作为缓存（如果不同步，下次查询时会自动修正）
     const user = await this.userRepository.findOne({ where: { id: userId } });
-    const balance = user?.credits || 0;
-    return { balance };
+    if (user && user.credits !== ledgerBalance) {
+      // 如果缓存不一致，更新缓存（但不影响真实余额计算）
+      user.credits = ledgerBalance;
+      await this.userRepository.save(user);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[CreditsService] 余额缓存已同步: ${userId}, ${user.credits} -> ${ledgerBalance}`);
+      }
+    }
+    
+    return { balance: ledgerBalance };
+  }
+
+  /**
+   * 验证余额一致性（用于调试和审计）
+   */
+  async validateBalance(userId: string): Promise<{ valid: boolean; ledgerBalance: number; cachedBalance: number }> {
+    const ledgerBalance = (await this.getBalance(userId)).balance;
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const cachedBalance = user?.credits || 0;
+    
+    return {
+      valid: ledgerBalance === cachedBalance,
+      ledgerBalance,
+      cachedBalance,
+    };
   }
 
   /**
@@ -82,7 +118,14 @@ export class CreditsService {
         throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
       }
 
-      const currentBalance = user.credits || 0;
+      // ✅ 从账本计算真实余额（而不是从 user.credits 读取）
+      const balanceResult = await transactionalEntityManager
+        .createQueryBuilder(CreditTransaction, 'txn')
+        .select('COALESCE(SUM(txn.amount), 0)', 'balance')
+        .where('txn.userId = :userId', { userId })
+        .getRawOne();
+      
+      const currentBalance = parseInt(balanceResult.balance) || 0;
 
       if (currentBalance < amount) {
         throw new HttpException(
@@ -96,15 +139,13 @@ export class CreditsService {
         );
       }
 
-      // 扣除积分
+      // 计算新余额
       const newBalance = currentBalance - amount;
-      user.credits = newBalance;
-      await transactionalEntityManager.save(user);
-
+      
       // 生成交易ID
       const transactionId = `txn-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-      // 记录交易
+      // ✅ 先记录交易（账本只增不改）
       const transaction = transactionalEntityManager.create(CreditTransaction, {
         userId,
         amount: -amount,
@@ -114,6 +155,11 @@ export class CreditsService {
         balanceAfter: newBalance,
       });
       await transactionalEntityManager.save(transaction);
+
+      // ✅ 然后更新 user.credits 作为缓存（可选，但建议保持同步）
+      user.credits = newBalance;
+      await transactionalEntityManager.save(user);
+
 
       return {
         success: true,
@@ -137,12 +183,17 @@ export class CreditsService {
         throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
       }
 
-      const currentBalance = user.credits || 0;
+      // ✅ 从账本计算真实余额
+      const balanceResult = await transactionalEntityManager
+        .createQueryBuilder(CreditTransaction, 'txn')
+        .select('COALESCE(SUM(txn.amount), 0)', 'balance')
+        .where('txn.userId = :userId', { userId })
+        .getRawOne();
+      
+      const currentBalance = parseInt(balanceResult.balance) || 0;
       const newBalance = currentBalance + amount;
-      user.credits = newBalance;
-      await transactionalEntityManager.save(user);
 
-      // 记录交易
+      // ✅ 先记录交易（账本只增不改）
       const transaction = transactionalEntityManager.create(CreditTransaction, {
         userId,
         amount,
@@ -151,6 +202,10 @@ export class CreditsService {
         balanceAfter: newBalance,
       });
       await transactionalEntityManager.save(transaction);
+
+      // ✅ 然后更新 user.credits 作为缓存
+      user.credits = newBalance;
+      await transactionalEntityManager.save(user);
 
       return { balance: newBalance };
     });
