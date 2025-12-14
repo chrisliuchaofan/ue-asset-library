@@ -1,19 +1,14 @@
 import { Injectable } from '@nestjs/common';
-
-interface LogEntry {
-  logId: string;
-  userId: string;
-  action: string;
-  details?: any;
-  success: boolean;
-  timestamp: string;
-  createdAt: Date;
-}
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { LogEntry } from '../database/entities/log-entry.entity';
 
 @Injectable()
 export class LogsService {
-  // 内存存储（生产环境应使用数据库）
-  private logs: LogEntry[] = [];
+  constructor(
+    @InjectRepository(LogEntry)
+    private logRepository: Repository<LogEntry>,
+  ) {}
 
   /**
    * 创建日志
@@ -22,39 +17,47 @@ export class LogsService {
     userId: string,
     logData: { action: string; details?: any; success: boolean; timestamp: string }
   ): Promise<{ logId: string }> {
-    const logId = `log-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    
-    const logEntry: LogEntry = {
-      logId,
+    const logEntry = this.logRepository.create({
       userId,
-      ...logData,
-      createdAt: new Date(),
-    };
+      action: logData.action,
+      details: logData.details || null,
+      success: logData.success,
+      timestamp: logData.timestamp ? new Date(logData.timestamp) : new Date(),
+    });
 
-    this.logs.push(logEntry);
-
-    // 只保留最近1000条日志（生产环境应使用数据库）
-    if (this.logs.length > 1000) {
-      this.logs = this.logs.slice(-1000);
-    }
-
-    // TODO: 保存到数据库
-    // await this.logRepository.create(logEntry);
+    const saved = await this.logRepository.save(logEntry);
 
     // 输出到控制台（生产环境应使用日志服务）
-    console.log('[Log]', JSON.stringify(logEntry, null, 2));
+    console.log('[Log]', JSON.stringify({
+      logId: saved.id,
+      userId: saved.userId,
+      action: saved.action,
+      success: saved.success,
+      timestamp: saved.timestamp,
+    }, null, 2));
 
-    return { logId };
+    return { logId: saved.id };
   }
 
   /**
    * 获取用户日志（管理功能）
    */
   async getUserLogs(userId: string, limit = 50): Promise<LogEntry[]> {
-    return this.logs
-      .filter(log => log.userId === userId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(0, limit);
+    return this.logRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
+  }
+
+  /**
+   * 获取所有日志（管理功能）
+   */
+  async getAllLogs(limit = 100): Promise<LogEntry[]> {
+    return this.logRepository.find({
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
   }
 }
 
