@@ -49,6 +49,7 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`🚀 Backend API running on port ${port}`);
   console.log(`📡 Frontend URL: ${frontendUrl}`);
+  console.log(`✅ Auto-deploy test: ${new Date().toISOString()}`);
 }
 
 bootstrap();
