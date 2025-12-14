@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Library, Box, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { Library, Box, BookOpen, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 import { SearchBox } from '@/components/search-box';
 import { HomeProjectSelector } from '@/components/home-project-selector';
@@ -195,7 +195,7 @@ export function AnimatedHero({ onCardVisible }: { onCardVisible?: (visible: bool
               </div>
 
               {/* 卡片式入口区 */}
-              <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 max-w-xl">
+              <div className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 max-w-4xl">
                 
                 {/* 资产入口卡片 */}
                 <Link
@@ -228,6 +228,25 @@ export function AnimatedHero({ onCardVisible }: { onCardVisible?: (visible: bool
                   <h3 className="text-lg font-bold text-white mb-1 group-hover:text-purple-200 transition-colors">素材库</h3>
                   <p className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
                     探索纹理、材质球、特效与环境资产
+                  </p>
+                  {/* 装饰性箭头 */}
+                  <div className="absolute right-3 top-3 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/50"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                  </div>
+                </Link>
+
+                {/* 梦工厂入口卡片 */}
+                <Link
+                  href="/dream-factory"
+                  prefetch
+                  className="group relative flex flex-col items-start overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-xl hover:shadow-amber-500/10"
+                >
+                  <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-1 group-hover:text-amber-200 transition-colors">梦工厂</h3>
+                  <p className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                    AI 驱动的创意视频生成工具
                   </p>
                   {/* 装饰性箭头 */}
                   <div className="absolute right-3 top-3 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">
