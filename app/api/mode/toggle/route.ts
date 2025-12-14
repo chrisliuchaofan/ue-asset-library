@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('[API /mode/toggle] 错误:', error);
     return NextResponse.json(
-      createStandardError(ErrorCode.INTERNAL_SERVER_ERROR, '切换模式失败'),
+      createStandardError(ErrorCode.INTERNAL_ERROR, '切换模式失败'),
       { status: 500 }
     );
   }

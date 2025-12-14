@@ -74,7 +74,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('[API /credits/add] 错误:', error);
     return NextResponse.json(
-      createStandardError(ErrorCode.INTERNAL_SERVER_ERROR, '充值失败'),
+      createStandardError(ErrorCode.INTERNAL_ERROR, '充值失败'),
       { status: 500 }
     );
   }

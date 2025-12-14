@@ -41,9 +41,11 @@ async function getBackendToken(): Promise<string | null> {
   // 这样可以解决前端 session email 和后端 USER_WHITELIST 不匹配的问题
   const backendEmail = process.env.BACKEND_TEST_EMAIL || email.trim();
   
+  // 获取 ADMIN_USERS 配置（用于错误日志）
+  const adminUsers = process.env.ADMIN_USERS || '';
+  
   // 如果 BACKEND_TEST_PASSWORD 未配置，尝试从 ADMIN_USERS 中查找
   if (!password) {
-    const adminUsers = process.env.ADMIN_USERS || '';
     if (adminUsers) {
       const users = adminUsers.split(',');
       const user = users.find(u => {

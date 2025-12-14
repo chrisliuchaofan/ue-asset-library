@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ErrorCode, inferErrorCode, ErrorStatusCodes } from './errors/error-codes';
-import { createStandardError, logError, generateTraceId } from './errors/error-handler';
+import { createStandardError, logError } from './errors/error-handler';
 
 /**
  * API 错误响应格式（兼容旧格式，同时支持新格式）

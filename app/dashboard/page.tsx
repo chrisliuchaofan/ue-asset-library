@@ -7,7 +7,7 @@ import { backendClient } from '@/lib/backend-client';
 import Link from 'next/link';
 import { Film, Package, Settings, LogOut, CreditCard } from 'lucide-react';
 import { signOut } from 'next-auth/react';
-import Button from '@/components/dream-factory/Button';
+import { Button } from '@/components/ui/button';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -65,10 +65,12 @@ export default function DashboardPage() {
           <Button
             variant="outline"
             size="sm"
-            icon={LogOut}
             onClick={() => signOut({ callbackUrl: '/' })}
-            tooltip="登出"
-          />
+            title="登出"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            登出
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
