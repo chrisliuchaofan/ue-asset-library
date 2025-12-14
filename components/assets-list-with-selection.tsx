@@ -522,10 +522,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
       const start = performance.now();
       setIsFetching(true);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assets-list-with-selection.tsx:519',message:'开始筛选请求',data:{keyword:payload.keyword,typesCount:payload.types?.length,stylesCount:payload.styles?.length,tagsCount:payload.tags?.length},timestamp:Date.now(),sessionId:'filter-optimization',runId:'pre-fix',hypothesisId:'perf-1'})}).catch(()=>{});
-      // #endregion
 
       fetch('/api/assets/query', {
       method: 'POST',
@@ -544,18 +540,10 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
         const duration = performance.now() - start;
         setDisplayAssets(nextAssets);
         setFilterDurationMs(duration);
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assets-list-with-selection.tsx:536',message:'筛选请求完成',data:{duration,assetsCount:nextAssets.length},timestamp:Date.now(),sessionId:'filter-optimization',runId:'pre-fix',hypothesisId:'perf-1'})}).catch(()=>{});
-        // #endregion
       })
       .catch((error) => {
         if (error.name === 'AbortError') return;
         console.error('筛选接口错误:', error);
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'assets-list-with-selection.tsx:540',message:'筛选请求失败',data:{error:error.message},timestamp:Date.now(),sessionId:'filter-optimization',runId:'pre-fix',hypothesisId:'perf-1'})}).catch(()=>{});
-        // #endregion
       })
       .finally(() => {
         if (!controller.signal.aborted) {

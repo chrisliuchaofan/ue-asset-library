@@ -178,11 +178,6 @@ export function FilterSidebar({
 
   const updateFilters = useCallback(
     (key: 'types' | 'styles' | 'tags' | 'sources' | 'versions', value: string, checked: boolean) => {
-      // #region agent log
-      const filterStart = performance.now();
-      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filter-sidebar.tsx:updateFilters',message:'筛选变更开始',data:{key,value,checked},timestamp:Date.now(),sessionId:'filter-optimization',runId:'debug-1',hypothesisId:'perf-3'})}).catch(()=>{});
-      // #endregion
-
       const currentSnapshot = localFilters;
       const params = new URLSearchParams(searchParams.toString());
       const current = currentSnapshot[key];
@@ -206,19 +201,9 @@ export function FilterSidebar({
       setLocalFilters(nextSnapshot);
       onOptimisticFiltersChange?.(nextSnapshot);
 
-      // #region agent log
-      const optimisticUpdateTime = performance.now() - filterStart;
-      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filter-sidebar.tsx:updateFilters',message:'乐观更新完成',data:{optimisticUpdateTime},timestamp:Date.now(),sessionId:'filter-optimization',runId:'debug-1',hypothesisId:'perf-3'})}).catch(()=>{});
-      // #endregion
-
       startTransition(() => {
         // 使用 replace 而不是 push，避免添加到历史记录，提升性能
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-        
-        // #region agent log
-        const urlUpdateTime = performance.now() - filterStart;
-        fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'filter-sidebar.tsx:updateFilters',message:'URL更新完成',data:{urlUpdateTime},timestamp:Date.now(),sessionId:'filter-optimization',runId:'debug-1',hypothesisId:'perf-3'})}).catch(()=>{});
-        // #endregion
       });
     },
     [router, pathname, searchParams, localFilters, onOptimisticFiltersChange, startTransition]
