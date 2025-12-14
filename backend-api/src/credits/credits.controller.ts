@@ -17,10 +17,11 @@ export class CreditsController {
   @Post('consume')
   async consume(
     @CurrentUser() user: { userId: string; email: string },
-    @Body() body: { amount: number; action: string }
+    @Body() body: { amount: number; action: string; refId?: string }
   ) {
     // ✅ 从 JWT token 解析，前端无法伪造
-    return this.creditsService.consume(user.userId, body.amount, body.action);
+    // ✅ refId 用于幂等性检查（如 jobId）
+    return this.creditsService.consume(user.userId, body.amount, body.action, body.refId);
   }
 }
 

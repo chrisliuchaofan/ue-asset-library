@@ -2,6 +2,7 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Job } from '../database/entities/job.entity';
+import { validateJobInput, validateJobOutput } from './job-schemas';
 
 @Injectable()
 export class JobsService {
@@ -11,7 +12,7 @@ export class JobsService {
   ) {}
 
   /**
-   * 创建新任务
+   * 创建新任务（带输入验证）
    */
   async create(data: {
     userId: string;
@@ -21,11 +22,20 @@ export class JobsService {
     model?: string;
     estimatedCost?: number;
   }): Promise<Job> {
+    // ✅ 验证输入结构
+    const inputValidation = validateJobInput(data.type, data.input);
+    if (!inputValidation.valid) {
+      throw new HttpException(
+        `任务输入验证失败: ${inputValidation.error}`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
     const job = this.jobRepository.create({
       userId: data.userId,
       type: data.type,
       status: 'queued',
-      input: data.input,
+      input: inputValidation.data, // 使用验证后的数据
       provider: data.provider,
       model: data.model,
       estimatedCost: data.estimatedCost,
@@ -49,7 +59,7 @@ export class JobsService {
   }
 
   /**
-   * 完成任务
+   * 完成任务（带输出验证）
    */
   async complete(
     jobId: string,
@@ -63,8 +73,18 @@ export class JobsService {
     if (!job) {
       throw new HttpException('任务不存在', HttpStatus.NOT_FOUND);
     }
+
+    // ✅ 验证输出结构
+    const outputValidation = validateJobOutput(job.type, data.output);
+    if (!outputValidation.valid) {
+      throw new HttpException(
+        `任务输出验证失败: ${outputValidation.error}`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
     job.status = 'completed';
-    job.output = data.output;
+    job.output = outputValidation.data; // 使用验证后的数据
     job.creditCost = data.creditCost;
     job.transactionId = data.transactionId;
     return await this.jobRepository.save(job);

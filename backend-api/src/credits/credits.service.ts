@@ -100,13 +100,52 @@ export class CreditsService {
   }
 
   /**
-   * 消费积分
+   * 消费积分（支持幂等性和 Dry Run 模式）
+   * @param userId 用户ID
+   * @param amount 消费金额
+   * @param action 操作类型
+   * @param refId 引用ID（如 jobId），用于幂等性检查。如果提供且已存在相同 refId+action 的交易，则返回已存在的交易
    */
   async consume(
     userId: string,
     amount: number,
-    action: string
-  ): Promise<{ success: boolean; balance: number; transactionId: string }> {
+    action: string,
+    refId?: string
+  ): Promise<{ success: boolean; balance: number; transactionId: string; isIdempotent?: boolean; isDryRun?: boolean }> {
+    // ✅ Dry Run 模式：不写真实扣费，但返回模拟结果
+    const billingEnabled = process.env.BILLING_ENABLED !== 'false';
+    
+    if (!billingEnabled) {
+      console.log('[CreditsService] Dry Run 模式：模拟扣费，不写真实 ledger');
+      const currentBalance = (await this.getBalance(userId)).balance;
+      const mockTransactionId = `mock-txn-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      
+      return {
+        success: true,
+        balance: currentBalance - amount, // 模拟扣费后的余额
+        transactionId: mockTransactionId,
+        isDryRun: true, // 标记为 Dry Run
+      };
+    }
+
+    // ✅ 幂等性检查：如果提供了 refId，检查是否已存在相同交易
+    if (refId) {
+      const existingTransaction = await this.transactionRepository.findOne({
+        where: { userId, refId, action },
+      });
+      
+      if (existingTransaction) {
+        // 已存在，返回已存在的交易（幂等）
+        const currentBalance = (await this.getBalance(userId)).balance;
+        return {
+          success: true,
+          balance: currentBalance,
+          transactionId: existingTransaction.transactionId || existingTransaction.id,
+          isIdempotent: true, // 标记为幂等返回
+        };
+      }
+    }
+
     // 使用数据库事务确保数据一致性
     return await this.userRepository.manager.transaction(async (transactionalEntityManager) => {
       const user = await transactionalEntityManager.findOne(User, {
@@ -182,15 +221,36 @@ export class CreditsService {
       const transactionId = `txn-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
       // ✅ 先记录交易（账本只增不改）
+      // 注意：如果 refId 已存在，数据库唯一约束会抛出错误，事务会回滚
       const transaction = transactionalEntityManager.create(CreditTransaction, {
         userId,
         amount: -amount,
         action,
+        refId: refId || null, // 用于幂等性检查
         transactionId,
         description: `消费积分: ${action}`,
         balanceAfter: newBalance,
       });
-      await transactionalEntityManager.save(transaction);
+      
+      try {
+        await transactionalEntityManager.save(transaction);
+      } catch (error: any) {
+        // 如果是唯一约束冲突（幂等性），返回已存在的交易
+        if (error.code === '23505' && refId) { // PostgreSQL unique violation
+          const existing = await transactionalEntityManager.findOne(CreditTransaction, {
+            where: { userId, refId, action },
+          });
+          if (existing) {
+            return {
+              success: true,
+              balance: existing.balanceAfter,
+              transactionId: existing.transactionId || existing.id,
+              isIdempotent: true,
+            };
+          }
+        }
+        throw error;
+      }
 
       // ✅ 然后更新 user.credits 作为缓存（可选，但建议保持同步）
       user.credits = newBalance;

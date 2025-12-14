@@ -36,11 +36,21 @@ export interface GenerateContentResponse {
 export class ModelAdapterService {
   /**
    * 生成内容（统一入口）
+   * 
+   * Dry Run 模式：当 MODEL_ENABLED=false 时，返回 mock 数据，不调用真实模型
    */
   async generateContent(
     input: string,
     options: GenerateContentOptions & { provider?: ModelProvider } = {}
   ): Promise<GenerateContentResponse> {
+    // ✅ Dry Run 模式：不调用真实模型，返回可预测的 mock 输出
+    const modelEnabled = process.env.MODEL_ENABLED !== 'false';
+    
+    if (!modelEnabled) {
+      console.log('[ModelAdapter] Dry Run 模式：返回 mock 数据，不调用真实模型');
+      return this.generateMockResponse(input, options);
+    }
+
     const provider = options.provider || (process.env.MODEL_PROVIDER as ModelProvider) || 'qwen';
 
     switch (provider) {
@@ -53,6 +63,29 @@ export class ModelAdapterService {
       default:
         throw new Error(`不支持的 provider: ${provider}`);
     }
+  }
+
+  /**
+   * 生成 Mock 响应（Dry Run 模式）
+   * 返回固定结构，便于回归测试
+   */
+  private generateMockResponse(
+    input: string,
+    options: GenerateContentOptions
+  ): GenerateContentResponse {
+    // 可预测的 mock 输出，便于回归测试
+    const mockText = `[Mock Response] 输入: "${input.substring(0, 50)}${input.length > 50 ? '...' : ''}"\n\n这是一个 Dry Run 模式的模拟响应。实际模型调用已禁用（MODEL_ENABLED=false）。\n\n模型: ${options.model || 'mock-model'}\n温度: ${options.temperature || 0.7}\n最大Token: ${options.maxTokens || 2000}`;
+
+    return {
+      text: mockText,
+      raw: {
+        mock: true,
+        dryRun: true,
+        input: input.substring(0, 100), // 只保存前100字符
+        options,
+        timestamp: new Date().toISOString(),
+      },
+    };
   }
 
   /**
