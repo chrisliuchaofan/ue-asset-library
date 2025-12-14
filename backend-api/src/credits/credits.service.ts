@@ -139,6 +139,42 @@ export class CreditsService {
         );
       }
 
+      // ✅ 检查单次消费上限
+      const MAX_SINGLE_CONSUME = parseInt(process.env.MAX_SINGLE_CONSUME || '100', 10);
+      if (amount > MAX_SINGLE_CONSUME) {
+        throw new HttpException(
+          `单次消费不能超过 ${MAX_SINGLE_CONSUME} 积分`,
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // ✅ 检查每日消费上限（从今天开始的交易记录计算）
+      const DAILY_COST_LIMIT = parseInt(process.env.DAILY_COST_LIMIT || '1000', 10);
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      
+      const todayConsumption = await transactionalEntityManager
+        .createQueryBuilder(CreditTransaction, 'txn')
+        .select('COALESCE(SUM(ABS(txn.amount)), 0)', 'total')
+        .where('txn.userId = :userId', { userId })
+        .andWhere('txn.amount < 0') // 只计算消费（负数）
+        .andWhere('txn.createdAt >= :todayStart', { todayStart })
+        .getRawOne();
+      
+      const todayTotal = parseInt(todayConsumption.total) || 0;
+      if (todayTotal + amount > DAILY_COST_LIMIT) {
+        throw new HttpException(
+          {
+            message: `今日积分消费已达上限（${DAILY_COST_LIMIT}），已消费 ${todayTotal}，本次需要 ${amount}`,
+            code: 'DAILY_LIMIT_EXCEEDED',
+            dailyLimit: DAILY_COST_LIMIT,
+            todayConsumed: todayTotal,
+            requested: amount,
+          },
+          HttpStatus.TOO_MANY_REQUESTS
+        );
+      }
+
       // 计算新余额
       const newBalance = currentBalance - amount;
       
