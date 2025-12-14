@@ -27,6 +27,7 @@ export interface Scene {
   audioUrl?: string;
   referenceAssetId?: string; // ID of the selected asset from OSS
   referenceAssetUrl?: string; // Display URL
+  videoOperationId?: string; // 异步视频生成任务ID
   isGeneratingImage: boolean;
   isGeneratingVideo: boolean;
   isGeneratingAudio: boolean;

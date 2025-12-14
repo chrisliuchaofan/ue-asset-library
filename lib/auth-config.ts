@@ -4,17 +4,26 @@ import type { NextAuthConfig } from 'next-auth';
 
 // 从环境变量读取管理员账号配置
 // 格式：ADMIN_USERS=username1:password1,username2:password2
-function getAdminUsers(): Array<{ username: string; password: string }> {
+function getAdminUsers(): Array<{ username: string; password: string; email?: string }> {
   const usersEnv = process.env.ADMIN_USERS || '';
   if (!usersEnv) {
     // 如果没有配置，使用默认的管理员账号（兼容旧配置）
     const defaultPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin123';
-    return [{ username: 'admin', password: defaultPassword }];
+    return [{ username: 'admin', password: defaultPassword, email: 'admin@admin.local' }];
   }
 
   return usersEnv.split(',').map((user) => {
     const [username, password] = user.split(':');
-    return { username: username.trim(), password: password.trim() };
+    const usernameTrimmed = username.trim();
+    // 如果 username 包含 @，则作为 email；否则生成 email
+    const email = usernameTrimmed.includes('@') 
+      ? usernameTrimmed 
+      : `${usernameTrimmed}@admin.local`;
+    return { 
+      username: usernameTrimmed, 
+      password: password.trim(),
+      email,
+    };
   });
 }
 
@@ -39,9 +48,9 @@ export const authOptions: NextAuthConfig = {
 
         if (user) {
           return {
-            id: user.username,
+            id: user.email || user.username,
             name: user.username,
-            email: `${user.username}@admin.local`,
+            email: user.email || `${user.username}@admin.local`,
           };
         }
 

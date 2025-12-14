@@ -12,7 +12,9 @@
     "pre-push": "./scripts/pre-push.sh",
     "cleanup-duplicates": "tsx scripts/cleanup-duplicate-files.ts",
     "cleanup-duplicates:delete": "tsx scripts/cleanup-duplicate-files.ts --delete",
-    "find-same-size": "tsx scripts/find-same-size-files.ts"
+    "find-same-size": "tsx scripts/find-same-size-files.ts",
+    "test:user-identity": "tsx scripts/test-user-identity-chain.ts",
+    "verify:m3": "tsx scripts/verify-m3-system-status.ts"
   },
   "dependencies": {
     "@google/genai": "^1.33.0",

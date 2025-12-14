@@ -52,6 +52,18 @@ export class Job {
   @Column({ type: 'int', nullable: true })
   estimatedCost: number; // 预估成本（用于预检查）
 
+  @Column('jsonb', { nullable: true })
+  steps: Array<{
+    step: string; // 步骤名称，如 'text_generation', 'image_generation', 'credit_consumption'
+    provider?: string; // 使用的提供商
+    model?: string; // 使用的模型
+    cost: number; // 消耗的积分
+    duration: number; // 耗时（毫秒）
+    status: 'success' | 'failed'; // 步骤状态
+    error?: string; // 错误信息（如果失败）
+    timestamp: string; // ISO 时间戳
+  }>; // 步骤记录，用于统计和调试
+
   @CreateDateColumn()
   createdAt: Date;
 

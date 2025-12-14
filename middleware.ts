@@ -4,8 +4,8 @@ import { NextResponse } from 'next/server';
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
-  // 只保护 /admin 路由
-  if (pathname.startsWith('/admin')) {
+  // 保护 /admin 和 /dream-factory 路由
+  if (pathname.startsWith('/admin') || pathname.startsWith('/dream-factory')) {
     const isAuthenticated = !!req.auth;
 
     if (!isAuthenticated) {
@@ -20,6 +20,6 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ['/admin/:path*'], // 只保护 /admin 开头的路由
+  matcher: ['/admin/:path*', '/dream-factory/:path*'], // 保护 /admin 和 /dream-factory 路由
 };
 

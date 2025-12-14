@@ -23,5 +23,18 @@ export class CreditsController {
     // ✅ refId 用于幂等性检查（如 jobId）
     return this.creditsService.consume(user.userId, body.amount, body.action, body.refId);
   }
+
+  @Post('recharge')
+  async recharge(
+    @CurrentUser() user: { userId: string; email: string },
+    @Body() body: { amount: number }
+  ) {
+    // ✅ 从 JWT token 解析，前端无法伪造
+    // ⚠️ 注意：生产环境应该添加管理员权限检查
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_RECHARGE !== 'true') {
+      throw new Error('充值功能在生产环境已禁用');
+    }
+    return this.creditsService.recharge(user.userId, body.amount);
+  }
 }
 

@@ -421,14 +421,19 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
       if (result.raw?.error) {
         setAiError(result.raw.error);
         setAiResult(null);
-      } else if (result.raw?.mock) {
-        // Mock 结果也正常显示
+      } else if (result.raw?.mock || result.raw?.dryRun) {
+        // ✅ M2: Dry Run 模式的 mock 结果也正常显示，但会显示提示
         const description = result.description || '';
         // 限制字数不超过50字
         const truncatedDescription = description.length > 50 ? description.substring(0, 50) + '...' : description;
         setAiResult({ ...result, description: truncatedDescription });
         saveAnalysis(truncatedDescription);
-        setAiError(null);
+        // 显示 Dry Run 模式提示（不显示为错误，而是信息提示）
+        if (result.raw?.dryRun) {
+          setAiError('ℹ️ Dry Run 模式：这是模拟结果，不会产生真实费用');
+        } else {
+          setAiError('ℹ️ 这是占位结果（AI 服务未配置）');
+        }
       } else {
         const description = result.description || '';
         // 限制字数不超过50字

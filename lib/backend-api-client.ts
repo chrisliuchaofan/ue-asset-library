@@ -1,0 +1,254 @@
+/**
+ * 后端 API 客户端
+ * 自动携带认证 token
+ */
+
+import { getSession } from '@/lib/auth';
+
+const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
+                        process.env.BACKEND_API_URL || 
+                        'https://api.factory-buy.com';
+
+// Token 缓存（避免频繁登录）
+let tokenCache: { email: string; token: string; expiresAt: number } | null = null;
+const TOKEN_CACHE_TTL = 30 * 60 * 1000; // 30 分钟
+
+/**
+ * 获取后端 API 认证 token
+ * 通过后端登录接口获取 JWT token
+ * 
+ * 注意：使用 session 中的 email 和配置的密码登录后端
+ */
+async function getBackendToken(): Promise<string | null> {
+  const session = await getSession();
+  if (!session?.user?.email) {
+    return null;
+  }
+
+  const email = session.user.email;
+
+  // 检查缓存
+  if (tokenCache && tokenCache.email === email && tokenCache.expiresAt > Date.now()) {
+    return tokenCache.token;
+  }
+
+  // 获取密码策略：
+  // 1. 优先使用 BACKEND_TEST_PASSWORD（如果配置了，说明后端有统一的测试密码）
+  // 2. 否则从 ADMIN_USERS 中查找匹配的密码
+  let password: string | null = process.env.BACKEND_TEST_PASSWORD || null;
+  
+  // 如果配置了 BACKEND_TEST_EMAIL，使用它作为后端登录的 email
+  // 这样可以解决前端 session email 和后端 USER_WHITELIST 不匹配的问题
+  const backendEmail = process.env.BACKEND_TEST_EMAIL || email.trim();
+  
+  // 如果 BACKEND_TEST_PASSWORD 未配置，尝试从 ADMIN_USERS 中查找
+  if (!password) {
+    const adminUsers = process.env.ADMIN_USERS || '';
+    if (adminUsers) {
+      const users = adminUsers.split(',');
+      const user = users.find(u => {
+        const [username] = u.split(':');
+        const usernameTrimmed = username.trim();
+        const emailUsername = email.split('@')[0];
+        // 匹配规则：
+        // 1. 完全匹配 email
+        // 2. 匹配 username（如果 email 是 username@admin.local）
+        // 3. 匹配 email 的用户名部分
+        const matched = usernameTrimmed === email || 
+                        usernameTrimmed === emailUsername ||
+                        (email.includes('@admin.local') && usernameTrimmed === emailUsername);
+        
+        if (matched) {
+          console.log('[BackendApiClient] 从 ADMIN_USERS 找到匹配的用户:', {
+            email,
+            username: usernameTrimmed,
+            matched,
+          });
+        }
+        
+        return matched;
+      });
+      if (user) {
+        const [, userPassword] = user.split(':');
+        if (userPassword) {
+          password = userPassword.trim();
+        }
+      }
+    }
+  } else {
+    console.log('[BackendApiClient] 使用 BACKEND_TEST_PASSWORD');
+  }
+
+  if (!password) {
+    const errorMessage = `[BackendApiClient] 未找到匹配的密码配置。前端 session email: ${email}，请检查：
+1. BACKEND_TEST_PASSWORD 环境变量是否已配置
+2. ADMIN_USERS 环境变量中是否包含匹配的用户（email 或 username 需要匹配）
+3. 后端 USER_WHITELIST 环境变量是否包含匹配的用户和密码`;
+    console.warn(errorMessage, {
+      email,
+      adminUsers: adminUsers ? '已配置' : '未配置',
+      hasBackendTestPassword: !!process.env.BACKEND_TEST_PASSWORD,
+      backendTestEmail: process.env.BACKEND_TEST_EMAIL || '未配置',
+    });
+    return null;
+  }
+
+  console.log('[BackendApiClient] 尝试登录后端:', {
+    sessionEmail: email,
+    backendEmail,
+    hasPassword: !!password,
+  });
+  
+  try {
+    const response = await fetch(`${BACKEND_API_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        email: backendEmail, 
+        password: password.trim() 
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      const errorMessage = `[BackendApiClient] 后端登录失败 (${response.status} ${response.statusText})。可能的原因：
+1. 后端服务不可用（请检查后端服务是否运行）
+2. 前端 session email (${email}) 与后端 USER_WHITELIST 不匹配
+3. 密码不匹配（请检查 BACKEND_TEST_PASSWORD 或 ADMIN_USERS 中的密码是否与后端 USER_WHITELIST 匹配）
+4. 后端 USER_WHITELIST 未配置或格式错误
+
+错误详情: ${errorText.substring(0, 200)}`;
+      console.warn(errorMessage, {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText.substring(0, 200),
+        sessionEmail: email,
+        backendEmail,
+        passwordUsed: password ? '已使用' : '未找到',
+        adminUsersMatch: adminUsers ? '已尝试匹配' : '未配置',
+        backendTestPasswordUsed: !!process.env.BACKEND_TEST_PASSWORD,
+        backendTestEmail: process.env.BACKEND_TEST_EMAIL || '未配置',
+      });
+      return null;
+    }
+
+    const data = await response.json();
+    const token = data.token || null;
+
+    // 缓存 token
+    if (token) {
+      tokenCache = {
+        email,
+        token,
+        expiresAt: Date.now() + TOKEN_CACHE_TTL,
+      };
+    }
+
+    return token;
+  } catch (error) {
+    const errorMessage = `[BackendApiClient] 获取 token 失败（网络错误）。可能的原因：
+1. 后端服务不可用（请检查后端服务是否运行）
+2. 网络连接问题（请检查 NEXT_PUBLIC_BACKEND_API_URL 或 BACKEND_API_URL 配置）
+3. 后端 URL 配置错误
+
+后端 URL: ${BACKEND_API_URL}
+错误详情: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(errorMessage, error);
+    return null;
+  }
+}
+
+/**
+ * 调用后端 API（自动携带认证）
+ */
+export async function callBackendAPI<T = any>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = await getBackendToken();
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${BACKEND_API_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      // 401 错误：清除 token 缓存，下次重新获取
+      tokenCache = null;
+      throw new Error('未登录或认证失败，请先登录。可能的原因：1) 后端 token 获取失败 2) token 已过期 3) 后端认证配置错误');
+    }
+    const errorText = await response.text();
+    
+    // 404 错误：可能是接口不存在，不抛出错误，让调用方处理
+    if (response.status === 404) {
+      const error = new Error(`后端API调用失败: ${response.status} ${response.statusText} - ${errorText}`);
+      (error as any).status = 404;
+      (error as any).statusText = response.statusText;
+      (error as any).errorText = errorText;
+      throw error;
+    }
+    
+    throw new Error(`后端API调用失败: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * 获取当前用户信息（包括模式信息）
+ * 
+ * 如果 /me 接口不可用（404），会自动尝试使用 /credits/balance 作为替代
+ */
+export async function getCurrentUserInfo(): Promise<{
+  userId: string;
+  email: string;
+  balance: number;
+  billingMode: 'DRY_RUN' | 'REAL';
+  modelMode: 'DRY_RUN' | 'REAL';
+}> {
+  try {
+    return await callBackendAPI('/me');
+  } catch (error: any) {
+    // 如果 /me 接口不可用（404），尝试使用 /credits/balance 作为替代
+    if (error.status === 404 || error.message?.includes('404') || error.message?.includes('Not Found')) {
+      console.warn('[BackendApiClient] /me 接口不可用（404），尝试使用 /credits/balance 作为替代');
+      
+      try {
+        const balanceResult = await callBackendAPI<{ balance: number }>('/credits/balance');
+        
+        // 获取 session 信息以获取 userId 和 email
+        const { getSession } = await import('@/lib/auth');
+        const session = await getSession();
+        
+        console.log('[BackendApiClient] ✅ 使用 /credits/balance 作为替代，获取到余额:', balanceResult.balance);
+        return {
+          userId: session?.user?.id || session?.user?.email || '',
+          email: session?.user?.email || '',
+          balance: balanceResult.balance,
+          billingMode: 'DRY_RUN' as const, // 默认值，因为无法从 /credits/balance 获取模式信息
+          modelMode: 'DRY_RUN' as const, // 默认值
+        };
+      } catch (balanceError: any) {
+        // 如果 /credits/balance 也失败，抛出原始错误
+        console.warn('[BackendApiClient] /credits/balance 也不可用:', balanceError);
+        throw error; // 抛出原始错误
+      }
+    }
+    
+    // 其他错误，直接抛出
+    throw error;
+  }
+}
+

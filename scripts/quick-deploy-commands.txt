@@ -1,0 +1,225 @@
+==========================================
+快速部署命令清单（按顺序执行）
+==========================================
+
+【重要】请先准备好：
+1. 服务器已配置好安全加固（SSH Key, 防火墙等）
+2. 已准备好环境变量配置（参考 ENV_SETUP.md）
+
+
+==========================================
+第一步：安装运行环境
+==========================================
+
+sudo apt-get update && \
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && \
+sudo apt-get install -y nodejs nginx git && \
+sudo npm install -g pm2 && \
+node --version && npm --version
+
+
+==========================================
+第二步：准备项目代码（选择一种方式）
+==========================================
+
+【方式 A: 使用 Git】
+mkdir -p ~/projects && \
+cd ~/projects && \
+git clone YOUR_REPO_URL ue-asset-library && \
+cd ue-asset-library
+
+【方式 B: 从本地上传】
+# 在本地机器执行：
+cd /Users/chrisl/Documents/恒星UE资产库/web
+tar --exclude='node_modules' --exclude='.next' --exclude='.git' \
+    --exclude='.env*' -czf project.tar.gz .
+
+# 上传到服务器：
+scp project.tar.gz YOUR_USER@YOUR_SERVER_IP:~/projects/
+
+# 在服务器执行：
+mkdir -p ~/projects/ue-asset-library && \
+cd ~/projects/ue-asset-library && \
+tar -xzf ~/project.tar.gz
+
+
+==========================================
+第三步：配置环境变量
+==========================================
+
+cd ~/projects/ue-asset-library
+nano .env.production
+
+# 至少需要配置：
+# - STORAGE_MODE=oss
+# - OSS 相关配置
+# - AI API 密钥
+# - JIMENG API 密钥
+# 参考 ENV_SETUP.md
+
+chmod 600 .env.production
+
+
+==========================================
+第四步：安装依赖和构建
+==========================================
+
+npm install
+npm run build
+
+
+==========================================
+第五步：配置 PM2（创建配置文件）
+==========================================
+
+cat > ecosystem.config.js << 'EOF'
+module.exports = {
+  apps: [{
+    name: 'ue-asset-library',
+    script: 'npm',
+    args: 'start',
+    cwd: process.cwd(),
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3000
+    },
+    error_file: './logs/pm2-error.log',
+    out_file: './logs/pm2-out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    merge_logs: true,
+  }]
+};
+EOF
+
+mkdir -p logs
+pm2 start ecosystem.config.js
+pm2 startup
+# 执行上面显示的命令
+pm2 save
+
+
+==========================================
+第六步：配置 Nginx（替换 YOUR_DOMAIN_OR_IP）
+==========================================
+
+# 创建配置文件
+sudo tee /etc/nginx/sites-available/ue-asset-library > /dev/null << 'EOF'
+server {
+    listen 80;
+    server_name YOUR_DOMAIN_OR_IP;
+
+    client_max_body_size 100M;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+
+    location /_next/static {
+        proxy_pass http://localhost:3000;
+        proxy_cache_valid 200 365d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+
+# 替换域名
+sudo sed -i 's/YOUR_DOMAIN_OR_IP/你的域名或IP/g' /etc/nginx/sites-available/ue-asset-library
+
+# 启用配置
+sudo ln -sf /etc/nginx/sites-available/ue-asset-library /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl restart nginx
+
+
+==========================================
+第七步：验证部署
+==========================================
+
+# 检查 PM2
+pm2 status
+pm2 logs ue-asset-library --lines 20
+
+# 检查 Nginx
+sudo systemctl status nginx
+curl -I http://localhost:3000
+curl -I http://YOUR_DOMAIN_OR_IP
+
+# 检查端口
+sudo netstat -tlnp | grep :3000
+sudo netstat -tlnp | grep :80
+
+
+==========================================
+第八步：配置 HTTPS（可选，如果有域名）
+==========================================
+
+sudo apt-get install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d YOUR_DOMAIN
+sudo certbot renew --dry-run
+
+
+==========================================
+常用维护命令
+==========================================
+
+# 查看应用状态
+pm2 status
+pm2 logs ue-asset-library
+
+# 重启应用
+pm2 restart ue-asset-library
+
+# 更新代码后重新部署
+git pull  # 或重新上传代码
+npm install
+npm run build
+pm2 restart ue-asset-library
+
+# 查看服务器资源
+pm2 monit
+htop
+df -h
+
+# 查看日志
+pm2 logs ue-asset-library
+sudo tail -f /var/log/nginx/error.log
+sudo journalctl -u nginx -f
+
+
+==========================================
+故障排查
+==========================================
+
+# 应用无法启动
+pm2 logs ue-asset-library --err
+pm2 describe ue-asset-library
+
+# Nginx 502 错误
+sudo tail -f /var/log/nginx/error.log
+pm2 logs ue-asset-library
+
+# 端口被占用
+sudo lsof -i :3000
+sudo kill -9 PID
+
+# 防火墙问题
+sudo ufw status
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+

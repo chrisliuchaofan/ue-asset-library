@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { getSession } from '@/lib/auth';
+import { shouldCallRealAI, createDryRunMockResponse, getUserModeInfo } from '@/lib/ai/dry-run-check';
+import { callBackendAPI } from '@/lib/backend-api-client';
+import { ErrorCode, createStandardError } from '@/lib/errors/error-handler';
 
 // 强制动态路由，确保 API 路由在 Vercel 上正确部署
 export const dynamic = 'force-dynamic';
@@ -469,6 +473,15 @@ async function callAIImageAPI(
  */
 export async function POST(request: Request) {
   try {
+    // ✅ 检查登录状态
+    const session = await getSession();
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { message: '未登录，请先登录' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     
     // 验证请求参数
@@ -485,6 +498,17 @@ export async function POST(request: Request) {
     }
 
     const { imageUrl, imageBase64, customPrompt, skipTags } = parsed.data;
+    
+    // ✅ M2: 获取用户模式信息（包括 Dry Run 状态）
+    const userModeInfo = await getUserModeInfo();
+    const shouldCallReal = await shouldCallRealAI();
+    
+    console.log('[AI Analyze Image] 用户模式检查:', {
+      billingMode: userModeInfo.billingMode,
+      modelMode: userModeInfo.modelMode,
+      shouldCallReal,
+      balance: userModeInfo.balance,
+    });
 
     // 优先使用 URL，如果提供了 base64 则先转换为 URL（预留功能）
     let finalImageUrl: string;
@@ -514,7 +538,134 @@ export async function POST(request: Request) {
       );
     }
 
-    // 调用 AI API
+    // ✅ M2: 检查 Dry Run 模式
+    // 如果处于 Dry Run 模式，不调用真实 AI API，直接返回 mock 结果
+    if (!shouldCallReal) {
+      console.log('[AI Analyze Image] Dry Run 模式：返回 mock 结果，不调用真实 AI API');
+      const mockResult = createDryRunMockResponse<AIAnalyzeResponse>(
+        'ai_analyze_image',
+        {
+          tags: skipTags ? [] : ['测试图片', '占位标签', 'Dry Run 模式'],
+          description: `这是 Dry Run 模式的模拟结果，imageUrl=${finalImageUrl.substring(0, 50)}...。实际 AI API 调用已禁用（modelMode=DRY_RUN）。`,
+        }
+      );
+      
+      // 如果 skipTags 为 true，确保 tags 为空数组
+      if (skipTags) {
+        mockResult.tags = [];
+      }
+      
+      return NextResponse.json(mockResult, { status: 200 });
+    }
+    
+    // ✅ M2: Real 模式 - 先调用后端计费接口
+    // 估算费用（可以根据实际情况调整）
+    const estimatedCost = 1; // 每次图像分析消耗 1 积分
+    
+    try {
+      // 检查余额是否充足
+      if (userModeInfo.balance < estimatedCost) {
+        const standardError = createStandardError(
+          ErrorCode.INSUFFICIENT_CREDITS,
+          `积分不足：当前余额 ${userModeInfo.balance}，需要 ${estimatedCost}`,
+          {
+            balance: userModeInfo.balance,
+            required: estimatedCost,
+          },
+          402
+        );
+        return NextResponse.json(
+          {
+            message: standardError.userMessage,
+            code: standardError.code,
+            traceId: standardError.traceId,
+            details: standardError.details,
+          },
+          { status: 402 } // Payment Required
+        );
+      }
+      
+      // 调用后端计费接口
+      const consumeResult = await callBackendAPI<{
+        success: boolean;
+        balance: number;
+        transactionId: string;
+        isDryRun?: boolean;
+      }>('/credits/consume', {
+        method: 'POST',
+        body: JSON.stringify({
+          amount: estimatedCost,
+          action: 'ai_analyze_image',
+          refId: `analyze-${Date.now()}-${Math.random().toString(36).substring(7)}`, // 幂等性检查
+        }),
+      });
+      
+      console.log('[AI Analyze Image] 计费成功:', {
+        transactionId: consumeResult.transactionId,
+        balance: consumeResult.balance,
+        isDryRun: consumeResult.isDryRun,
+      });
+      
+      // 如果后端返回 isDryRun=true，说明后端也处于 Dry Run 模式，应该返回 mock 结果
+      if (consumeResult.isDryRun) {
+        console.log('[AI Analyze Image] 后端 Dry Run 模式：返回 mock 结果');
+        const mockResult = createDryRunMockResponse<AIAnalyzeResponse>(
+          'ai_analyze_image',
+          {
+            tags: skipTags ? [] : ['测试图片', '占位标签', 'Dry Run 模式'],
+            description: `这是 Dry Run 模式的模拟结果（后端计费也是 Dry Run）。实际 AI API 调用已禁用。`,
+          }
+        );
+        
+        if (skipTags) {
+          mockResult.tags = [];
+        }
+        
+        return NextResponse.json(mockResult, { status: 200 });
+      }
+    } catch (billingError: any) {
+      // 如果计费失败，不调用 AI API
+      console.error('[AI Analyze Image] 计费失败:', billingError);
+      
+      // 如果是余额不足，返回明确错误
+      if (billingError.message?.includes('积分不足') || billingError.message?.includes('INSUFFICIENT_CREDITS')) {
+        const standardError = createStandardError(
+          ErrorCode.INSUFFICIENT_CREDITS,
+          `积分不足：当前余额 ${userModeInfo.balance}`,
+          {
+            balance: userModeInfo.balance,
+          },
+          402
+        );
+        return NextResponse.json(
+          {
+            message: standardError.userMessage,
+            code: standardError.code,
+            traceId: standardError.traceId,
+            details: standardError.details,
+          },
+          { status: 402 } // Payment Required
+        );
+      }
+      
+      // 其他计费错误，返回错误信息
+      const standardError = createStandardError(
+        ErrorCode.BILLING_FAILED,
+        billingError.message || '无法完成计费，请稍后重试',
+        { originalError: billingError.message },
+        500
+      );
+      return NextResponse.json(
+        {
+          message: standardError.userMessage,
+          code: standardError.code,
+          traceId: standardError.traceId,
+        },
+        { status: 500 }
+      );
+    }
+    
+    // ✅ M2: 计费成功后，调用真实 AI API
     // 注意：如果环境变量未配置，callAIImageAPI 会返回 mock 结果，不会抛异常
     // 如果调用失败，callAIImageAPI 会返回 { tags: [], description: '', raw: { error: '...' } }
     // 如果 skipTags 为 true，提示词会要求AI只返回描述，不返回标签

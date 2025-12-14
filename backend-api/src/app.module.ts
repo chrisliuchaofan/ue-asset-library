@@ -6,12 +6,14 @@ import { LogsModule } from './logs/logs.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AiModule } from './ai/ai.module';
 import { DatabaseModule } from './database/database.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     DatabaseModule,
     HealthModule,
     AuthModule,
+    UsersModule,
     CreditsModule,
     LogsModule,
     JobsModule,
