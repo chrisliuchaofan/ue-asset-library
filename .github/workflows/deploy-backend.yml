@@ -16,6 +16,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend-api/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd backend-api
+          npm ci
+
+      - name: Build backend
+        run: |
+          cd backend-api
+          npm run build
+
       - name: Deploy to ECS
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -24,9 +41,17 @@ jobs:
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
             cd /opt/ue-assets-backend/backend-api
-            git pull origin main
+            # 如果使用 Git，拉取最新代码
+            if [ -d .git ]; then
+              git pull origin main || true
+            fi
+            # 上传构建后的文件（如果 GitHub Actions 构建）
+            # 或者直接使用服务器上的代码
             npm install --production
-            npm run build
+            # 如果服务器上有源码，需要构建
+            if [ -d src ]; then
+              npm run build
+            fi
             pm2 restart ue-assets-backend --update-env
             pm2 logs ue-assets-backend --lines 10
 
