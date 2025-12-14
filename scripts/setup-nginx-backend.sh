@@ -34,18 +34,31 @@ server {
 }
 EOF
 
-# 2. 创建软链接
+# 2. 检查并移除其他 default_server 配置
+echo "🔍 检查现有 default_server 配置..."
+for file in /etc/nginx/sites-enabled/*; do
+    if [ -f "$file" ] && grep -q "default_server" "$file"; then
+        echo "⚠️  发现 default_server 配置: $file"
+        # 移除 default_server 关键字
+        sed -i 's/listen.*default_server/listen 80/g' "$file" 2>/dev/null || true
+        echo "✅ 已移除 $file 中的 default_server"
+    fi
+done
+
+# 3. 禁用默认配置（如果存在）
+if [ -f /etc/nginx/sites-enabled/default ]; then
+    echo "⚠️  禁用默认 Nginx 配置..."
+    # 先移除 default_server
+    sed -i 's/listen.*default_server/listen 80/g' /etc/nginx/sites-enabled/default 2>/dev/null || true
+    mv /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/default.bak
+fi
+
+# 4. 创建软链接
 echo "🔗 创建软链接..."
 if [ -L /etc/nginx/sites-enabled/ue-assets-backend ]; then
     rm /etc/nginx/sites-enabled/ue-assets-backend
 fi
 ln -s /etc/nginx/sites-available/ue-assets-backend /etc/nginx/sites-enabled/
-
-# 3. 禁用默认配置（如果存在）
-if [ -f /etc/nginx/sites-enabled/default ]; then
-    echo "⚠️  禁用默认 Nginx 配置..."
-    mv /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/default.bak
-fi
 
 # 4. 测试配置
 echo "🧪 测试 Nginx 配置..."
