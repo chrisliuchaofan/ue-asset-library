@@ -18,9 +18,28 @@ async function bootstrap() {
   }));
 
   // CORS 配置
+  // 支持多个前端域名（开发和生产环境）
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const allowedOrigins = [
+    frontendUrl,
+    'http://localhost:3000',
+    'https://www.factory-buy.com',
+    'https://factory-buy.com',
+  ].filter(Boolean); // 移除空值
+  
   app.enableCors({
-    origin: frontendUrl,
+    origin: (origin, callback) => {
+      // 允许没有 origin 的请求（如 Postman、curl）
+      if (!origin) {
+        return callback(null, true);
+      }
+      // 检查 origin 是否在允许列表中
+      if (allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
