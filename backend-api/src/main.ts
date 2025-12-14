@@ -4,7 +4,25 @@
  */
 
 // 加载 .env 文件
+// 使用 dotenv/config 会自动从项目根目录加载 .env 文件
 import 'dotenv/config';
+import { resolve } from 'path';
+
+// 明确指定 .env 文件路径（编译后 dist 目录的上级目录）
+import { config } from 'dotenv';
+const envPath = resolve(__dirname, '../.env');
+config({ path: envPath });
+
+// 调试：输出数据库配置（不显示密码）
+console.log('[Main] .env 文件路径:', envPath);
+console.log('[Main] 环境变量检查：', {
+  DB_HOST: process.env.DB_HOST || '未设置',
+  DB_PORT: process.env.DB_PORT || '未设置',
+  DB_NAME: process.env.DB_NAME || '未设置',
+  DB_USERNAME: process.env.DB_USERNAME || '未设置',
+  DB_PASSWORD: process.env.DB_PASSWORD ? '已设置' : '未设置',
+  NODE_ENV: process.env.NODE_ENV || '未设置',
+});
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
