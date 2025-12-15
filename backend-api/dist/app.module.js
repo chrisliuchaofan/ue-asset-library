@@ -16,6 +16,7 @@ const jobs_module_1 = require("./jobs/jobs.module");
 const ai_module_1 = require("./ai/ai.module");
 const database_module_1 = require("./database/database.module");
 const users_module_1 = require("./users/users.module");
+const storage_module_1 = require("./storage/storage.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -30,6 +31,7 @@ exports.AppModule = AppModule = __decorate([
             logs_module_1.LogsModule,
             jobs_module_1.JobsModule,
             ai_module_1.AiModule,
+            storage_module_1.StorageModule,
         ],
     })
 ], AppModule);

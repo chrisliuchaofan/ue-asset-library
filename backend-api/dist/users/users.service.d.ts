@@ -16,4 +16,5 @@ export declare class UsersService {
     findByEmail(email: string): Promise<User | null>;
     updateCredits(userId: string, credits: number): Promise<void>;
     getCredits(userId: string): Promise<number>;
+    findAll(): Promise<Omit<User, 'passwordHash'>[]>;
 }

@@ -28,4 +28,10 @@ export declare class UsersController {
         createdAt: Date;
         updatedAt: Date;
     }>;
+    getAllUsers(user: {
+        userId: string;
+        email: string;
+    }): Promise<{
+        users: Omit<import("../database/entities/user.entity").User, "passwordHash">[];
+    }>;
 }

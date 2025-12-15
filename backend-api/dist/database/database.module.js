@@ -16,6 +16,7 @@ const user_entity_1 = require("./entities/user.entity");
 const credit_transaction_entity_1 = require("./entities/credit-transaction.entity");
 const log_entry_entity_1 = require("./entities/log-entry.entity");
 const job_entity_1 = require("./entities/job.entity");
+const job_output_entity_1 = require("./entities/job-output.entity");
 let DatabaseModule = class DatabaseModule {
     constructor() {
         if (!process.env.DB_USERNAME || !process.env.DB_PASSWORD) {
@@ -42,11 +43,11 @@ exports.DatabaseModule = DatabaseModule = __decorate([
                 username: process.env.DB_USERNAME,
                 password: process.env.DB_PASSWORD,
                 database: process.env.DB_NAME || 'ue_assets',
-                entities: [user_entity_1.User, credit_transaction_entity_1.CreditTransaction, log_entry_entity_1.LogEntry, job_entity_1.Job],
+                entities: [user_entity_1.User, credit_transaction_entity_1.CreditTransaction, log_entry_entity_1.LogEntry, job_entity_1.Job, job_output_entity_1.JobOutput],
                 synchronize: process.env.NODE_ENV !== 'production',
                 logging: process.env.NODE_ENV !== 'production',
             }),
-            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, credit_transaction_entity_1.CreditTransaction, log_entry_entity_1.LogEntry, job_entity_1.Job]),
+            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, credit_transaction_entity_1.CreditTransaction, log_entry_entity_1.LogEntry, job_entity_1.Job, job_output_entity_1.JobOutput]),
         ],
         exports: [typeorm_1.TypeOrmModule],
     }),

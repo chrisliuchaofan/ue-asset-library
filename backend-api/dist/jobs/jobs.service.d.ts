@@ -1,8 +1,10 @@
 import { Repository } from 'typeorm';
 import { Job } from '../database/entities/job.entity';
+import { StorageService } from '../storage/storage.service';
 export declare class JobsService {
     private jobRepository;
-    constructor(jobRepository: Repository<Job>);
+    private storageService?;
+    constructor(jobRepository: Repository<Job>, storageService?: StorageService);
     create(data: {
         userId: string;
         type: string;

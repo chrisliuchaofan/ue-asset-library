@@ -18,9 +18,13 @@ const model_adapter_service_1 = require("./model-adapter.service");
 const auth_guard_1 = require("../credits/auth.guard");
 const current_user_decorator_1 = require("../auth/decorators/current-user.decorator");
 const model_presets_1 = require("./model-presets");
+const storage_service_1 = require("../storage/storage.service");
+const jobs_service_1 = require("../jobs/jobs.service");
 let AiController = class AiController {
-    constructor(modelAdapterService) {
+    constructor(modelAdapterService, storageService, jobsService) {
         this.modelAdapterService = modelAdapterService;
+        this.storageService = storageService;
+        this.jobsService = jobsService;
     }
     async getPresets() {
         return {
@@ -77,6 +81,70 @@ let AiController = class AiController {
             };
         }
     }
+    async generateImage(user, body) {
+        if (body.imageUrl) {
+            try {
+                const job = await this.jobsService.create({
+                    userId: user.userId,
+                    type: 'image_generation',
+                    input: {
+                        prompt: body.prompt,
+                        imageUrl: body.imageUrl,
+                    },
+                });
+                const jobOutput = await this.storageService.uploadJobOutputFromSource(user.userId, job.id, 'image', body.imageUrl, {
+                    format: 'jpg',
+                });
+                await this.jobsService.complete(job.id, {
+                    output: {
+                        imageUrl: jobOutput.ossUrl,
+                    },
+                    creditCost: 0,
+                    transactionId: '',
+                });
+                return {
+                    imageUrl: jobOutput.ossUrl,
+                };
+            }
+            catch (error) {
+                throw new common_1.HttpException(`上传图片到 OSS 失败: ${error.message}`, common_1.HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+        }
+        throw new common_1.HttpException('暂不支持后端直接生成图片，请提供 imageUrl', common_1.HttpStatus.NOT_IMPLEMENTED);
+    }
+    async generateVideo(user, body) {
+        if (body.videoUrl) {
+            try {
+                const job = await this.jobsService.create({
+                    userId: user.userId,
+                    type: 'video_generation',
+                    input: {
+                        prompt: body.prompt,
+                        imageUrl: body.imageUrl,
+                        videoUrl: body.videoUrl,
+                    },
+                });
+                const jobOutput = await this.storageService.uploadJobOutputFromSource(user.userId, job.id, 'video', body.videoUrl, {
+                    format: 'mp4',
+                    duration: body.duration,
+                });
+                await this.jobsService.complete(job.id, {
+                    output: {
+                        videoUrl: jobOutput.ossUrl,
+                    },
+                    creditCost: 0,
+                    transactionId: '',
+                });
+                return {
+                    videoUrl: jobOutput.ossUrl,
+                };
+            }
+            catch (error) {
+                throw new common_1.HttpException(`上传视频到 OSS 失败: ${error.message}`, common_1.HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+        }
+        throw new common_1.HttpException('暂不支持后端直接生成视频，请提供 videoUrl', common_1.HttpStatus.NOT_IMPLEMENTED);
+    }
 };
 exports.AiController = AiController;
 __decorate([
@@ -93,9 +161,27 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AiController.prototype, "generateText", null);
+__decorate([
+    (0, common_1.Post)('generate-image'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AiController.prototype, "generateImage", null);
+__decorate([
+    (0, common_1.Post)('generate-video'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AiController.prototype, "generateVideo", null);
 exports.AiController = AiController = __decorate([
     (0, common_1.Controller)('ai'),
     (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
-    __metadata("design:paramtypes", [model_adapter_service_1.ModelAdapterService])
+    __metadata("design:paramtypes", [model_adapter_service_1.ModelAdapterService,
+        storage_service_1.StorageService,
+        jobs_service_1.JobsService])
 ], AiController);
 //# sourceMappingURL=ai.controller.js.map

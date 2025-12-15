@@ -24,4 +24,12 @@ export declare class CreditsService {
     recharge(userId: string, amount: number): Promise<{
         balance: number;
     }>;
+    getTransactions(userId: string, limit?: number, offset?: number): Promise<{
+        transactions: CreditTransaction[];
+        total: number;
+    }>;
+    adminRecharge(targetUserId: string, amount: number, adminUserId: string): Promise<{
+        balance: number;
+        transactionId: string;
+    }>;
 }

@@ -18,9 +18,11 @@ const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const job_entity_1 = require("../database/entities/job.entity");
 const job_schemas_1 = require("./job-schemas");
+const storage_service_1 = require("../storage/storage.service");
 let JobsService = class JobsService {
-    constructor(jobRepository) {
+    constructor(jobRepository, storageService) {
         this.jobRepository = jobRepository;
+        this.storageService = storageService;
     }
     async create(data) {
         const inputValidation = (0, job_schemas_1.validateJobInput)(data.type, data.input);
@@ -59,7 +61,16 @@ let JobsService = class JobsService {
         job.output = outputValidation.data;
         job.creditCost = data.creditCost;
         job.transactionId = data.transactionId;
-        return await this.jobRepository.save(job);
+        const savedJob = await this.jobRepository.save(job);
+        if (this.storageService) {
+            try {
+                await this.storageService.cleanupJobTempFiles(jobId);
+            }
+            catch (error) {
+                console.warn(`[JobsService] 清理临时文件失败 (jobId: ${jobId}):`, error);
+            }
+        }
+        return savedJob;
     }
     async fail(jobId, error) {
         const job = await this.jobRepository.findOne({ where: { id: jobId } });
@@ -109,6 +120,7 @@ exports.JobsService = JobsService;
 exports.JobsService = JobsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, typeorm_1.InjectRepository)(job_entity_1.Job)),
-    __metadata("design:paramtypes", [typeorm_2.Repository])
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        storage_service_1.StorageService])
 ], JobsService);
 //# sourceMappingURL=jobs.service.js.map

@@ -28,27 +28,34 @@ let AuthService = class AuthService {
         });
     }
     async login(email, password, isAdmin = false) {
-        if (isAdmin) {
-            const adminWhitelist = this.getAdminWhitelistUsers();
-            const adminUser = adminWhitelist.find((u) => {
-                const whitelistEmail = u.email.trim();
-                const emailUsername = email.split('@')[0];
-                const whitelistUsername = whitelistEmail.includes('@')
-                    ? whitelistEmail.split('@')[0]
-                    : whitelistEmail;
-                return (whitelistEmail === email || whitelistUsername === emailUsername) && u.password === password;
-            });
-            if (adminUser) {
-                const token = jwt.sign({ userId: email, email, isAdmin: true }, this.jwtSecret, { expiresIn: '30d' });
-                return {
-                    success: true,
-                    userId: email,
-                    email,
-                    name: email.split('@')[0],
-                    token,
-                    isAdmin: true,
-                };
+        const adminWhitelist = this.getAdminWhitelistUsers();
+        const adminUser = adminWhitelist.find((u) => {
+            const whitelistEmail = u.email.trim();
+            const emailUsername = email.split('@')[0];
+            const whitelistUsername = whitelistEmail.includes('@')
+                ? whitelistEmail.split('@')[0]
+                : whitelistEmail;
+            return (whitelistEmail === email || whitelistUsername === emailUsername) && u.password === password;
+        });
+        if (adminUser) {
+            try {
+                const existingUser = await this.usersService.findByEmail(email);
+                if (!existingUser) {
+                    console.log(`[AuthService] 白名单用户登录: ${email}，但数据库中不存在，CreditsService 会在初始化时创建`);
+                }
             }
+            catch (error) {
+                console.warn(`[AuthService] 查询用户失败: ${email}`, error);
+            }
+            const token = jwt.sign({ userId: email, email, isAdmin: isAdmin || true }, this.jwtSecret, { expiresIn: '30d' });
+            return {
+                success: true,
+                userId: email,
+                email,
+                name: email.split('@')[0],
+                token,
+                isAdmin: isAdmin || true,
+            };
         }
         try {
             const result = await this.usersService.login(email, password);

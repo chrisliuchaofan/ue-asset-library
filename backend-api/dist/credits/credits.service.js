@@ -221,6 +221,45 @@ let CreditsService = class CreditsService {
             return { balance: newBalance };
         });
     }
+    async getTransactions(userId, limit = 50, offset = 0) {
+        const [transactions, total] = await this.transactionRepository.findAndCount({
+            where: { userId },
+            order: { createdAt: 'DESC' },
+            take: limit,
+            skip: offset,
+        });
+        return { transactions, total };
+    }
+    async adminRecharge(targetUserId, amount, adminUserId) {
+        return await this.userRepository.manager.transaction(async (transactionalEntityManager) => {
+            const user = await transactionalEntityManager.findOne(user_entity_1.User, {
+                where: { id: targetUserId },
+                lock: { mode: 'pessimistic_write' },
+            });
+            if (!user) {
+                throw new common_1.HttpException('用户不存在', common_1.HttpStatus.NOT_FOUND);
+            }
+            const balanceResult = await transactionalEntityManager
+                .createQueryBuilder(credit_transaction_entity_1.CreditTransaction, 'txn')
+                .select('COALESCE(SUM(txn.amount), 0)', 'balance')
+                .where('txn.userId = :userId', { userId: targetUserId })
+                .getRawOne();
+            const currentBalance = parseInt(balanceResult.balance) || 0;
+            const newBalance = currentBalance + amount;
+            const transactionId = `admin-recharge-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+            const transaction = transactionalEntityManager.create(credit_transaction_entity_1.CreditTransaction, {
+                userId: targetUserId,
+                amount,
+                action: 'admin_recharge',
+                description: `管理员充值: ${amount} (操作人: ${adminUserId})`,
+                balanceAfter: newBalance,
+            });
+            await transactionalEntityManager.save(transaction);
+            user.credits = newBalance;
+            await transactionalEntityManager.save(user);
+            return { balance: newBalance, transactionId };
+        });
+    }
 };
 exports.CreditsService = CreditsService;
 exports.CreditsService = CreditsService = __decorate([

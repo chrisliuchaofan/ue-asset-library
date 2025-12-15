@@ -33,6 +33,15 @@ let CreditsController = class CreditsController {
         }
         return this.creditsService.recharge(user.userId, body.amount);
     }
+    async getTransactions(user, limitStr, offsetStr, targetUserId) {
+        const targetUserId_final = targetUserId || user.userId;
+        const limit = limitStr ? parseInt(limitStr, 10) : 50;
+        const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
+        return this.creditsService.getTransactions(targetUserId_final, limit, offset);
+    }
+    async adminRecharge(user, body) {
+        return this.creditsService.adminRecharge(body.targetUserId, body.amount, user.userId);
+    }
 };
 exports.CreditsController = CreditsController;
 __decorate([
@@ -58,6 +67,24 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], CreditsController.prototype, "recharge", null);
+__decorate([
+    (0, common_1.Get)('transactions'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('offset')),
+    __param(3, (0, common_1.Query)('targetUserId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], CreditsController.prototype, "getTransactions", null);
+__decorate([
+    (0, common_1.Post)('admin/recharge'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], CreditsController.prototype, "adminRecharge", null);
 exports.CreditsController = CreditsController = __decorate([
     (0, common_1.Controller)('credits'),
     (0, common_1.UseGuards)(auth_guard_1.AuthGuard),

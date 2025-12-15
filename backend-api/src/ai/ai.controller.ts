@@ -3,11 +3,17 @@ import { ModelAdapterService, GenerateContentOptions } from './model-adapter.ser
 import { AuthGuard } from '../credits/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { validatePresetParams, getAllPresets, getPreset } from './model-presets';
+import { StorageService } from '../storage/storage.service';
+import { JobsService } from '../jobs/jobs.service';
 
 @Controller('ai')
 @UseGuards(AuthGuard)
 export class AiController {
-  constructor(private modelAdapterService: ModelAdapterService) {}
+  constructor(
+    private modelAdapterService: ModelAdapterService,
+    private storageService: StorageService,
+    private jobsService: JobsService,
+  ) {}
 
   /**
    * 获取所有可用的模型预设（用于前端展示）
@@ -102,6 +108,146 @@ export class AiController {
         preset: preset ? { id: preset.id, name: preset.name } : null,
       };
     }
+  }
+
+  /**
+   * 生成图片（必须上传到 OSS）
+   * 注意：当前实现接收图片 URL，下载后上传到 OSS
+   * TODO: 后续可以改为后端直接调用 AI API 生成图片
+   */
+  @Post('generate-image')
+  async generateImage(
+    @CurrentUser() user: { userId: string; email: string },
+    @Body() body: {
+      prompt: string;
+      size?: string; // 如 '1024*1024'
+      referenceImageUrl?: string;
+      aspectRatio?: string;
+      style?: string;
+      provider?: string;
+      imageUrl?: string; // 如果已生成，直接提供 URL
+    }
+  ) {
+    // 如果提供了 imageUrl，直接上传到 OSS
+    if (body.imageUrl) {
+      try {
+        // 创建临时 Job 用于跟踪
+        const job = await this.jobsService.create({
+          userId: user.userId,
+          type: 'image_generation',
+          input: {
+            prompt: body.prompt,
+            imageUrl: body.imageUrl,
+          },
+        });
+
+        // 上传到 OSS
+        const jobOutput = await this.storageService.uploadJobOutputFromSource(
+          user.userId,
+          job.id,
+          'image',
+          body.imageUrl,
+          {
+            format: 'jpg',
+          }
+        );
+
+        // 完成任务
+        await this.jobsService.complete(job.id, {
+          output: {
+            imageUrl: jobOutput.ossUrl,
+          },
+          creditCost: 0, // 如果已经计费，这里设为 0
+          transactionId: '',
+        });
+
+        return {
+          imageUrl: jobOutput.ossUrl,
+        };
+      } catch (error: any) {
+        throw new HttpException(
+          `上传图片到 OSS 失败: ${error.message}`,
+          HttpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
+    }
+
+    // TODO: 实现后端直接生成图片的逻辑
+    throw new HttpException(
+      '暂不支持后端直接生成图片，请提供 imageUrl',
+      HttpStatus.NOT_IMPLEMENTED
+    );
+  }
+
+  /**
+   * 生成视频（必须上传到 OSS）
+   * 注意：当前实现接收视频 URL，下载后上传到 OSS
+   * TODO: 后续可以改为后端直接调用 AI API 生成视频
+   */
+  @Post('generate-video')
+  async generateVideo(
+    @CurrentUser() user: { userId: string; email: string },
+    @Body() body: {
+      type: 'video';
+      imageUrl: string;
+      prompt: string;
+      duration?: number;
+      resolution?: string;
+      provider?: string;
+      videoUrl?: string; // 如果已生成，直接提供 URL
+    }
+  ) {
+    // 如果提供了 videoUrl，直接上传到 OSS
+    if (body.videoUrl) {
+      try {
+        // 创建临时 Job 用于跟踪
+        const job = await this.jobsService.create({
+          userId: user.userId,
+          type: 'video_generation',
+          input: {
+            prompt: body.prompt,
+            imageUrl: body.imageUrl,
+            videoUrl: body.videoUrl,
+          },
+        });
+
+        // 上传到 OSS
+        const jobOutput = await this.storageService.uploadJobOutputFromSource(
+          user.userId,
+          job.id,
+          'video',
+          body.videoUrl,
+          {
+            format: 'mp4',
+            duration: body.duration,
+          }
+        );
+
+        // 完成任务
+        await this.jobsService.complete(job.id, {
+          output: {
+            videoUrl: jobOutput.ossUrl,
+          },
+          creditCost: 0, // 如果已经计费，这里设为 0
+          transactionId: '',
+        });
+
+        return {
+          videoUrl: jobOutput.ossUrl,
+        };
+      } catch (error: any) {
+        throw new HttpException(
+          `上传视频到 OSS 失败: ${error.message}`,
+          HttpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
+    }
+
+    // TODO: 实现后端直接生成视频的逻辑
+    throw new HttpException(
+      '暂不支持后端直接生成视频，请提供 videoUrl',
+      HttpStatus.NOT_IMPLEMENTED
+    );
   }
 }
 

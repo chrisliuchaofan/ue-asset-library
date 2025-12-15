@@ -10,11 +10,14 @@ exports.AiModule = void 0;
 const common_1 = require("@nestjs/common");
 const model_adapter_service_1 = require("./model-adapter.service");
 const ai_controller_1 = require("./ai.controller");
+const storage_module_1 = require("../storage/storage.module");
+const jobs_module_1 = require("../jobs/jobs.module");
 let AiModule = class AiModule {
 };
 exports.AiModule = AiModule;
 exports.AiModule = AiModule = __decorate([
     (0, common_1.Module)({
+        imports: [storage_module_1.StorageModule, jobs_module_1.JobsModule],
         providers: [model_adapter_service_1.ModelAdapterService],
         controllers: [ai_controller_1.AiController],
         exports: [model_adapter_service_1.ModelAdapterService],

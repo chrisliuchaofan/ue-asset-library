@@ -3,12 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Job } from '../database/entities/job.entity';
 import { validateJobInput, validateJobOutput } from './job-schemas';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class JobsService {
   constructor(
     @InjectRepository(Job)
     private jobRepository: Repository<Job>,
+    private storageService?: StorageService, // 可选，避免循环依赖
   ) {}
 
   /**
@@ -87,7 +89,19 @@ export class JobsService {
     job.output = outputValidation.data; // 使用验证后的数据
     job.creditCost = data.creditCost;
     job.transactionId = data.transactionId;
-    return await this.jobRepository.save(job);
+    const savedJob = await this.jobRepository.save(job);
+
+    // 清理临时文件
+    if (this.storageService) {
+      try {
+        await this.storageService.cleanupJobTempFiles(jobId);
+      } catch (error) {
+        console.warn(`[JobsService] 清理临时文件失败 (jobId: ${jobId}):`, error);
+        // 不抛出错误，继续执行
+      }
+    }
+
+    return savedJob;
   }
 
   /**

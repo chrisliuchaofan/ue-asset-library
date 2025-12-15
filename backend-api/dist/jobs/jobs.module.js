@@ -12,12 +12,16 @@ const typeorm_1 = require("@nestjs/typeorm");
 const jobs_service_1 = require("./jobs.service");
 const jobs_controller_1 = require("./jobs.controller");
 const job_entity_1 = require("../database/entities/job.entity");
+const storage_module_1 = require("../storage/storage.module");
 let JobsModule = class JobsModule {
 };
 exports.JobsModule = JobsModule;
 exports.JobsModule = JobsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([job_entity_1.Job])],
+        imports: [
+            typeorm_1.TypeOrmModule.forFeature([job_entity_1.Job]),
+            storage_module_1.StorageModule,
+        ],
         controllers: [jobs_controller_1.JobsController],
         providers: [jobs_service_1.JobsService],
         exports: [jobs_service_1.JobsService],

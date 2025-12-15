@@ -35,6 +35,16 @@ let UsersController = class UsersController {
         const { passwordHash: _, ...userWithoutPassword } = dbUser;
         return userWithoutPassword;
     }
+    async getAllUsers(user) {
+        try {
+            const users = await this.usersService.findAll();
+            return { users };
+        }
+        catch (error) {
+            console.error('[UsersController] 获取用户列表失败:', error);
+            throw error;
+        }
+    }
 };
 exports.UsersController = UsersController;
 __decorate([
@@ -59,6 +69,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "getMe", null);
+__decorate([
+    (0, common_1.Get)('list'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "getAllUsers", null);
 exports.UsersController = UsersController = __decorate([
     (0, common_1.Controller)('users'),
     __metadata("design:paramtypes", [users_service_1.UsersService])

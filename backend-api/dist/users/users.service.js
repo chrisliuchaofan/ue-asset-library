@@ -74,6 +74,22 @@ let UsersService = class UsersService {
         const user = await this.userRepository.findOne({ where: { id: userId } });
         return user?.credits || 0;
     }
+    async findAll() {
+        try {
+            const users = await this.userRepository.find({
+                order: { createdAt: 'DESC' },
+            });
+            if (!users || users.length === 0) {
+                console.warn('[UsersService] 用户列表为空，可能数据库中没有用户');
+                return [];
+            }
+            return users.map(({ passwordHash: _, ...user }) => user);
+        }
+        catch (error) {
+            console.error('[UsersService] 获取用户列表失败:', error);
+            throw error;
+        }
+    }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([

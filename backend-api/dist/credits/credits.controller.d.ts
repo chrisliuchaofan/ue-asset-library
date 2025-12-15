@@ -30,4 +30,21 @@ export declare class CreditsController {
     }): Promise<{
         balance: number;
     }>;
+    getTransactions(user: {
+        userId: string;
+        email: string;
+    }, limitStr?: string, offsetStr?: string, targetUserId?: string): Promise<{
+        transactions: import("../database/entities/credit-transaction.entity").CreditTransaction[];
+        total: number;
+    }>;
+    adminRecharge(user: {
+        userId: string;
+        email: string;
+    }, body: {
+        targetUserId: string;
+        amount: number;
+    }): Promise<{
+        balance: number;
+        transactionId: string;
+    }>;
 }

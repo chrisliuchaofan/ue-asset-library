@@ -1,7 +1,11 @@
 import { ModelAdapterService } from './model-adapter.service';
+import { StorageService } from '../storage/storage.service';
+import { JobsService } from '../jobs/jobs.service';
 export declare class AiController {
     private modelAdapterService;
-    constructor(modelAdapterService: ModelAdapterService);
+    private storageService;
+    private jobsService;
+    constructor(modelAdapterService: ModelAdapterService, storageService: StorageService, jobsService: JobsService);
     getPresets(): Promise<{
         presets: import("./model-presets").ModelPreset[];
     }>;
@@ -23,5 +27,33 @@ export declare class AiController {
             id: string;
             name: string;
         };
+    }>;
+    generateImage(user: {
+        userId: string;
+        email: string;
+    }, body: {
+        prompt: string;
+        size?: string;
+        referenceImageUrl?: string;
+        aspectRatio?: string;
+        style?: string;
+        provider?: string;
+        imageUrl?: string;
+    }): Promise<{
+        imageUrl: string;
+    }>;
+    generateVideo(user: {
+        userId: string;
+        email: string;
+    }, body: {
+        type: 'video';
+        imageUrl: string;
+        prompt: string;
+        duration?: number;
+        resolution?: string;
+        provider?: string;
+        videoUrl?: string;
+    }): Promise<{
+        videoUrl: string;
     }>;
 }
