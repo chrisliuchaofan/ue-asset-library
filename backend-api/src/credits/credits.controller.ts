@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { CreditsService } from './credits.service';
 import { AuthGuard } from './auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('credits')
@@ -39,6 +40,7 @@ export class CreditsController {
 
   /**
    * 获取交易记录
+   * 如果提供了 targetUserId，需要管理员权限
    */
   @Get('transactions')
   async getTransactions(
@@ -47,7 +49,20 @@ export class CreditsController {
     @Query('offset') offsetStr?: string,
     @Query('targetUserId') targetUserId?: string
   ) {
-    // 如果提供了 targetUserId，检查是否是管理员（TODO: 添加管理员权限检查）
+    // 如果提供了 targetUserId，检查是否是管理员
+    if (targetUserId && targetUserId !== user.userId) {
+      // 使用 AdminGuard 检查权限（通过装饰器方式）
+      const adminUsers = process.env.ADMIN_USERS || process.env.USER_WHITELIST || '';
+      const adminEmails = adminUsers
+        .split(',')
+        .map((u: string) => u.split(':')[0].trim())
+        .filter((email: string) => email.length > 0);
+      
+      if (!adminEmails.includes(user.email)) {
+        throw new Error('权限不足，需要管理员权限才能查看其他用户的交易记录');
+      }
+    }
+    
     const targetUserId_final = targetUserId || user.userId;
     const limit = limitStr ? parseInt(limitStr, 10) : 50;
     const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
@@ -59,12 +74,11 @@ export class CreditsController {
    * 管理员充值（支持指定用户）
    */
   @Post('admin/recharge')
+  @UseGuards(AdminGuard)
   async adminRecharge(
     @CurrentUser() user: { userId: string; email: string },
     @Body() body: { targetUserId: string; amount: number }
   ) {
-    // TODO: 添加管理员权限检查
-    // 暂时允许所有认证用户操作，后续可以添加管理员检查
     return this.creditsService.adminRecharge(body.targetUserId, body.amount, user.userId);
   }
 }

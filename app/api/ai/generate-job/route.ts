@@ -259,6 +259,42 @@ export async function POST(request: Request) {
         });
         
         console.warn('[AI Generate Video] ⚠️ 使用前端AI服务（未使用后端dry run模式和计费，可能产生费用）');
+        
+        // ✅ M5.1: 如果前端生成了视频，必须通过后端上传到 OSS
+        if (result.videoUrl && !result.videoUrl.includes('oss-') && !result.videoUrl.includes('aliyuncs.com')) {
+          try {
+            // 调用后端接口上传到 OSS
+            const backendApiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
+                                  process.env.BACKEND_API_URL;
+            
+            if (backendApiUrl) {
+              const uploadResult = await callBackendAPI('/ai/generate-video', {
+                method: 'POST',
+                body: JSON.stringify({
+                  type: 'video',
+                  imageUrl: finalImageUrl,
+                  prompt: params.prompt,
+                  videoUrl: result.videoUrl, // 传递生成的视频 URL
+                  duration: params.duration,
+                  resolution: params.resolution,
+                  provider: params.provider,
+                }),
+              });
+              
+              // 返回 OSS URL
+              return NextResponse.json({
+                videoUrl: uploadResult.videoUrl,
+                operationId: result.operationId,
+                raw: result.raw,
+              });
+            }
+          } catch (uploadError: any) {
+            console.error('[AI Generate Video] 上传到 OSS 失败:', uploadError);
+            // 如果上传失败，返回原始 URL（但记录警告）
+            console.warn('[AI Generate Video] ⚠️ 视频未上传到 OSS，返回原始 URL');
+          }
+        }
+        
         return NextResponse.json(result);
       } catch (e: any) {
         // 如果是未实现错误，返回 501

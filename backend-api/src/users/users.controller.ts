@@ -1,6 +1,7 @@
 import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthGuard } from '../credits/auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('users')
@@ -42,11 +43,9 @@ export class UsersController {
    * 获取所有用户列表（管理员功能）
    */
   @Get('list')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   async getAllUsers(@CurrentUser() user: { userId: string; email: string }) {
     try {
-      // TODO: 添加管理员权限检查
-      // 暂时允许所有认证用户访问，后续可以添加管理员检查
       const users = await this.usersService.findAll();
       return { users };
     } catch (error: any) {
@@ -59,13 +58,12 @@ export class UsersController {
    * 更新用户模式（管理员功能）
    */
   @Post('update-mode')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   async updateUserMode(
     @CurrentUser() currentUser: { userId: string; email: string },
     @Body() body: { targetUserId: string; billingMode?: 'DRY_RUN' | 'REAL'; modelMode?: 'DRY_RUN' | 'REAL' },
   ) {
     try {
-      // TODO: 添加管理员权限检查
       if (!body.targetUserId) {
         throw new Error('targetUserId 不能为空');
       }
