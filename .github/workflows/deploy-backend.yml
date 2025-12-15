@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'backend-api/**'
-      - '.github/workflows/deploy-backend.yml'
+    # 移除路径过滤，确保所有提交都触发部署
+    # 如果需要优化，可以添加路径过滤
+    # paths:
+    #   - 'backend-api/**'
+    #   - '.github/workflows/deploy-backend.yml'
 
 jobs:
   deploy:
@@ -40,18 +42,62 @@ jobs:
           username: ${{ secrets.ECS_USERNAME }}
           key: ${{ secrets.ECS_SSH_KEY }}
           script: |
+            set -e  # 遇到错误立即退出
+            
+            echo "🚀 开始部署后端..."
+            
+            # 检查目录是否存在
+            if [ ! -d "/opt/ue-assets-backend/backend-api" ]; then
+              echo "❌ 错误：目录 /opt/ue-assets-backend/backend-api 不存在"
+              exit 1
+            fi
+            
             cd /opt/ue-assets-backend/backend-api
+            
             # 如果使用 Git，拉取最新代码
             if [ -d .git ]; then
-              git pull origin main || true
+              echo "📥 拉取最新代码..."
+              git pull origin main || {
+                echo "⚠️ Git pull 失败，继续使用现有代码"
+              }
             fi
-            # 上传构建后的文件（如果 GitHub Actions 构建）
-            # 或者直接使用服务器上的代码
-            npm install --production
+            
+            # 安装依赖
+            echo "📦 安装依赖..."
+            npm install --production || {
+              echo "❌ npm install 失败"
+              exit 1
+            }
+            
             # 如果服务器上有源码，需要构建
             if [ -d src ]; then
-              npm run build
+              echo "🔨 构建项目..."
+              npm run build || {
+                echo "❌ npm run build 失败"
+                exit 1
+              }
             fi
-            pm2 restart ue-assets-backend --update-env
-            pm2 logs ue-assets-backend --lines 10
+            
+            # 重启 PM2 进程
+            echo "🔄 重启 PM2 进程..."
+            pm2 restart ue-assets-backend --update-env || {
+              echo "❌ PM2 restart 失败，尝试启动..."
+              pm2 start ecosystem.config.js || {
+                echo "❌ PM2 start 失败"
+                exit 1
+              }
+            }
+            
+            # 等待服务启动
+            sleep 3
+            
+            # 检查服务状态
+            echo "📊 检查服务状态..."
+            pm2 status
+            
+            # 显示日志
+            echo "📋 最近日志："
+            pm2 logs ue-assets-backend --lines 20 --nostream || true
+            
+            echo "✅ 部署完成！"
 
