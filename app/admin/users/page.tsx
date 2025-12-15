@@ -14,6 +14,8 @@ interface User {
   email: string;
   name?: string;
   credits: number;
+  billingMode?: 'DRY_RUN' | 'REAL';
+  modelMode?: 'DRY_RUN' | 'REAL';
   createdAt: string;
   updatedAt: string;
 }
@@ -230,6 +232,22 @@ export default function AdminUsersPage() {
                     <div className="text-right">
                       <p className="text-lg font-bold text-indigo-400">{user.credits}</p>
                       <p className="text-xs text-slate-400">积分</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          user.billingMode === 'DRY_RUN'
+                            ? 'bg-yellow-900/30 text-yellow-400'
+                            : 'bg-green-900/30 text-green-400'
+                        }`}>
+                          {user.billingMode === 'DRY_RUN' ? '🔒' : '💰'}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          user.modelMode === 'DRY_RUN'
+                            ? 'bg-yellow-900/30 text-yellow-400'
+                            : 'bg-green-900/30 text-green-400'
+                        }`}>
+                          {user.modelMode === 'DRY_RUN' ? '🔒' : '✅'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -265,6 +283,92 @@ export default function AdminUsersPage() {
                     <div>
                       <p className="text-sm text-slate-400 mb-1">积分余额</p>
                       <p className="text-3xl font-bold text-indigo-400">{selectedUser.credits}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-400 mb-1">计费模式</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 rounded text-sm font-semibold ${
+                          selectedUser.billingMode === 'DRY_RUN'
+                            ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700/50'
+                            : 'bg-green-900/50 text-green-300 border border-green-700/50'
+                        }`}>
+                          {selectedUser.billingMode === 'DRY_RUN' ? '🔒 DRY_RUN' : '💰 REAL'}
+                        </span>
+                        <button
+                          onClick={async () => {
+                            const newMode = selectedUser.billingMode === 'DRY_RUN' ? 'REAL' : 'DRY_RUN';
+                            if (!confirm(`确定要将用户的计费模式切换为 ${newMode} 吗？\n\n${newMode === 'REAL' ? '⚠️ 切换到 REAL 模式后，用户的操作会产生真实费用！' : '✅ 切换到 DRY_RUN 模式后，用户的操作不会产生真实费用。'}`)) {
+                              return;
+                            }
+                            try {
+                              const response = await fetch('/api/users/update-mode', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  targetUserId: selectedUser.id,
+                                  billingMode: newMode,
+                                }),
+                              });
+                              if (!response.ok) {
+                                const standardError = await createErrorFromResponse(response, '切换模式失败');
+                                setError(standardError);
+                                return;
+                              }
+                              await loadUsers();
+                              setSelectedUser({ ...selectedUser, billingMode: newMode });
+                              alert(`✅ 已切换计费模式为 ${newMode}`);
+                            } catch (err: any) {
+                              setError(normalizeError(err, ErrorCode.UNKNOWN_ERROR));
+                            }
+                          }}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 underline"
+                        >
+                          切换
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-400 mb-1">模型模式</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-3 py-1 rounded text-sm font-semibold ${
+                          selectedUser.modelMode === 'DRY_RUN'
+                            ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700/50'
+                            : 'bg-green-900/50 text-green-300 border border-green-700/50'
+                        }`}>
+                          {selectedUser.modelMode === 'DRY_RUN' ? '🔒 DRY_RUN' : '✅ REAL'}
+                        </span>
+                        <button
+                          onClick={async () => {
+                            const newMode = selectedUser.modelMode === 'DRY_RUN' ? 'REAL' : 'DRY_RUN';
+                            if (!confirm(`确定要将用户的模型模式切换为 ${newMode} 吗？\n\n${newMode === 'REAL' ? '⚠️ 切换到 REAL 模式后，用户会调用真实的 AI 模型！' : '✅ 切换到 DRY_RUN 模式后，用户会使用模拟的 AI 响应。'}`)) {
+                              return;
+                            }
+                            try {
+                              const response = await fetch('/api/users/update-mode', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  targetUserId: selectedUser.id,
+                                  modelMode: newMode,
+                                }),
+                              });
+                              if (!response.ok) {
+                                const standardError = await createErrorFromResponse(response, '切换模式失败');
+                                setError(standardError);
+                                return;
+                              }
+                              await loadUsers();
+                              setSelectedUser({ ...selectedUser, modelMode: newMode });
+                              alert(`✅ 已切换模型模式为 ${newMode}`);
+                            } catch (err: any) {
+                              setError(normalizeError(err, ErrorCode.UNKNOWN_ERROR));
+                            }
+                          }}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 underline"
+                        >
+                          切换
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <p className="text-sm text-slate-400 mb-1">创建时间</p>

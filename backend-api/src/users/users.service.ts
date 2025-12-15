@@ -133,5 +133,28 @@ export class UsersService {
       throw error;
     }
   }
+
+  /**
+   * 更新用户模式（管理员功能）
+   */
+  async updateUserMode(
+    userId: string,
+    billingMode?: 'DRY_RUN' | 'REAL',
+    modelMode?: 'DRY_RUN' | 'REAL',
+  ): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new Error('用户不存在');
+    }
+
+    if (billingMode !== undefined) {
+      user.billingMode = billingMode;
+    }
+    if (modelMode !== undefined) {
+      user.modelMode = modelMode;
+    }
+
+    return await this.userRepository.save(user);
+  }
 }
 

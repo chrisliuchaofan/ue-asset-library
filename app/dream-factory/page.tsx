@@ -601,7 +601,18 @@ export default function DreamFactoryPage() {
                     onChange={(e) => setProject(p => ({...p, originalIdea: e.target.value}))}
                     />
                     <div className="mt-4 flex justify-between items-center">
-                    <span className="text-sm text-slate-500">Qwen Powered</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-500">Qwen Powered</span>
+                      {userInfo && (
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          userInfo.modelMode === 'DRY_RUN'
+                            ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/30'
+                            : 'bg-green-900/30 text-green-400 border border-green-700/30'
+                        }`} title={userInfo.modelMode === 'DRY_RUN' ? 'Dry Run 模式：不会调用真实 AI 模型' : 'Real 模式：会调用真实 AI 模型'}>
+                          {userInfo.modelMode === 'DRY_RUN' ? '🔒 DRY_RUN' : '✅ REAL'}
+                        </span>
+                      )}
+                    </div>
                     <Button onClick={() => handleIdeaSubmit(project.originalIdea)} isLoading={loading} disabled={!project.originalIdea.trim()}>
                         生成
                     </Button>
@@ -718,6 +729,11 @@ export default function DreamFactoryPage() {
                                     {scene.imageUrl ? (
                                         <div className="relative w-full h-full group">
                                             <img src={scene.imageUrl} className="w-full h-full object-cover" />
+                                            {userInfo && userInfo.modelMode === 'DRY_RUN' && (
+                                              <div className="absolute top-2 left-2 px-2 py-1 bg-yellow-900/80 text-yellow-300 text-xs rounded border border-yellow-700/50">
+                                                🔒 DRY_RUN 模式
+                                              </div>
+                                            )}
                                             <button
                                                 onClick={() => generateImageForScene(idx)}
                                                 disabled={scene.isGeneratingImage}
@@ -742,13 +758,20 @@ export default function DreamFactoryPage() {
                                                 </div>
                                             )}
                                             {scene.videoUrl && (
-                                                <video 
-                                                    src={scene.videoUrl} 
-                                                    className="w-full h-full object-cover"
-                                                    controls
-                                                    autoPlay
-                                                    loop
-                                                />
+                                                <div className="relative w-full h-full">
+                                                  <video 
+                                                      src={scene.videoUrl} 
+                                                      className="w-full h-full object-cover"
+                                                      controls
+                                                      autoPlay
+                                                      loop
+                                                  />
+                                                  {userInfo && userInfo.modelMode === 'DRY_RUN' && (
+                                                    <div className="absolute top-2 left-2 px-2 py-1 bg-yellow-900/80 text-yellow-300 text-xs rounded border border-yellow-700/50">
+                                                      🔒 DRY_RUN 模式
+                                                    </div>
+                                                  )}
+                                                </div>
                                             )}
                                         </div>
                                     ) : (

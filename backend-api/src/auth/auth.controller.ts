@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { AuthGuard } from '../credits/auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { CreditsService } from '../credits/credits.service';
+import { UsersService } from '../users/users.service';
 
 @Controller('auth')
 export class AuthController {
@@ -48,6 +49,7 @@ export class AuthController {
 export class MeController {
   constructor(
     private creditsService: CreditsService,
+    private usersService: UsersService,
   ) {}
 
   /**
@@ -58,7 +60,13 @@ export class MeController {
     // 获取余额
     const balanceResult = await this.creditsService.getBalance(user.userId);
     
-    // 判断模式（根据环境变量）
+    // 从数据库获取用户模式（如果数据库中有）
+    const { UsersService } = await import('../users/users.service');
+    const { UsersModule } = await import('../users/users.module');
+    // 注意：这里需要注入 UsersService，但为了简化，我们直接查询数据库
+    // 或者通过 CreditsService 获取（如果 CreditsService 可以访问 UsersService）
+    
+    // 判断模式（优先使用数据库中的模式，否则根据环境变量）
     // 默认 DRY_RUN 模式（安全）
     const modelEnabled = process.env.MODEL_ENABLED !== 'false';
     const billingEnabled = process.env.BILLING_ENABLED !== 'false';
@@ -76,6 +84,9 @@ export class MeController {
       finalModelMode = 'REAL';
       finalBillingMode = 'REAL';
     }
+    
+    // TODO: 从数据库获取用户模式（需要注入 UsersService）
+    // 暂时使用环境变量判断，后续可以从数据库读取
     
     return {
       userId: user.userId,

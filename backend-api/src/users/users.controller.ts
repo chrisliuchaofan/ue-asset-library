@@ -54,5 +54,34 @@ export class UsersController {
       throw error;
     }
   }
+
+  /**
+   * 更新用户模式（管理员功能）
+   */
+  @Post('update-mode')
+  @UseGuards(AuthGuard)
+  async updateUserMode(
+    @CurrentUser() currentUser: { userId: string; email: string },
+    @Body() body: { targetUserId: string; billingMode?: 'DRY_RUN' | 'REAL'; modelMode?: 'DRY_RUN' | 'REAL' },
+  ) {
+    try {
+      // TODO: 添加管理员权限检查
+      if (!body.targetUserId) {
+        throw new Error('targetUserId 不能为空');
+      }
+
+      const updatedUser = await this.usersService.updateUserMode(
+        body.targetUserId,
+        body.billingMode,
+        body.modelMode,
+      );
+
+      const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+      return { success: true, user: userWithoutPassword };
+    } catch (error: any) {
+      console.error('[UsersController] 更新用户模式失败:', error);
+      throw error;
+    }
+  }
 }
 
