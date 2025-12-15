@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { callBackendAPI } from '@/lib/backend-api-client';
 import { createStandardError, ErrorCode, handleApiRouteError } from '@/lib/errors/error-handler';
+import { isAdmin } from '@/lib/auth/is-admin';
 
 /**
  * GET /api/users/list
@@ -17,8 +18,13 @@ export async function GET() {
       );
     }
 
-    // TODO: 添加管理员权限检查
-    // 暂时允许所有认证用户访问，后续可以添加管理员检查
+    // 检查管理员权限
+    if (!isAdmin(session.user.email)) {
+      return NextResponse.json(
+        createStandardError(ErrorCode.FORBIDDEN, '权限不足，需要管理员权限'),
+        { status: 403 }
+      );
+    }
 
     const result = await callBackendAPI<{ users: any[] }>('/users/list');
     return NextResponse.json(result);
