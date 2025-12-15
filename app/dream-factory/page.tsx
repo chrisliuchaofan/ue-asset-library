@@ -473,7 +473,7 @@ export default function DreamFactoryPage() {
                       }
                     }}
                     className={`px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all hover:scale-105 ${
-                      userInfo.modelMode === 'DRY_RUN' 
+                    userInfo.modelMode === 'DRY_RUN' 
                         ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700/50 hover:bg-yellow-800/60' 
                         : 'bg-green-900/50 text-green-300 border border-green-700/50 hover:bg-green-800/60'
                     }`}
@@ -503,7 +503,7 @@ export default function DreamFactoryPage() {
                       }
                     }}
                     className={`px-2 py-0.5 rounded text-xs font-semibold cursor-pointer transition-all hover:scale-105 ${
-                      userInfo.billingMode === 'DRY_RUN' 
+                    userInfo.billingMode === 'DRY_RUN' 
                         ? 'bg-yellow-900/50 text-yellow-300 border border-yellow-700/50 hover:bg-yellow-800/60' 
                         : 'bg-green-900/50 text-green-300 border border-green-700/50 hover:bg-green-800/60'
                     }`}

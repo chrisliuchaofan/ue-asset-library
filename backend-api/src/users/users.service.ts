@@ -112,5 +112,15 @@ export class UsersService {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     return user?.credits || 0;
   }
+
+  /**
+   * 获取所有用户列表（管理员功能）
+   */
+  async findAll(): Promise<Omit<User, 'passwordHash'>[]> {
+    const users = await this.userRepository.find({
+      order: { createdAt: 'DESC' },
+    });
+    return users.map(({ passwordHash: _, ...user }) => user);
+  }
 }
 

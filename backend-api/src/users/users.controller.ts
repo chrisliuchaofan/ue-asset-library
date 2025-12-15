@@ -37,5 +37,17 @@ export class UsersController {
     const { passwordHash: _, ...userWithoutPassword } = dbUser;
     return userWithoutPassword;
   }
+
+  /**
+   * 获取所有用户列表（管理员功能）
+   */
+  @Get('list')
+  @UseGuards(AuthGuard)
+  async getAllUsers(@CurrentUser() user: { userId: string; email: string }) {
+    // TODO: 添加管理员权限检查
+    // 暂时允许所有认证用户访问，后续可以添加管理员检查
+    const users = await this.usersService.findAll();
+    return { users };
+  }
 }
 

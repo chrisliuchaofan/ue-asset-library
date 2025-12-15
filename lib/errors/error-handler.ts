@@ -228,3 +228,34 @@ export function requiresUserAction(error: StandardError): boolean {
   return actionRequiredCodes.includes(error.code);
 }
 
+/**
+ * 处理 API 路由错误（返回 NextResponse）
+ * 用于 Next.js API 路由中的错误处理
+ */
+export async function handleApiRouteError(
+  error: unknown,
+  defaultMessage: string = '操作失败'
+): Promise<Response> {
+  let standardError: StandardError;
+  
+  // 如果是 Response 对象，使用 createErrorFromResponse
+  if (error instanceof Response) {
+    standardError = await createErrorFromResponse(error, defaultMessage);
+  } else if (error instanceof Error && (error as any).response) {
+    // 如果是 Error 对象，检查是否有 response 属性
+    standardError = await createErrorFromResponse((error as any).response, defaultMessage);
+  } else {
+    // 其他情况使用 normalizeError
+    standardError = normalizeError(error, ErrorCode.UNKNOWN_ERROR);
+  }
+  
+  logError(standardError, 'API Route');
+  
+  // 返回 NextResponse（需要导入 NextResponse）
+  const { NextResponse } = await import('next/server');
+  return NextResponse.json(
+    standardError,
+    { status: standardError.statusCode || 500 }
+  );
+}
+
