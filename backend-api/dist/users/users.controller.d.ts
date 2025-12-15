@@ -25,6 +25,8 @@ export declare class UsersController {
         email: string;
         name: string;
         credits: number;
+        billingMode: "DRY_RUN" | "REAL";
+        modelMode: "DRY_RUN" | "REAL";
         createdAt: Date;
         updatedAt: Date;
     }>;
@@ -33,5 +35,25 @@ export declare class UsersController {
         email: string;
     }): Promise<{
         users: Omit<import("../database/entities/user.entity").User, "passwordHash">[];
+    }>;
+    updateUserMode(currentUser: {
+        userId: string;
+        email: string;
+    }, body: {
+        targetUserId: string;
+        billingMode?: 'DRY_RUN' | 'REAL';
+        modelMode?: 'DRY_RUN' | 'REAL';
+    }): Promise<{
+        success: boolean;
+        user: {
+            id: string;
+            email: string;
+            name: string;
+            credits: number;
+            billingMode: "DRY_RUN" | "REAL";
+            modelMode: "DRY_RUN" | "REAL";
+            createdAt: Date;
+            updatedAt: Date;
+        };
     }>;
 }

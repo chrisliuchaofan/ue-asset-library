@@ -35,6 +35,22 @@ __decorate([
     __metadata("design:type", Number)
 ], User.prototype, "credits", void 0);
 __decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: ['DRY_RUN', 'REAL'],
+        default: 'DRY_RUN',
+    }),
+    __metadata("design:type", String)
+], User.prototype, "billingMode", void 0);
+__decorate([
+    (0, typeorm_1.Column)({
+        type: 'enum',
+        enum: ['DRY_RUN', 'REAL'],
+        default: 'DRY_RUN',
+    }),
+    __metadata("design:type", String)
+], User.prototype, "modelMode", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)
 ], User.prototype, "createdAt", void 0);

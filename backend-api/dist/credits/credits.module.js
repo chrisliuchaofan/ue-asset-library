@@ -13,12 +13,16 @@ const credits_controller_1 = require("./credits.controller");
 const credits_service_1 = require("./credits.service");
 const user_entity_1 = require("../database/entities/user.entity");
 const credit_transaction_entity_1 = require("../database/entities/credit-transaction.entity");
+const auth_module_1 = require("../auth/auth.module");
 let CreditsModule = class CreditsModule {
 };
 exports.CreditsModule = CreditsModule;
 exports.CreditsModule = CreditsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, credit_transaction_entity_1.CreditTransaction])],
+        imports: [
+            typeorm_1.TypeOrmModule.forFeature([user_entity_1.User, credit_transaction_entity_1.CreditTransaction]),
+            auth_module_1.AuthModule,
+        ],
         controllers: [credits_controller_1.CreditsController],
         providers: [credits_service_1.CreditsService],
         exports: [credits_service_1.CreditsService],

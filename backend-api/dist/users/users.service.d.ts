@@ -17,4 +17,5 @@ export declare class UsersService {
     updateCredits(userId: string, credits: number): Promise<void>;
     getCredits(userId: string): Promise<number>;
     findAll(): Promise<Omit<User, 'passwordHash'>[]>;
+    updateUserMode(userId: string, billingMode?: 'DRY_RUN' | 'REAL', modelMode?: 'DRY_RUN' | 'REAL'): Promise<User>;
 }

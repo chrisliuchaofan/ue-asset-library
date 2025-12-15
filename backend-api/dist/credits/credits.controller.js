@@ -16,6 +16,7 @@ exports.CreditsController = void 0;
 const common_1 = require("@nestjs/common");
 const credits_service_1 = require("./credits.service");
 const auth_guard_1 = require("./auth.guard");
+const admin_guard_1 = require("../auth/admin.guard");
 const current_user_decorator_1 = require("../auth/decorators/current-user.decorator");
 let CreditsController = class CreditsController {
     constructor(creditsService) {
@@ -34,6 +35,16 @@ let CreditsController = class CreditsController {
         return this.creditsService.recharge(user.userId, body.amount);
     }
     async getTransactions(user, limitStr, offsetStr, targetUserId) {
+        if (targetUserId && targetUserId !== user.userId) {
+            const adminUsers = process.env.ADMIN_USERS || process.env.USER_WHITELIST || '';
+            const adminEmails = adminUsers
+                .split(',')
+                .map((u) => u.split(':')[0].trim())
+                .filter((email) => email.length > 0);
+            if (!adminEmails.includes(user.email)) {
+                throw new Error('权限不足，需要管理员权限才能查看其他用户的交易记录');
+            }
+        }
         const targetUserId_final = targetUserId || user.userId;
         const limit = limitStr ? parseInt(limitStr, 10) : 50;
         const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
@@ -79,6 +90,7 @@ __decorate([
 ], CreditsController.prototype, "getTransactions", null);
 __decorate([
     (0, common_1.Post)('admin/recharge'),
+    (0, common_1.UseGuards)(admin_guard_1.AdminGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),

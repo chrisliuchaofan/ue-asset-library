@@ -18,6 +18,7 @@ const auth_service_1 = require("./auth.service");
 const auth_guard_1 = require("../credits/auth.guard");
 const current_user_decorator_1 = require("./decorators/current-user.decorator");
 const credits_service_1 = require("../credits/credits.service");
+const users_service_1 = require("../users/users.service");
 let AuthController = class AuthController {
     constructor(authService, creditsService) {
         this.authService = authService;
@@ -72,11 +73,14 @@ exports.AuthController = AuthController = __decorate([
         credits_service_1.CreditsService])
 ], AuthController);
 let MeController = class MeController {
-    constructor(creditsService) {
+    constructor(creditsService, usersService) {
         this.creditsService = creditsService;
+        this.usersService = usersService;
     }
     async getMe(user) {
         const balanceResult = await this.creditsService.getBalance(user.userId);
+        const { UsersService } = await Promise.resolve().then(() => require('../users/users.service'));
+        const { UsersModule } = await Promise.resolve().then(() => require('../users/users.module'));
         const modelEnabled = process.env.MODEL_ENABLED !== 'false';
         const billingEnabled = process.env.BILLING_ENABLED !== 'false';
         const userWhitelist = process.env.USER_WHITELIST || '';
@@ -107,6 +111,7 @@ __decorate([
 exports.MeController = MeController = __decorate([
     (0, common_1.Controller)(''),
     (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
-    __metadata("design:paramtypes", [credits_service_1.CreditsService])
+    __metadata("design:paramtypes", [credits_service_1.CreditsService,
+        users_service_1.UsersService])
 ], MeController);
 //# sourceMappingURL=auth.controller.js.map

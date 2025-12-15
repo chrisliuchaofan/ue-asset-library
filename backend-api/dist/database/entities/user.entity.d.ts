@@ -4,6 +4,8 @@ export declare class User {
     name: string;
     passwordHash: string;
     credits: number;
+    billingMode: 'DRY_RUN' | 'REAL';
+    modelMode: 'DRY_RUN' | 'REAL';
     createdAt: Date;
     updatedAt: Date;
 }

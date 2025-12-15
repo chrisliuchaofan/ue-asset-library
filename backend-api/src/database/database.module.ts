@@ -5,6 +5,7 @@ import { CreditTransaction } from './entities/credit-transaction.entity';
 import { LogEntry } from './entities/log-entry.entity';
 import { Job } from './entities/job.entity';
 import { JobOutput } from './entities/job-output.entity';
+import { Project } from './entities/project.entity';
 
 @Module({
   imports: [
@@ -15,11 +16,11 @@ import { JobOutput } from './entities/job-output.entity';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME || 'ue_assets',
-      entities: [User, CreditTransaction, LogEntry, Job, JobOutput],
+            entities: [User, CreditTransaction, LogEntry, Job, JobOutput, Project],
       synchronize: process.env.NODE_ENV !== 'production', // 生产环境应设为 false，使用迁移
       logging: process.env.NODE_ENV !== 'production',
     }),
-    TypeOrmModule.forFeature([User, CreditTransaction, LogEntry, Job, JobOutput]),
+          TypeOrmModule.forFeature([User, CreditTransaction, LogEntry, Job, JobOutput, Project]),
   ],
   exports: [TypeOrmModule],
 })

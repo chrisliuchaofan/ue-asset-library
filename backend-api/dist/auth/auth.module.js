@@ -12,6 +12,7 @@ const auth_controller_1 = require("./auth.controller");
 const auth_service_1 = require("./auth.service");
 const credits_module_1 = require("../credits/credits.module");
 const users_module_1 = require("../users/users.module");
+const admin_guard_1 = require("./admin.guard");
 let AuthModule = class AuthModule {
 };
 exports.AuthModule = AuthModule;
@@ -19,8 +20,8 @@ exports.AuthModule = AuthModule = __decorate([
     (0, common_1.Module)({
         imports: [credits_module_1.CreditsModule, users_module_1.UsersModule],
         controllers: [auth_controller_1.AuthController, auth_controller_1.MeController],
-        providers: [auth_service_1.AuthService],
-        exports: [auth_service_1.AuthService],
+        providers: [auth_service_1.AuthService, admin_guard_1.AdminGuard],
+        exports: [auth_service_1.AuthService, admin_guard_1.AdminGuard],
     })
 ], AuthModule);
 //# sourceMappingURL=auth.module.js.map

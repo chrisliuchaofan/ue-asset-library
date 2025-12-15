@@ -8,6 +8,7 @@ import { AiModule } from './ai/ai.module';
 import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
 import { StorageModule } from './storage/storage.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Module({
   imports: [
@@ -17,10 +18,11 @@ import { StorageModule } from './storage/storage.module';
     UsersModule,
     CreditsModule,
     LogsModule,
-    JobsModule,
-    AiModule,
-    StorageModule,
-  ],
+          JobsModule,
+          AiModule,
+          StorageModule,
+          ProjectsModule,
+        ],
 })
 export class AppModule {}
 

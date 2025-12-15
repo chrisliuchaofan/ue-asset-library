@@ -16,6 +16,7 @@ exports.UsersController = void 0;
 const common_1 = require("@nestjs/common");
 const users_service_1 = require("./users.service");
 const auth_guard_1 = require("../credits/auth.guard");
+const admin_guard_1 = require("../auth/admin.guard");
 const current_user_decorator_1 = require("../auth/decorators/current-user.decorator");
 let UsersController = class UsersController {
     constructor(usersService) {
@@ -45,6 +46,20 @@ let UsersController = class UsersController {
             throw error;
         }
     }
+    async updateUserMode(currentUser, body) {
+        try {
+            if (!body.targetUserId) {
+                throw new Error('targetUserId 不能为空');
+            }
+            const updatedUser = await this.usersService.updateUserMode(body.targetUserId, body.billingMode, body.modelMode);
+            const { passwordHash: _, ...userWithoutPassword } = updatedUser;
+            return { success: true, user: userWithoutPassword };
+        }
+        catch (error) {
+            console.error('[UsersController] 更新用户模式失败:', error);
+            throw error;
+        }
+    }
 };
 exports.UsersController = UsersController;
 __decorate([
@@ -71,12 +86,21 @@ __decorate([
 ], UsersController.prototype, "getMe", null);
 __decorate([
     (0, common_1.Get)('list'),
-    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard, admin_guard_1.AdminGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "getAllUsers", null);
+__decorate([
+    (0, common_1.Post)('update-mode'),
+    (0, common_1.UseGuards)(auth_guard_1.AuthGuard, admin_guard_1.AdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "updateUserMode", null);
 exports.UsersController = UsersController = __decorate([
     (0, common_1.Controller)('users'),
     __metadata("design:paramtypes", [users_service_1.UsersService])

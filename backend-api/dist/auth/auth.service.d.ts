@@ -12,6 +12,7 @@ export declare class AuthService {
         token: string;
         isAdmin: boolean;
     }>;
+    private isAdmin;
     verifyToken(token: string): Promise<{
         valid: boolean;
         userId: any;

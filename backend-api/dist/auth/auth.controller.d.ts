@@ -1,5 +1,6 @@
 import { AuthService } from './auth.service';
 import { CreditsService } from '../credits/credits.service';
+import { UsersService } from '../users/users.service';
 export declare class AuthController {
     private authService;
     private creditsService;
@@ -42,7 +43,8 @@ export declare class AuthController {
 }
 export declare class MeController {
     private creditsService;
-    constructor(creditsService: CreditsService);
+    private usersService;
+    constructor(creditsService: CreditsService, usersService: UsersService);
     getMe(user: {
         userId: string;
         email: string;

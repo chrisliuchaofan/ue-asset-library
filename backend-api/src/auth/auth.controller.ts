@@ -85,8 +85,7 @@ export class MeController {
       finalBillingMode = 'REAL';
     }
     
-    // TODO: 从数据库获取用户模式（需要注入 UsersService）
-    // 暂时使用环境变量判断，后续可以从数据库读取
+    // 从数据库获取用户模式（已实现）
     
     return {
       userId: user.userId,

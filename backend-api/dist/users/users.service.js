@@ -90,6 +90,19 @@ let UsersService = class UsersService {
             throw error;
         }
     }
+    async updateUserMode(userId, billingMode, modelMode) {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) {
+            throw new Error('用户不存在');
+        }
+        if (billingMode !== undefined) {
+            user.billingMode = billingMode;
+        }
+        if (modelMode !== undefined) {
+            user.modelMode = modelMode;
+        }
+        return await this.userRepository.save(user);
+    }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([

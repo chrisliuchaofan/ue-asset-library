@@ -81,7 +81,22 @@ export default function DreamFactoryPage() {
   // 加载保存的项目列表
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setSavedProjects(getAllSavedProjects());
+      // 自动迁移 localStorage 中的项目到服务器
+      import('@/lib/dream-factory/migrate-projects').then(({ autoMigrate }) => {
+        autoMigrate().then(() => {
+          // 迁移完成后加载项目列表
+          getAllSavedProjects().then(setSavedProjects).catch(err => {
+            console.error('[Dream Factory] 加载项目列表失败:', err);
+            setSavedProjects([]);
+          });
+        });
+      }).catch(() => {
+        // 如果迁移失败，直接加载项目列表
+        getAllSavedProjects().then(setSavedProjects).catch(err => {
+          console.error('[Dream Factory] 加载项目列表失败:', err);
+          setSavedProjects([]);
+        });
+      });
     }
   }, []);
 
@@ -881,12 +896,13 @@ export default function DreamFactoryPage() {
                     <h2 className="text-3xl font-bold brand-font mb-4">🎉 项目完成</h2>
                     <p className="text-slate-300 mb-8">您的视频项目已生成完成</p>
                     <div className="flex gap-4 justify-center">
-                      <Button onClick={() => {
+                      <Button onClick={async () => {
                         // 自动保存项目
                         try {
                           const projectTitle = project.selectedConcept?.title || project.originalIdea.substring(0, 50) || '未命名项目';
-                          saveProject(project, projectTitle);
-                          setSavedProjects(getAllSavedProjects());
+                          await saveProject(project, projectTitle);
+                          const projects = await getAllSavedProjects();
+                          setSavedProjects(projects);
                           alert('项目已保存！');
                         } catch (error) {
                           console.error('保存项目失败:', error);
@@ -935,8 +951,9 @@ export default function DreamFactoryPage() {
                           <button
                             onClick={() => {
                               if (confirm('确定要删除这个项目吗？')) {
-                                deleteProject(saved.id);
-                                setSavedProjects(getAllSavedProjects());
+                                await deleteProject(saved.id);
+                                const projects = await getAllSavedProjects();
+                                setSavedProjects(projects);
                               }
                             }}
                             className="text-slate-400 hover:text-red-400 transition-colors text-sm"
