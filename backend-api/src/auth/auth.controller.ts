@@ -60,39 +60,19 @@ export class MeController {
     // 获取余额
     const balanceResult = await this.creditsService.getBalance(user.userId);
     
-    // 从数据库获取用户模式（如果数据库中有）
-    const { UsersService } = await import('../users/users.service');
-    const { UsersModule } = await import('../users/users.module');
-    // 注意：这里需要注入 UsersService，但为了简化，我们直接查询数据库
-    // 或者通过 CreditsService 获取（如果 CreditsService 可以访问 UsersService）
+    // 从数据库获取用户模式
+    const dbUser = await this.usersService.findById(user.userId);
     
-    // 判断模式（优先使用数据库中的模式，否则根据环境变量）
-    // 默认 DRY_RUN 模式（安全）
-    const modelEnabled = process.env.MODEL_ENABLED !== 'false';
-    const billingEnabled = process.env.BILLING_ENABLED !== 'false';
-    
-    // 可以根据用户白名单或特定用户覆盖模式
-    // 例如：某些用户可以使用 REAL 模式
-    const userWhitelist = process.env.USER_WHITELIST || '';
-    const realModeUsers = process.env.REAL_MODE_USERS || ''; // 格式：email1,email2
-    
-    let finalModelMode: 'DRY_RUN' | 'REAL' = modelEnabled ? 'REAL' : 'DRY_RUN';
-    let finalBillingMode: 'DRY_RUN' | 'REAL' = billingEnabled ? 'REAL' : 'DRY_RUN';
-    
-    // 如果用户在 REAL_MODE_USERS 白名单中，使用 REAL 模式
-    if (realModeUsers && realModeUsers.split(',').includes(user.email)) {
-      finalModelMode = 'REAL';
-      finalBillingMode = 'REAL';
-    }
-    
-    // 从数据库获取用户模式（已实现）
+    // 优先使用数据库中的模式，如果不存在则使用默认值 DRY_RUN
+    const billingMode = dbUser?.billingMode || 'DRY_RUN';
+    const modelMode = dbUser?.modelMode || 'DRY_RUN';
     
     return {
       userId: user.userId,
       email: user.email,
       balance: balanceResult.balance,
-      billingMode: finalBillingMode,
-      modelMode: finalModelMode,
+      billingMode,
+      modelMode,
     };
   }
 }
