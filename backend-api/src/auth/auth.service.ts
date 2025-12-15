@@ -22,72 +22,105 @@ export class AuthService {
   }
 
   /**
-   * 用户登录（支持数据库用户和管理员白名单）
+   * 用户登录（优先使用数据库验证）
    * 
    * 登录策略：
-   * 1. 先检查白名单（USER_WHITELIST），如果匹配，直接返回 token（不验证数据库密码）
-   * 2. 如果不在白名单，尝试从数据库验证（需要数据库中有用户且密码匹配）
+   * 1. 优先从数据库验证（需要数据库中有用户且密码匹配）
+   * 2. 如果数据库验证失败，在生产环境直接拒绝
+   * 3. 在开发环境，可以回退到白名单验证（仅用于开发调试）
    */
   async login(email: string, password: string, isAdmin: boolean = false) {
-    // 先检查白名单（无论 isAdmin 是否为 true）
-    // 这样可以支持白名单用户登录，即使数据库中密码为空
-    const adminWhitelist = this.getAdminWhitelistUsers();
-    const adminUser = adminWhitelist.find(
-      (u) => {
-        const whitelistEmail = u.email.trim();
-        const emailUsername = email.split('@')[0];
-        const whitelistUsername = whitelistEmail.includes('@') 
-          ? whitelistEmail.split('@')[0] 
-          : whitelistEmail;
-        return (whitelistEmail === email || whitelistUsername === emailUsername) && u.password === password;
-      }
-    );
-
-    if (adminUser) {
-      // 白名单用户登录成功
-      // 确保数据库中有该用户（用于积分系统），但不需要验证数据库密码
-      try {
-        const existingUser = await this.usersService.findByEmail(email);
-        if (!existingUser) {
-          // 如果数据库中不存在，CreditsService 会在初始化时创建
-          // 这里不需要手动创建，因为 CreditsService.initializeUsers() 会在启动时执行
-          console.log(`[AuthService] 白名单用户登录: ${email}，但数据库中不存在，CreditsService 会在初始化时创建`);
-        }
-      } catch (error) {
-        // 忽略数据库查询错误，继续返回 token
-        console.warn(`[AuthService] 查询用户失败: ${email}`, error);
-      }
-      
-      const token = jwt.sign(
-        { userId: email, email, isAdmin: isAdmin || true },
-        this.jwtSecret,
-        { expiresIn: '30d' }
-      );
-      return {
-        success: true,
-        userId: email,
-        email,
-        name: email.split('@')[0],
-        token,
-        isAdmin: isAdmin || true,
-      };
-    }
-
-    // 尝试从数据库验证（普通用户）
+    // 优先使用数据库验证
     try {
       const result = await this.usersService.login(email, password);
+      
+      // 数据库验证成功，检查用户是否是管理员
+      const userIsAdmin = isAdmin || this.isAdmin(result.user.email);
+      
       return {
         success: true,
         userId: result.user.id,
         email: result.user.email,
         name: result.user.name,
         token: result.token,
-        isAdmin: false,
+        isAdmin: userIsAdmin,
       };
     } catch (error) {
-      // 数据库登录失败，返回错误
+      // 数据库验证失败
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      
+      // 生产环境：直接拒绝，不允许白名单登录
+      if (!isDevelopment) {
+        throw new UnauthorizedException('邮箱或密码错误');
+      }
+      
+      // 开发环境：可以回退到白名单验证（仅用于开发调试）
+      console.warn(`[AuthService] 数据库验证失败，尝试白名单验证（仅开发环境）: ${email}`);
+      const adminWhitelist = this.getAdminWhitelistUsers();
+      const adminUser = adminWhitelist.find(
+        (u) => {
+          const whitelistEmail = u.email.trim();
+          const emailUsername = email.split('@')[0];
+          const whitelistUsername = whitelistEmail.includes('@') 
+            ? whitelistEmail.split('@')[0] 
+            : whitelistEmail;
+          return (whitelistEmail === email || whitelistUsername === emailUsername) && u.password === password;
+        }
+      );
+
+      if (adminUser) {
+        // 开发环境白名单用户登录成功
+        console.warn(`[AuthService] ⚠️ 使用白名单登录（仅开发环境）: ${email}`);
+        
+        // 确保数据库中有该用户（用于积分系统）
+        try {
+          const existingUser = await this.usersService.findByEmail(email);
+          if (!existingUser) {
+            console.log(`[AuthService] 白名单用户登录: ${email}，但数据库中不存在，CreditsService 会在初始化时创建`);
+          }
+        } catch (error) {
+          console.warn(`[AuthService] 查询用户失败: ${email}`, error);
+        }
+        
+        const token = jwt.sign(
+          { userId: email, email, isAdmin: isAdmin || true },
+          this.jwtSecret,
+          { expiresIn: '30d' }
+        );
+        return {
+          success: true,
+          userId: email,
+          email,
+          name: email.split('@')[0],
+          token,
+          isAdmin: isAdmin || true,
+        };
+      }
+      
+      // 白名单验证也失败，返回错误
       throw new UnauthorizedException('邮箱或密码错误');
     }
+  }
+
+  /**
+   * 检查用户是否是管理员
+   */
+  private isAdmin(email: string): boolean {
+    const adminUsersEnv = process.env.ADMIN_USERS || process.env.ADMIN_WHITELIST || process.env.USER_WHITELIST || '';
+    if (!adminUsersEnv) return false;
+    
+    const adminEmails = adminUsersEnv.split(',').map(user => {
+      const [emailOrUsername] = user.split(':');
+      return emailOrUsername.trim();
+    });
+    
+    return adminEmails.some(adminEmail => {
+      const emailUsername = email.split('@')[0];
+      const adminEmailUsername = adminEmail.includes('@') 
+        ? adminEmail.split('@')[0] 
+        : adminEmail;
+      return adminEmail === email || adminEmailUsername === emailUsername;
+    });
   }
 
   /**
