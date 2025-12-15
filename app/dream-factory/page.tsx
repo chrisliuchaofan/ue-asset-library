@@ -10,6 +10,7 @@ import BackgroundMusic from '@/components/dream-factory/BackgroundMusic';
 import AssetSelector from '@/components/dream-factory/AssetSelector';
 import ThinkingAnimation from '@/components/dream-factory/ThinkingAnimation';
 import { useSession, signOut } from 'next-auth/react';
+import Link from 'next/link';
 import { saveProject, getAllSavedProjects, deleteProject, type SavedProject } from '@/lib/dream-factory/project-storage';
 import { ErrorDisplay } from '@/components/errors/error-display';
 import { createErrorFromResponse, normalizeError } from '@/lib/errors/error-handler';
@@ -528,6 +529,13 @@ export default function DreamFactoryPage() {
                   </button>
                 </div>
               </div>
+              <Link
+                href="/settings"
+                className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-white/10 transition-colors"
+                title="我的积分"
+              >
+                我的积分
+              </Link>
               <button
                 onClick={() => setShowProjectList(true)}
                 className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-white/10 transition-colors"
@@ -949,7 +957,7 @@ export default function DreamFactoryPage() {
                         <div className="flex justify-between items-start mb-2">
                           <h3 className="font-bold text-indigo-300 brand-font line-clamp-1">{saved.title}</h3>
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm('确定要删除这个项目吗？')) {
                                 await deleteProject(saved.id);
                                 const projects = await getAllSavedProjects();

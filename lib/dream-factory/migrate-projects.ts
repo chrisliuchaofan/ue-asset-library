@@ -45,7 +45,7 @@ export async function migrateProjects(): Promise<{
   }
 
   // 从 localStorage 读取项目
-  const localProjects = getLocalProjects();
+  const localProjects = await getLocalProjects();
   
   if (localProjects.length === 0) {
     console.log('[Migration] 没有需要迁移的项目');
@@ -68,11 +68,15 @@ export async function migrateProjects(): Promise<{
         project.title
       );
 
-      // 如果有合并视频 URL，更新项目
-      if (project.mergedVideoUrl) {
-        await serverStorage.updateProject(savedId, {
-          mergedVideoUrl: project.mergedVideoUrl,
-        });
+      // 如果有合并视频 URL，更新项目（如果类型支持）
+      if ('mergedVideoUrl' in project && (project as any).mergedVideoUrl) {
+        try {
+          await serverStorage.updateProject(savedId, {
+            mergedVideoUrl: (project as any).mergedVideoUrl,
+          } as any);
+        } catch (updateError) {
+          console.warn(`[Migration] 更新项目 ${savedId} 的 mergedVideoUrl 失败:`, updateError);
+        }
       }
 
       results.push({ success: true, id: savedId, originalId: project.id });

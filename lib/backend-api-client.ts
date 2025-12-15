@@ -5,9 +5,24 @@
 
 import { getSession } from '@/lib/auth';
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
-                        process.env.BACKEND_API_URL || 
-                        'https://api.factory-buy.com';
+// 获取后端 API URL，确保包含协议
+function getBackendApiUrl(): string {
+  const url = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
+              process.env.BACKEND_API_URL || 
+              'https://api.factory-buy.com';
+  
+  // 如果 URL 不包含协议，自动添加 http://
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    const fixedUrl = `http://${url}`;
+    console.log('[BackendApiClient] URL 缺少协议，已自动添加:', { original: url, fixed: fixedUrl });
+    return fixedUrl;
+  }
+  
+  return url;
+}
+
+const BACKEND_API_URL = getBackendApiUrl();
+console.log('[BackendApiClient] 后端 API URL:', BACKEND_API_URL);
 
 // Token 缓存（避免频繁登录）
 let tokenCache: { email: string; token: string; expiresAt: number } | null = null;
@@ -178,7 +193,26 @@ export async function callBackendAPI<T = any>(
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+    console.log('[BackendApiClient] ✅ Token 已添加到请求头:', {
+      endpoint,
+      hasToken: true,
+      tokenLength: token.length,
+      tokenPrefix: token.substring(0, 20) + '...',
+    });
+  } else {
+    console.warn('[BackendApiClient] ❌ Token 为空，请求将不带 Authorization header:', {
+      endpoint,
+      hasToken: false,
+      note: '这会导致后端返回 401 错误。请检查 getBackendToken() 是否成功获取了 token。',
+    });
   }
+
+  console.log('[BackendApiClient] 发送请求:', {
+    url: `${BACKEND_API_URL}${endpoint}`,
+    method: options.method || 'GET',
+    hasAuthorization: !!headers['Authorization'],
+    headers: Object.keys(headers),
+  });
 
   const response = await fetch(`${BACKEND_API_URL}${endpoint}`, {
     ...options,

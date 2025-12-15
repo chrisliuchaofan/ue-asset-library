@@ -31,6 +31,11 @@ function LoginForm() {
     setLoading(true);
 
     try {
+      console.log('[LoginForm] 开始登录:', { username, hasPassword: !!password, callbackUrl });
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/auth/login/page.tsx:36',message:'calling signIn',data:{username,hasPassword:!!password,callbackUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // #endregion
       const result = await signIn('credentials', {
         username,
         password,
@@ -38,21 +43,61 @@ function LoginForm() {
         callbackUrl,
       });
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/auth/login/page.tsx:43',message:'signIn result',data:{ok:result?.ok,error:result?.error,status:result?.status,url:result?.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
+      // #endregion
+      console.log('[LoginForm] 登录结果:', { 
+        ok: result?.ok, 
+        error: result?.error,
+        status: result?.status,
+        url: result?.url 
+      });
+
       if (result?.error) {
-        setError('用户名或密码错误');
+        console.error('[LoginForm] 登录失败:', result.error);
+        
+        // 根据错误类型显示更详细的错误信息
+        let errorMessage = '登录失败';
+        if (result.error === 'CredentialsSignin') {
+          // CredentialsSignin 通常意味着 authorize() 返回了 null 或抛出了错误
+          // 检查服务器端日志以获取真实错误信息
+          errorMessage = '登录失败：后端连接错误或认证失败\n\n可能的原因：\n1. 后端服务未运行（检查后端是否在运行）\n2. 网络连接问题（检查 CORS 配置）\n3. 用户名或密码错误\n\n请查看：\n- 浏览器控制台（F12）中的详细错误信息\n- 服务器端日志中的 [Auth] 错误信息';
+        } else if (result.error === 'Configuration') {
+          // Configuration 错误通常意味着 NextAuth 配置有问题
+          errorMessage = '登录失败：NextAuth 配置错误\n\n可能的原因：\n1. NEXTAUTH_SECRET 未配置或配置错误\n2. NEXTAUTH_URL 配置错误\n3. NextAuth 配置文件中存在语法错误\n\n请检查：\n- .env.local 文件中的 NEXTAUTH_SECRET 和 NEXTAUTH_URL\n- 服务器端日志中的 NextAuth 错误信息';
+        } else {
+          errorMessage = `登录失败: ${result.error}`;
+        }
+        
+        // 在控制台输出更详细的错误信息，帮助调试
+        console.error('[LoginForm] ❌ 登录失败详情:', {
+          error: result.error,
+          status: result.status,
+          url: result.url,
+          note: result.error === 'Configuration' 
+            ? 'NextAuth 配置错误，请检查 NEXTAUTH_SECRET 和 NEXTAUTH_URL 环境变量'
+            : '请检查服务器端日志中的 [Auth] 错误信息以获取详细错误原因',
+        });
+        
+        setError(errorMessage);
         setPassword('');
       } else if (result?.ok) {
+        console.log('[LoginForm] 登录成功，跳转到:', callbackUrl);
         // 登录成功，跳转到目标页面
         // 使用 window.location 确保完全刷新页面和 session
         window.location.href = callbackUrl;
       } else {
+        console.warn('[LoginForm] 登录结果异常:', result);
         // 如果 result 为 undefined 或没有 error，也尝试跳转
         router.push(callbackUrl);
         router.refresh();
       }
-    } catch (err) {
-      console.error('登录错误:', err);
-      setError('登录失败，请重试');
+    } catch (err: any) {
+      console.error('[LoginForm] 登录异常:', { 
+        error: err.message || err,
+        stack: err.stack?.substring(0, 300)
+      });
+      setError(`登录失败: ${err.message || '请重试'}`);
       setPassword('');
     } finally {
       setLoading(false);

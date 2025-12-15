@@ -293,3 +293,4 @@ sudo tail -f /var/log/nginx/error.log
 3. **日志收集**：使用 ELK 或类似工具
 4. **错误追踪**：集成 Sentry 或类似服务
 
+

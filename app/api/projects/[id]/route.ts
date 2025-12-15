@@ -9,7 +9,7 @@ import { createStandardError, ErrorCode, handleApiRouteError } from '@/lib/error
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -20,7 +20,8 @@ export async function GET(
       );
     }
 
-    const result = await callBackendAPI<any>(`/projects/${params.id}`);
+    const { id } = await params;
+    const result = await callBackendAPI<any>(`/projects/${id}`);
     return NextResponse.json(result);
   } catch (error: any) {
     return await handleApiRouteError(error, '获取项目失败');
@@ -33,7 +34,7 @@ export async function GET(
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -44,8 +45,9 @@ export async function PUT(
       );
     }
 
+    const { id } = await params;
     const body = await request.json();
-    const result = await callBackendAPI<any>(`/projects/${params.id}`, {
+    const result = await callBackendAPI<any>(`/projects/${id}`, {
       method: 'PUT',
       body: JSON.stringify(body),
     });
@@ -62,7 +64,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -73,7 +75,8 @@ export async function DELETE(
       );
     }
 
-    const result = await callBackendAPI<{ success: boolean }>(`/projects/${params.id}`, {
+    const { id } = await params;
+    const result = await callBackendAPI<{ success: boolean }>(`/projects/${id}`, {
       method: 'DELETE',
     });
 

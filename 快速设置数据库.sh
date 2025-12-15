@@ -91,3 +91,4 @@ echo "3. 运行: cd backend-api && npm run start:dev"
 echo "4. 查看日志，确认数据库连接成功"
 echo ""
 
+

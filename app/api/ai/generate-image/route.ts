@@ -267,37 +267,54 @@ export async function POST(request: Request) {
     console.warn('[AI Generate Image] ⚠️ 使用前端AI服务（未使用后端dry run模式和计费，可能产生费用）');
     const result = await aiService.generateImage(imageRequest, provider);
     
-    // ✅ M5.1: 如果前端生成了图片，必须通过后端上传到 OSS
+    // ✅ M7: 如果前端生成了图片，必须通过后端上传到 OSS
     if (result.imageUrl && !result.imageUrl.includes('oss-') && !result.imageUrl.includes('aliyuncs.com')) {
+      // 调用后端接口上传到 OSS
+      const backendApiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
+                            process.env.BACKEND_API_URL;
+      
+      if (!backendApiUrl) {
+        // 如果后端 API 未配置，返回错误
+        return NextResponse.json(
+          {
+            message: '后端 API 未配置，无法上传图片到 OSS',
+            error: 'BACKEND_API_NOT_CONFIGURED',
+          },
+          { status: 500 }
+        );
+      }
+
       try {
-        // 调用后端接口上传到 OSS
-        const backendApiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
-                              process.env.BACKEND_API_URL;
+        const uploadResult = await callBackendAPI('/ai/generate-image', {
+          method: 'POST',
+          body: JSON.stringify({
+            prompt: requestData.prompt,
+            imageUrl: result.imageUrl, // 传递生成的图片 URL
+            size: requestData.size ? sizeMap[requestData.size] : '1024*1024',
+            provider: requestData.provider,
+          }),
+        });
         
-        if (backendApiUrl) {
-          const uploadResult = await callBackendAPI('/ai/generate-image', {
-            method: 'POST',
-            body: JSON.stringify({
-              prompt: requestData.prompt,
-              imageUrl: result.imageUrl, // 传递生成的图片 URL
-              size: requestData.size ? sizeMap[requestData.size] : '1024*1024',
-              provider: requestData.provider,
-            }),
-          });
-          
-          // 返回 OSS URL
-          return NextResponse.json({
-            imageUrl: uploadResult.imageUrl,
-            raw: result.raw,
-          });
-        }
+        // 返回 OSS URL
+        return NextResponse.json({
+          imageUrl: uploadResult.imageUrl,
+          raw: result.raw,
+        });
       } catch (uploadError: any) {
         console.error('[AI Generate Image] 上传到 OSS 失败:', uploadError);
-        // 如果上传失败，返回原始 URL（但记录警告）
-        console.warn('[AI Generate Image] ⚠️ 图片未上传到 OSS，返回原始 URL');
+        // ✅ M7: 如果上传失败，返回错误而不是临时 URL
+        return NextResponse.json(
+          {
+            message: '图片上传到 OSS 失败',
+            error: uploadError.message || '无法上传图片到 OSS，请稍后重试',
+            details: uploadError,
+          },
+          { status: 500 }
+        );
       }
     }
     
+    // 如果已经是 OSS URL，直接返回
     return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error, '图片生成失败');

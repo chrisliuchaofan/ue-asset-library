@@ -97,3 +97,4 @@ echo "   - 如果 USER_WHITELIST 未配置，请编辑 .env 文件"
 echo "   - 配置格式：USER_WHITELIST=admin@admin.local:admin123"
 echo "   - 修改后需要重启服务：pm2 restart ue-assets-backend --update-env"
 
+

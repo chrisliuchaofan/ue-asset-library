@@ -4,7 +4,9 @@ import { useState, Children, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FolderOpen, Video, ChevronLeft, ChevronRight, Settings, Plus, List, ChevronDown, ChevronUp, Save, X, Edit, Trash2, LogOut } from 'lucide-react';
+import { FolderOpen, Video, ChevronLeft, ChevronRight, Settings, Plus, List, ChevronDown, ChevronUp, Save, X, Edit, Trash2, LogOut, Users, Gift, CreditCard } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { AdminRefreshProvider } from './admin-refresh-context';
 import { PROJECTS, PROJECT_PASSWORDS, PROJECT_DISPLAY_NAMES, getAllProjects, getProjectDisplayName, DEFAULT_DESCRIPTIONS, getAllDescriptions, saveDescriptions, type DescriptionKey } from '@/lib/constants';
@@ -655,6 +657,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
 }
 
 export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'assets-new' | 'assets-manage' | 'materials-new' | 'materials-manage' | 'settings'>('assets-new');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [assetsExpanded, setAssetsExpanded] = useState(true);
@@ -800,6 +803,60 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
               </div>
             )}
           </div>
+
+          {/* 用户管理 */}
+          <button
+            type="button"
+            onClick={() => {
+              console.log('[AdminLayout] 点击用户管理链接，使用 router.push');
+              router.push('/admin/users');
+            }}
+            className={cn(
+              'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
+              'text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            <Users className="h-5 w-5 shrink-0" />
+            {!sidebarCollapsed && <span className="flex-1 text-left">用户管理</span>}
+          </button>
+
+          {/* 兑换码管理 */}
+          <button
+            type="button"
+            onClick={() => {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/admin/admin-layout.tsx:826',message:'redeem codes button clicked',data:{currentPath:window.location.pathname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+              // #endregion
+              console.log('[AdminLayout] 点击兑换码管理链接，使用 router.push', { currentPath: window.location.pathname });
+              router.push('/admin/redeem-codes');
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/admin/admin-layout.tsx:829',message:'router.push called',data:{targetPath:'/admin/redeem-codes'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+              // #endregion
+            }}
+            className={cn(
+              'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
+              'text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            <Gift className="h-5 w-5 shrink-0" />
+            {!sidebarCollapsed && <span className="flex-1 text-left">兑换码管理</span>}
+          </button>
+
+          {/* 积分管理 */}
+          <button
+            type="button"
+            onClick={() => {
+              console.log('[AdminLayout] 点击积分管理链接，使用 router.push');
+              router.push('/admin/credits');
+            }}
+            className={cn(
+              'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
+              'text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            <CreditCard className="h-5 w-5 shrink-0" />
+            {!sidebarCollapsed && <span className="flex-1 text-left">积分管理</span>}
+          </button>
 
           {/* 设置 */}
           <div>

@@ -26,12 +26,16 @@ export async function GET() {
       );
     }
 
+    console.log('[API /users/list] 开始调用后端 API');
     const result = await callBackendAPI<{ users: any[] }>('/users/list');
+    console.log('[API /users/list] 后端 API 调用成功，用户数量:', result.users?.length || 0);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('[API /users/list] 错误详情:', {
       message: error.message,
       status: error.status,
+      statusText: error.statusText,
+      errorText: error.errorText,
       stack: error.stack,
     });
     return await handleApiRouteError(error, '获取用户列表失败');

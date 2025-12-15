@@ -8,6 +8,7 @@ import { ArrowLeft, CreditCard, Shield, User, Clock, RefreshCw } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { ErrorDisplay } from '@/components/errors/error-display';
 import { normalizeError, ErrorCode } from '@/lib/errors/error-handler';
+import { RedeemCodeForm } from '@/components/redeem-code-form';
 
 interface UserInfo {
   userId: string;
@@ -107,15 +108,15 @@ export default function SettingsPage() {
       <div className="max-w-6xl mx-auto">
         {/* 头部 */}
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/dashboard">
+          <Link href="/dream-factory">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              返回
+              返回梦工厂
             </Button>
           </Link>
           <div>
             <h1 className="text-3xl font-bold mb-2">设置</h1>
-            <p className="text-slate-400">个人信息和交易记录</p>
+            <p className="text-slate-400">个人信息、积分和交易记录</p>
           </div>
         </div>
 
@@ -128,7 +129,7 @@ export default function SettingsPage() {
 
         {/* 用户信息卡片 */}
         {userInfo && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="glass-panel p-6 rounded-xl">
               <div className="flex items-center gap-3 mb-4">
                 <User className="w-6 h-6 text-indigo-400" />
@@ -175,6 +176,18 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* 兑换码充值 */}
+            <div className="glass-panel p-6 rounded-xl">
+              <RedeemCodeForm
+                onSuccess={(balance) => {
+                  // 更新用户信息中的余额
+                  setUserInfo({ ...userInfo, balance });
+                  // 重新加载交易记录
+                  loadTransactions();
+                }}
+              />
             </div>
           </div>
         )}

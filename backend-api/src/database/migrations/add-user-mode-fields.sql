@@ -37,3 +37,4 @@ FROM information_schema.columns
 WHERE table_name = 'users' 
   AND column_name IN ('billingMode', 'modelMode');
 
+

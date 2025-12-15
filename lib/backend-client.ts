@@ -3,7 +3,7 @@
  * 统一管理对 ECS 后端 API 的调用
  */
 
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:3001';
+const BACKEND_API_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:3002';
 
 export interface BackendError {
   message: string;

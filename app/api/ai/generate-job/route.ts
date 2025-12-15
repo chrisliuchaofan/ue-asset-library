@@ -260,41 +260,58 @@ export async function POST(request: Request) {
         
         console.warn('[AI Generate Video] ⚠️ 使用前端AI服务（未使用后端dry run模式和计费，可能产生费用）');
         
-        // ✅ M5.1: 如果前端生成了视频，必须通过后端上传到 OSS
+        // ✅ M7: 如果前端生成了视频，必须通过后端上传到 OSS
         if (result.videoUrl && !result.videoUrl.includes('oss-') && !result.videoUrl.includes('aliyuncs.com')) {
+          // 调用后端接口上传到 OSS
+          const backendApiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
+                                process.env.BACKEND_API_URL;
+          
+          if (!backendApiUrl) {
+            // 如果后端 API 未配置，返回错误
+            return NextResponse.json(
+              {
+                message: '后端 API 未配置，无法上传视频到 OSS',
+                error: 'BACKEND_API_NOT_CONFIGURED',
+              },
+              { status: 500 }
+            );
+          }
+
           try {
-            // 调用后端接口上传到 OSS
-            const backendApiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
-                                  process.env.BACKEND_API_URL;
+            const uploadResult = await callBackendAPI('/ai/generate-video', {
+              method: 'POST',
+              body: JSON.stringify({
+                type: 'video',
+                imageUrl: finalImageUrl,
+                prompt: params.prompt,
+                videoUrl: result.videoUrl, // 传递生成的视频 URL
+                duration: params.duration,
+                resolution: params.resolution,
+                provider: params.provider,
+              }),
+            });
             
-            if (backendApiUrl) {
-              const uploadResult = await callBackendAPI('/ai/generate-video', {
-                method: 'POST',
-                body: JSON.stringify({
-                  type: 'video',
-                  imageUrl: finalImageUrl,
-                  prompt: params.prompt,
-                  videoUrl: result.videoUrl, // 传递生成的视频 URL
-                  duration: params.duration,
-                  resolution: params.resolution,
-                  provider: params.provider,
-                }),
-              });
-              
-              // 返回 OSS URL
-              return NextResponse.json({
-                videoUrl: uploadResult.videoUrl,
-                operationId: result.operationId,
-                raw: result.raw,
-              });
-            }
+            // 返回 OSS URL
+            return NextResponse.json({
+              videoUrl: uploadResult.videoUrl,
+              operationId: result.operationId,
+              raw: result.raw,
+            });
           } catch (uploadError: any) {
             console.error('[AI Generate Video] 上传到 OSS 失败:', uploadError);
-            // 如果上传失败，返回原始 URL（但记录警告）
-            console.warn('[AI Generate Video] ⚠️ 视频未上传到 OSS，返回原始 URL');
+            // ✅ M7: 如果上传失败，返回错误而不是临时 URL
+            return NextResponse.json(
+              {
+                message: '视频上传到 OSS 失败',
+                error: uploadError.message || '无法上传视频到 OSS，请稍后重试',
+                details: uploadError,
+              },
+              { status: 500 }
+            );
           }
         }
         
+        // 如果已经是 OSS URL，直接返回
         return NextResponse.json(result);
       } catch (e: any) {
         // 如果是未实现错误，返回 501
