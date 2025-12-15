@@ -267,6 +267,37 @@ export async function POST(request: Request) {
     console.warn('[AI Generate Image] ⚠️ 使用前端AI服务（未使用后端dry run模式和计费，可能产生费用）');
     const result = await aiService.generateImage(imageRequest, provider);
     
+    // ✅ M5.1: 如果前端生成了图片，必须通过后端上传到 OSS
+    if (result.imageUrl && !result.imageUrl.includes('oss-') && !result.imageUrl.includes('aliyuncs.com')) {
+      try {
+        // 调用后端接口上传到 OSS
+        const backendApiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 
+                              process.env.BACKEND_API_URL;
+        
+        if (backendApiUrl) {
+          const uploadResult = await callBackendAPI('/ai/generate-image', {
+            method: 'POST',
+            body: JSON.stringify({
+              prompt: requestData.prompt,
+              imageUrl: result.imageUrl, // 传递生成的图片 URL
+              size: requestData.size ? sizeMap[requestData.size] : '1024*1024',
+              provider: requestData.provider,
+            }),
+          });
+          
+          // 返回 OSS URL
+          return NextResponse.json({
+            imageUrl: uploadResult.imageUrl,
+            raw: result.raw,
+          });
+        }
+      } catch (uploadError: any) {
+        console.error('[AI Generate Image] 上传到 OSS 失败:', uploadError);
+        // 如果上传失败，返回原始 URL（但记录警告）
+        console.warn('[AI Generate Image] ⚠️ 图片未上传到 OSS，返回原始 URL');
+      }
+    }
+    
     return NextResponse.json(result);
   } catch (error) {
     return handleApiError(error, '图片生成失败');
