@@ -23,6 +23,11 @@ export async function GET() {
     const result = await callBackendAPI<{ users: any[] }>('/users/list');
     return NextResponse.json(result);
   } catch (error: any) {
+    console.error('[API /users/list] 错误详情:', {
+      message: error.message,
+      status: error.status,
+      stack: error.stack,
+    });
     return await handleApiRouteError(error, '获取用户列表失败');
   }
 }

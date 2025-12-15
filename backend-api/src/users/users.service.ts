@@ -117,10 +117,21 @@ export class UsersService {
    * 获取所有用户列表（管理员功能）
    */
   async findAll(): Promise<Omit<User, 'passwordHash'>[]> {
-    const users = await this.userRepository.find({
-      order: { createdAt: 'DESC' },
-    });
-    return users.map(({ passwordHash: _, ...user }) => user);
+    try {
+      const users = await this.userRepository.find({
+        order: { createdAt: 'DESC' },
+      });
+      
+      if (!users || users.length === 0) {
+        console.warn('[UsersService] 用户列表为空，可能数据库中没有用户');
+        return [];
+      }
+      
+      return users.map(({ passwordHash: _, ...user }) => user);
+    } catch (error) {
+      console.error('[UsersService] 获取用户列表失败:', error);
+      throw error;
+    }
   }
 }
 

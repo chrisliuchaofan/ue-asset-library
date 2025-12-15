@@ -44,10 +44,15 @@ export class UsersController {
   @Get('list')
   @UseGuards(AuthGuard)
   async getAllUsers(@CurrentUser() user: { userId: string; email: string }) {
-    // TODO: 添加管理员权限检查
-    // 暂时允许所有认证用户访问，后续可以添加管理员检查
-    const users = await this.usersService.findAll();
-    return { users };
+    try {
+      // TODO: 添加管理员权限检查
+      // 暂时允许所有认证用户访问，后续可以添加管理员检查
+      const users = await this.usersService.findAll();
+      return { users };
+    } catch (error: any) {
+      console.error('[UsersController] 获取用户列表失败:', error);
+      throw error;
+    }
   }
 }
 

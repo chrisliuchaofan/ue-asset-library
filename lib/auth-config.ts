@@ -41,20 +41,56 @@ export const authOptions: NextAuthConfig = {
           return null;
         }
 
-        const adminUsers = getAdminUsers();
-        const user = adminUsers.find(
-          (u) => u.username === credentials.username && u.password === credentials.password
-        );
+        // ✅ 统一认证：调用后端登录接口
+        try {
+          const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:3001';
+          
+          // 尝试调用后端登录接口
+          const response = await fetch(`${backendUrl}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: credentials.username,
+              password: credentials.password,
+            }),
+          });
 
-        if (user) {
+          if (!response.ok) {
+            // 后端登录失败，记录日志但不暴露详细信息
+            console.warn('[Auth] 后端登录失败:', response.status);
+            return null;
+          }
+
+          const data = await response.json();
+          
+          // 返回用户信息（与后端返回的格式一致）
           return {
-            id: user.email || user.username,
-            name: user.username,
-            email: user.email || `${user.username}@admin.local`,
+            id: data.userId || data.user?.id || credentials.username,
+            name: data.name || data.user?.name || credentials.username,
+            email: data.email || data.user?.email || credentials.username,
           };
-        }
+        } catch (error) {
+          // 网络错误或后端不可用，回退到本地认证（兼容性）
+          console.warn('[Auth] 后端不可用，回退到本地认证:', error);
+          
+          // ⚠️ 临时兼容：如果后端不可用，使用本地认证
+          // TODO: 生产环境应该禁用本地认证
+          const adminUsers = getAdminUsers();
+          const user = adminUsers.find(
+            (u) => u.username === credentials.username && u.password === credentials.password
+          );
 
-        return null;
+          if (user) {
+            console.warn('[Auth] ⚠️ 使用本地认证（后端不可用）:', user.username);
+            return {
+              id: user.email || user.username,
+              name: user.username,
+              email: user.email || `${user.username}@admin.local`,
+            };
+          }
+
+          return null;
+        }
       },
     }),
     // 钉钉登录（可选，需要配置钉钉 OAuth）
