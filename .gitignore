@@ -51,3 +51,6 @@ backend-api/*.tsbuildinfo
 data/export-logs.json
 data/asset-stats.json
 
+
+# 历史文档隔离区
+docs/_graveyard/
