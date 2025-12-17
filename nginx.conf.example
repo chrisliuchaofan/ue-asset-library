@@ -1,0 +1,92 @@
+# ✅ 修复 #2：Nginx 反向代理配置（强制 HTTPS + CORS）
+
+# HTTP 重定向到 HTTPS
+server {
+    listen 80;
+    server_name api.your-domain.com;
+    
+    # 重定向所有 HTTP 请求到 HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+# HTTPS 主配置
+server {
+    listen 443 ssl http2;
+    server_name api.your-domain.com;
+    
+    # SSL 证书配置（使用 Let's Encrypt）
+    # 安装证书：certbot --nginx -d api.your-domain.com
+    ssl_certificate /etc/letsencrypt/live/api.your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.your-domain.com/privkey.pem;
+    
+    # SSL 安全配置
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    
+    # ✅ CORS 配置（动态设置允许的来源）
+    # 注意：这里使用 $http_origin 变量，实际允许的域名由后端 CORS 配置控制
+    add_header 'Access-Control-Allow-Origin' '$http_origin' always;
+    add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+    add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-User-Id' always;
+    add_header 'Access-Control-Allow-Credentials' 'true' always;
+    add_header 'Access-Control-Max-Age' '86400' always;  # 缓存预检请求 24 小时
+    
+    # 处理预检请求（OPTIONS）
+    if ($request_method = 'OPTIONS') {
+        add_header 'Access-Control-Allow-Origin' '$http_origin' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-User-Id' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Access-Control-Max-Age' '86400' always;
+        add_header 'Content-Length' '0';
+        add_header 'Content-Type' 'text/plain';
+        return 204;
+    }
+    
+    # 反向代理到后端服务
+    location / {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        
+        # WebSocket 支持（如果需要）
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        
+        # 传递原始请求信息
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # 禁用缓存
+        proxy_cache_bypass $http_upgrade;
+    }
+    
+    # 健康检查端点（可选）
+    location /health {
+        proxy_pass http://localhost:3001/health;
+        access_log off;
+    }
+    
+    # 安全头
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+}
+
+
+
+
+
+

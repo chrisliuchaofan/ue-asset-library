@@ -39,12 +39,24 @@ export function createStandardError(
   const userMessage = message || ErrorMessages[code];
   const httpStatus = statusCode || ErrorStatusCodes[code];
   
+  // 只有当 details 存在且不为空时才包含它
+  let finalDetails: any = undefined;
+  if (details && typeof details === 'object') {
+    const detailsKeys = Object.keys(details);
+    if (detailsKeys.length > 0) {
+      finalDetails = details;
+    }
+  } else if (details !== undefined && details !== null) {
+    // 如果不是对象，直接使用（可能是字符串、数字等）
+    finalDetails = details;
+  }
+  
   return {
     code,
     message: userMessage,
     userMessage,
     statusCode: httpStatus || undefined,
-    details,
+    details: finalDetails,
     traceId,
     timestamp: new Date().toISOString(),
   };
@@ -253,8 +265,26 @@ export async function handleApiRouteError(
   
   // 返回 NextResponse（需要导入 NextResponse）
   const { NextResponse } = await import('next/server');
+  
+  // 构建响应对象，只有当 details 不为空时才包含它
+  const responseData: any = {
+    code: standardError.code,
+    message: standardError.userMessage,
+    userMessage: standardError.userMessage,
+    traceId: standardError.traceId,
+    timestamp: standardError.timestamp,
+  };
+  
+  // 只有当 details 存在且不为空时才添加
+  if (standardError.details && typeof standardError.details === 'object') {
+    const detailsKeys = Object.keys(standardError.details);
+    if (detailsKeys.length > 0) {
+      responseData.details = standardError.details;
+    }
+  }
+  
   return NextResponse.json(
-    standardError,
+    responseData,
     { status: standardError.statusCode || 500 }
   );
 }

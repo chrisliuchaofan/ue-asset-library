@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { callBackendAPI } from '@/lib/backend-api-client';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createStandardError, ErrorCode } from '@/lib/errors/error-handler';
+import { randomUUID } from 'crypto';
 
 /**
  * POST /api/credits/add
  * 给当前用户充值积分（仅用于开发/测试环境）
+ * 已迁移至 Supabase，不再依赖后端
  * 
  * ⚠️ 注意：这是一个测试接口，生产环境应该禁用或添加权限检查
  */
@@ -38,39 +40,79 @@ export async function POST(request: Request) {
       );
     }
 
-    try {
-      // 调用后端充值接口
-      const result = await callBackendAPI<{
-        balance: number;
-      }>('/credits/recharge', {
-        method: 'POST',
-        body: JSON.stringify({
-          amount,
-        }),
+    const email = session.user.email;
+    const userId = session.user.id || email;
+
+    // 使用 Supabase RPC 函数增加积分
+    const { data: newBalance, error: rpcError } = await supabaseAdmin.rpc(
+      'add_credits',
+      {
+        p_user_id: userId,
+        p_amount: amount,
+      }
+    );
+
+    if (rpcError) {
+      // 如果 RPC 不存在，使用直接更新方式
+      console.warn('[API /credits/add] RPC 函数不存在，使用直接更新方式:', rpcError.message);
+      
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('credits')
+        .eq('id', userId)
+        .single();
+
+      if (!profile) {
+        return NextResponse.json(
+          createStandardError(ErrorCode.NOT_FOUND, '用户不存在'),
+          { status: 404 }
+        );
+      }
+
+      const currentCredits = profile.credits || 0;
+      const updatedCredits = currentCredits + amount;
+
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ credits: updatedCredits, updated_at: new Date().toISOString() })
+        .eq('id', userId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // 记录交易
+      await supabaseAdmin.from('credit_transactions').insert({
+        id: randomUUID(),
+        user_id: userId,
+        amount,
+        type: 'RECHARGE',
+        description: `开发环境充值：${amount} 积分`,
+        created_at: new Date().toISOString(),
       });
 
       return NextResponse.json({
         success: true,
         message: `成功充值 ${amount} 积分`,
-        balance: result.balance,
+        balance: updatedCredits,
       });
-    } catch (error: any) {
-      // 如果后端接口不存在（404），提供手动操作的说明
-      if (error.message?.includes('404') || error.message?.includes('Not Found')) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: '后端充值接口不存在，请在后端添加 /credits/recharge 接口',
-            note: '后端 CreditsService 已有 recharge 方法，只需在 CreditsController 中添加路由即可',
-            amount,
-          },
-          { status: 200 }
-        );
-      }
-
-      // 如果是权限错误或其他错误，直接抛出
-      throw error;
     }
+
+    // RPC 成功，记录交易
+    await supabaseAdmin.from('credit_transactions').insert({
+      id: randomUUID(),
+      user_id: userId,
+      amount,
+      type: 'RECHARGE',
+      description: `开发环境充值：${amount} 积分`,
+      created_at: new Date().toISOString(),
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `成功充值 ${amount} 积分`,
+      balance: newBalance,
+    });
   } catch (error) {
     console.error('[API /credits/add] 错误:', error);
     return NextResponse.json(

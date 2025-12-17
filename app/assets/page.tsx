@@ -2,15 +2,7 @@ import { Suspense } from 'react';
 import { SearchBox } from '@/components/search-box';
 import { ProjectSelector } from '@/components/project-selector';
 import { AssetsPageShell } from '@/components/assets-page-shell';
-import {
-  getAllAssets,
-  getAllTags,
-  getAllTypes,
-  getAllStyles,
-  getAllSources,
-  getAllEngineVersions,
-} from '@/lib/data';
-import { getAssetsCount } from '@/lib/storage';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { Asset } from '@/data/manifest.schema';
 import type { Metadata } from 'next';
 
@@ -35,41 +27,146 @@ export const metadata: Metadata = {
 export const revalidate = 60; // 60 秒重新验证
 export const dynamic = 'auto'; // 允许静态生成
 
+// 字段映射函数：将 Supabase 返回的数据映射为 Asset 类型
+function mapSupabaseRowToAsset(row: any): Asset {
+  // 处理 tags：可能是数组、字符串（逗号分隔）或 null
+  let tags: string[] = [];
+  if (Array.isArray(row.tags)) {
+    tags = row.tags;
+  } else if (typeof row.tags === 'string') {
+    tags = row.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+  }
+
+  // 处理 style：可能是数组、字符串或 null
+  let style: string | string[] | undefined = undefined;
+  if (Array.isArray(row.style)) {
+    style = row.style;
+  } else if (typeof row.style === 'string' && row.style.trim()) {
+    style = row.style;
+  }
+
+  // 处理 gallery：可能是数组、字符串（逗号分隔）或 null
+  let gallery: string[] | undefined = undefined;
+  if (Array.isArray(row.gallery)) {
+    gallery = row.gallery;
+  } else if (typeof row.gallery === 'string' && row.gallery.trim()) {
+    gallery = row.gallery.split(',').map((g: string) => g.trim()).filter(Boolean);
+  }
+
+  // 处理时间戳：created_at 和 updated_at 可能是字符串（ISO）或数字（时间戳）
+  let createdAt: number | undefined = undefined;
+  let updatedAt: number | undefined = undefined;
+  if (row.created_at) {
+    createdAt = typeof row.created_at === 'string' 
+      ? new Date(row.created_at).getTime() 
+      : row.created_at;
+  }
+  if (row.updated_at) {
+    updatedAt = typeof row.updated_at === 'string' 
+      ? new Date(row.updated_at).getTime() 
+      : row.updated_at;
+  }
+
+  return {
+    id: row.id ?? '',
+    name: row.name ?? row.title ?? '',
+    type: row.type ?? row.file_type ?? '',
+    project: row.project ?? '项目A', // 默认项目
+    style,
+    tags: tags.length > 0 ? tags : [],
+    description: row.description ?? undefined,
+    source: row.source ?? undefined,
+    engineVersion: row.engineVersion ?? row.engine_version ?? row.version ?? undefined,
+    guangzhouNas: row.guangzhouNas ?? row.guangzhou_nas ?? row.guangzhouNasPath ?? undefined,
+    shenzhenNas: row.shenzhenNas ?? row.shenzhen_nas ?? row.shenzhenNasPath ?? undefined,
+    thumbnail: row.thumbnail ?? row.thumbnail_url ?? row.imgUrl ?? row.thumb ?? row.cover ?? row.cover_url ?? '',
+    src: row.src ?? row.file_url ?? row.url ?? row.source_url ?? '',
+    gallery,
+    filesize: row.filesize ?? row.file_size ?? row.fileSize ?? undefined,
+    fileSize: row.fileSize ?? row.file_size ?? row.filesize ?? undefined,
+    hash: row.hash ?? row.file_hash ?? undefined,
+    width: row.width ?? undefined,
+    height: row.height ?? undefined,
+    duration: row.duration ?? row.video_duration ?? undefined,
+    createdAt,
+    updatedAt,
+    recommended: row.recommended ?? row.is_recommended ?? false,
+  };
+}
+
 export default async function AssetsPage() {
-  // Fast path: check count first
   const start = Date.now();
-  const totalCount = await getAssetsCount();
-  const countCheckDuration = Date.now() - start;
-  
-  console.log(`[AssetsPage] Fast path check: totalCount=${totalCount}, durationMs=${countCheckDuration}`);
-  
-  let allAssets: Asset[];
-  let tags: string[];
-  let types: string[];
-  let styles: string[];
-  let sources: string[];
-  let engineVersions: string[];
-  
-  if (totalCount === 0) {
-    // Empty library fast path: skip full queries
-    console.log('[AssetsPage] Empty library fast path: skipping full getAllAssets() and filter queries');
-    allAssets = [];
-    tags = [];
-    types = [];
-    styles = [];
-    sources = [];
-    engineVersions = [];
-  } else {
-    // Has data: load full assets list and filters
-    console.log(`[AssetsPage] Has data (${totalCount} assets): loading full list and filters`);
-    [allAssets, tags, types, styles, sources, engineVersions] = await Promise.all([
-      getAllAssets(),
-      getAllTags(),
-      getAllTypes(),
-      getAllStyles(),
-      getAllSources(),
-      getAllEngineVersions(),
-    ]);
+  let allAssets: Asset[] = [];
+  let tags: string[] = [];
+  let types: string[] = [];
+  let styles: string[] = [];
+  let sources: string[] = [];
+  let engineVersions: string[] = [];
+
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    // 查询所有资产，按创建时间倒序排列
+    const { data, error } = await supabase
+      .from('assets')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[AssetsPage] Supabase query error:', error);
+      // 不 throw，返回空数组确保页面不白屏
+    } else if (data && data.length > 0) {
+      // 映射数据
+      allAssets = data.map(mapSupabaseRowToAsset);
+
+      // 提取 filters
+      const tagSet = new Set<string>();
+      const typeSet = new Set<string>();
+      const styleSet = new Set<string>();
+      const sourceSet = new Set<string>();
+      const versionSet = new Set<string>();
+
+      allAssets.forEach((asset) => {
+        // Tags
+        asset.tags.forEach((tag) => tagSet.add(tag));
+        
+        // Types
+        if (asset.type) {
+          typeSet.add(asset.type);
+        }
+        
+        // Styles
+        if (asset.style) {
+          if (Array.isArray(asset.style)) {
+            asset.style.forEach((s) => styleSet.add(s));
+          } else {
+            styleSet.add(asset.style);
+          }
+        }
+        
+        // Sources
+        if (asset.source) {
+          sourceSet.add(asset.source);
+        }
+        
+        // Engine Versions
+        if (asset.engineVersion) {
+          versionSet.add(asset.engineVersion);
+        }
+      });
+
+      tags = Array.from(tagSet).sort();
+      types = Array.from(typeSet).sort();
+      styles = Array.from(styleSet).sort();
+      sources = Array.from(sourceSet).sort();
+      engineVersions = Array.from(versionSet).sort();
+    }
+
+    const duration = Date.now() - start;
+    console.log(`[AssetsPage] Supabase query: totalCount=${allAssets.length}, durationMs=${duration}`);
+  } catch (error) {
+    console.error('[AssetsPage] Error fetching assets from Supabase:', error);
+    // 不 throw，返回空数组确保页面不白屏
   }
 
   return (

@@ -24,6 +24,8 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+build.log
+build.log.*
 
 # local env files
 .env.local
@@ -40,6 +42,10 @@ vercel-env-template.txt
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# backend build artifacts
+backend-api/dist/
+backend-api/*.tsbuildinfo
 
 # activity logs and stats (用户操作日志，不提交到 Git)
 data/export-logs.json

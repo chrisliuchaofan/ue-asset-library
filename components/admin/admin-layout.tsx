@@ -805,10 +805,10 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
           </div>
 
           {/* 用户管理 */}
-          <button
-            type="button"
-            onClick={() => {
-              console.log('[AdminLayout] 点击用户管理链接，使用 router.push');
+          <a
+            href="/admin/users"
+            onClick={(e) => {
+              e.preventDefault();
               router.push('/admin/users');
             }}
             className={cn(
@@ -818,20 +818,14 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
           >
             <Users className="h-5 w-5 shrink-0" />
             {!sidebarCollapsed && <span className="flex-1 text-left">用户管理</span>}
-          </button>
+          </a>
 
           {/* 兑换码管理 */}
-          <button
-            type="button"
-            onClick={() => {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/admin/admin-layout.tsx:826',message:'redeem codes button clicked',data:{currentPath:window.location.pathname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-              // #endregion
-              console.log('[AdminLayout] 点击兑换码管理链接，使用 router.push', { currentPath: window.location.pathname });
+          <a
+            href="/admin/redeem-codes"
+            onClick={(e) => {
+              e.preventDefault();
               router.push('/admin/redeem-codes');
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/admin/admin-layout.tsx:829',message:'router.push called',data:{targetPath:'/admin/redeem-codes'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-              // #endregion
             }}
             className={cn(
               'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
@@ -840,13 +834,13 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
           >
             <Gift className="h-5 w-5 shrink-0" />
             {!sidebarCollapsed && <span className="flex-1 text-left">兑换码管理</span>}
-          </button>
+          </a>
 
           {/* 积分管理 */}
-          <button
-            type="button"
-            onClick={() => {
-              console.log('[AdminLayout] 点击积分管理链接，使用 router.push');
+          <a
+            href="/admin/credits"
+            onClick={(e) => {
+              e.preventDefault();
               router.push('/admin/credits');
             }}
             className={cn(
@@ -856,7 +850,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
           >
             <CreditCard className="h-5 w-5 shrink-0" />
             {!sidebarCollapsed && <span className="flex-1 text-left">积分管理</span>}
-          </button>
+          </a>
 
           {/* 设置 */}
           <div>

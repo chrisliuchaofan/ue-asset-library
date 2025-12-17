@@ -214,10 +214,24 @@ export async function callBackendAPI<T = any>(
     headers: Object.keys(headers),
   });
 
-  const response = await fetch(`${BACKEND_API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  
+  try {
+    response = await fetch(`${BACKEND_API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (fetchError: any) {
+    // 捕获网络错误（fetch failed, ECONNREFUSED 等）
+    const networkError = new Error(
+      `后端服务不可用: ${fetchError.message || '网络连接失败'}`
+    );
+    (networkError as any).name = fetchError.name || 'NetworkError';
+    (networkError as any).originalError = fetchError;
+    (networkError as any).status = 503; // Service Unavailable
+    (networkError as any).statusText = 'Service Unavailable';
+    throw networkError;
+  }
 
   if (!response.ok) {
     if (response.status === 401) {

@@ -71,181 +71,58 @@ export const authOptions: NextAuthConfig = {
           return null;
         }
 
-        // ✅ 统一认证：调用后端登录接口
+        // ✅ 本地认证：使用 ADMIN_USERS 环境变量（已迁移至 Supabase，不再依赖后端）
         try {
-          // 后端 URL 配置：优先使用 BACKEND_API_URL，然后是 NEXT_PUBLIC_BACKEND_API_URL，最后是默认值
-          // 注意：后端默认端口是 3001，不是 3002
-          const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:3001';
-          
           // 将用户名转换为 email 格式（如果还不是 email）
-          // 如果用户名不包含 @，则转换为 username@admin.local
           const username = String(credentials.username || '');
           const loginEmail = username.includes('@') 
             ? username 
             : `${username}@admin.local`;
           
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:54',message:'before backend login',data:{backendUrl,loginEmail,username:credentials.username,hasPassword:!!credentials.password,hasNextAuthSecret:!!process.env.NEXTAUTH_SECRET},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-          // #endregion
-          console.log('[Auth] 开始登录:', { 
-            backendUrl, 
-            loginEmail, 
+          console.log('[Auth] 开始本地认证:', { 
             username: credentials.username,
+            loginEmail,
             hasPassword: !!credentials.password 
           });
           
-          // 尝试调用后端登录接口（添加超时）
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+          // 从环境变量获取管理员用户列表
+          const adminUsers = getAdminUsers();
           
-          try {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:66',message:'fetching backend login',data:{url:`${backendUrl}/auth/login`,email:loginEmail},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
-            // #endregion
-            const response = await fetch(`${backendUrl}/auth/login`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                email: loginEmail,
-                password: credentials.password,
-              }),
-              signal: controller.signal,
+          // 支持用户名和 email 两种格式匹配
+          const user = adminUsers.find((u) => {
+            const usernameMatch = u.username === credentials.username;
+            const emailMatch = u.email === credentials.username || u.email === loginEmail;
+            const passwordMatch = u.password === credentials.password;
+            return (usernameMatch || emailMatch) && passwordMatch;
+          });
+
+          if (user) {
+            console.log('[Auth] ✅ 本地认证成功:', { 
+              username: user.username,
+              email: user.email,
             });
             
-            clearTimeout(timeoutId);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:76',message:'fetch completed',data:{status:response.status,ok:response.ok},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
-            // #endregion
-
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:78',message:'backend response received',data:{status:response.status,statusText:response.statusText,ok:response.ok},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
-            // #endregion
-            console.log('[Auth] 后端响应:', { 
-              status: response.status, 
-              statusText: response.statusText,
-              ok: response.ok 
-            });
-
-            if (!response.ok) {
-              const errorText = await response.text();
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:85',message:'backend login failed',data:{status:response.status,statusText:response.statusText,error:errorText.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-              // #endregion
-              console.warn('[Auth] 后端登录失败:', { 
-                status: response.status, 
-                statusText: response.statusText,
-                error: errorText.substring(0, 200) // 只显示前200个字符
-              });
-              return null;
-            }
-
-            const data = await response.json();
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:95',message:'backend login success - parsing response',data:{hasUserId:!!data.userId,hasUser:!!data.user,userId:data.userId,email:data.email,name:data.name,responseKeys:Object.keys(data)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-            console.log('[Auth] 登录成功:', { 
-              userId: data.userId || data.user?.id,
-              email: data.email || data.user?.email,
-              name: data.name || data.user?.name
-            });
-            
-            // 返回用户信息（与后端返回的格式一致）
+            // 返回用户信息
             const userInfo = {
-              id: data.userId || data.user?.id || credentials.username,
-              name: data.name || data.user?.name || credentials.username,
-              email: data.email || data.user?.email || loginEmail,
+              id: user.email || user.username,
+              name: user.username,
+              email: user.email || loginEmail,
             };
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:106',message:'returning user info to NextAuth',data:{id:userInfo.id,email:userInfo.email,name:userInfo.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
+            
             return userInfo;
-          } catch (fetchError: any) {
-            clearTimeout(timeoutId);
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:107',message:'fetch error caught',data:{errorName:fetchError?.name,errorMessage:fetchError?.message,isAbort:fetchError?.name==='AbortError'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
-            // #endregion
-            
-            // ❌ 已禁用假登录回退机制：直接抛出真实错误，让前端能看到 Network Error 或 401/500
-            const errorMessage = fetchError.message || String(fetchError);
-            const isTimeout = fetchError.name === 'AbortError' || errorMessage.includes('timeout') || errorMessage.includes('aborted') || errorMessage.includes('超时');
-            const isConnectionError = errorMessage.includes('fetch failed') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Empty reply');
-            
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:115',message:'backend connection error - throwing real error',data:{errorMessage,isTimeout,isConnectionError,backendUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,C'})}).catch(()=>{});
-            // #endregion
-            
-            console.error('[Auth] ❌ 后端连接失败，直接抛出错误（假登录已禁用）:', { 
-              error: errorMessage,
-              isTimeout,
-              isConnectionError,
-              backendUrl,
-              errorName: fetchError.name,
-              errorStack: fetchError.stack?.substring(0, 200)
-            });
-            
-            // ⚠️ 重要：不要抛出错误，而是返回 null
-            // 如果抛出错误，NextAuth 可能会返回 "Configuration" 错误而不是 "CredentialsSignin"
-            // 返回 null 会让 NextAuth 正确返回 "CredentialsSignin" 错误
-            // 详细错误信息已在服务器日志中记录（console.error），前端可以通过服务器日志查看
-            console.error('[Auth] ❌ 后端连接失败，返回 null（这将导致 CredentialsSignin 错误）:', {
-              error: errorMessage,
-              isTimeout,
-              isConnectionError,
-              backendUrl,
-              errorName: fetchError.name,
-              errorStack: fetchError.stack?.substring(0, 200),
-              note: '详细错误信息已记录在服务器日志中，请查看服务器端日志以获取完整错误信息',
-            });
-            
-            // 返回 null，让 NextAuth 返回 "CredentialsSignin" 错误
-            return null;
-            
-            /* ⚠️ 已禁用的假登录回退机制（原代码）
-            // 后端请求失败，直接进行本地认证回退（不抛出错误，避免 NextAuth 直接返回 null）
-            const adminUsers = getAdminUsers();
-            
-            // 支持用户名和 email 两种格式匹配
-            const user = adminUsers.find((u) => {
-              const usernameMatch = u.username === credentials.username;
-              const emailMatch = u.email === credentials.username || u.email === `${credentials.username}@admin.local`;
-              const passwordMatch = u.password === credentials.password;
-              return (usernameMatch || emailMatch) && passwordMatch;
-            });
-
-            if (user) {
-              console.warn('[Auth] ⚠️ 使用本地认证（后端不可用）:', { 
-                username: user.username,
-                email: user.email,
-                reason: isTimeout ? '后端超时' : isConnectionError ? '后端连接失败' : '后端错误'
-              });
-              const localUser = {
-                id: user.email || user.username,
-                name: user.username,
-                email: user.email || `${user.username}@admin.local`,
-              };
-              return localUser;
-            }
-
-            console.error('[Auth] 本地认证也失败，用户不存在或密码错误');
-            return null;
-            */
           }
+
+          console.warn('[Auth] ❌ 本地认证失败：用户不存在或密码错误');
+          return null;
         } catch (error: any) {
           // 其他未预期的错误
           const errorMessage = error.message || String(error);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:158',message:'unexpected error in authorize',data:{errorMessage},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-          console.error('[Auth] ❌ 未预期的错误（这将导致登录失败）:', {
+          console.error('[Auth] ❌ 未预期的错误:', {
             errorMessage,
             errorName: error.name,
             errorStack: error.stack?.substring(0, 300),
-            backendUrl: process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:3002',
           });
           
-          // ⚠️ 重要：不要抛出错误，而是返回 null
-          // 如果抛出错误，NextAuth 可能会返回 "Configuration" 错误而不是 "CredentialsSignin"
-          // 返回 null 会让 NextAuth 正确返回 "CredentialsSignin" 错误
           return null;
         }
       },

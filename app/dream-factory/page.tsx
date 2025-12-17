@@ -13,7 +13,7 @@ import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { saveProject, getAllSavedProjects, deleteProject, type SavedProject } from '@/lib/dream-factory/project-storage';
 import { ErrorDisplay } from '@/components/errors/error-display';
-import { createErrorFromResponse, normalizeError } from '@/lib/errors/error-handler';
+import { createErrorFromResponse, normalizeError, ErrorCode } from '@/lib/errors/error-handler';
 
 // 定义 API 响应类型
 interface AIResponse<T> {
@@ -119,27 +119,41 @@ export default function DreamFactoryPage() {
         请确保返回的内容是中文。
       `;
 
-      const response = await fetch('/api/ai/generate-text', {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt,
-          responseFormat: 'json',
-          provider: 'qwen',
-          mode: userInfo ? {
-            billingMode: userInfo.billingMode,
-            modelMode: userInfo.modelMode,
-          } : undefined,
+          type: 'text',
+          userId: userInfo?.userId,
         }),
       });
 
       if (!response.ok) {
-        const { createErrorFromResponse } = await import('@/lib/errors/error-handler');
-        const standardError = await createErrorFromResponse(response, '生成失败，请重试');
-        throw standardError;
+        const errorData = await response.json().catch(() => ({ message: '生成失败，请重试' }));
+        const standardError = normalizeError(
+          new Error(errorData.message || errorData.userMessage || '生成失败，请重试'),
+          ErrorCode.MODEL_ERROR,
+          response.status
+        );
+        setError(standardError);
+        setLoading(false);
+        return; // 不抛出错误，保持页面可用
       }
       
       const data = await response.json();
+      
+      // 检查响应格式
+      if (!data.text) {
+        const standardError = normalizeError(
+          new Error('生成响应格式错误'),
+          ErrorCode.MODEL_ERROR
+        );
+        setError(standardError);
+        setLoading(false);
+        return;
+      }
+      
       // 解析 JSON
       let generatedConcepts: any[] = [];
       try {
@@ -152,12 +166,19 @@ export default function DreamFactoryPage() {
           }
       } catch (e) {
           console.error("JSON Parse Error", e);
-          throw new Error("AI 返回格式错误");
+          const standardError = normalizeError(
+            new Error("AI 返回格式错误，无法解析 JSON"),
+            ErrorCode.MODEL_ERROR
+          );
+          setError(standardError);
+          setLoading(false);
+          return; // 不抛出错误，保持页面可用
       }
       
       setConcepts(generatedConcepts.map((c: any, i: number) => ({ ...c, id: `concept-${Date.now()}-${i}` })));
       setCurrentStep(AppStep.CONCEPT_SELECTION);
     } catch (e: any) {
+      // 捕获所有错误，不抛出，只设置错误状态
       const standardError = normalizeError(e);
       setError(standardError);
     } finally {
@@ -179,25 +200,53 @@ export default function DreamFactoryPage() {
         请保持中文返回 JSON 格式: { title, description, tone }。
       `;
       
-      const response = await fetch('/api/ai/generate-text', {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          prompt, 
-          responseFormat: 'json',
-          mode: userInfo ? {
-            billingMode: userInfo.billingMode,
-            modelMode: userInfo.modelMode,
-          } : undefined,
+          prompt,
+          type: 'text',
+          userId: userInfo?.userId,
         }),
       });
       
-      const data = await response.json();
-      const jsonStr = data.text.replace(/```json\s*|\s*```/g, '');
-      const refined = JSON.parse(jsonStr);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: '优化失败，请重试' }));
+        const standardError = normalizeError(
+          new Error(errorData.message || errorData.userMessage || '优化失败，请重试'),
+          ErrorCode.MODEL_ERROR,
+          response.status
+        );
+        setError(standardError);
+        setLoadingConceptId(null);
+        return; // 不抛出错误，保持页面可用
+      }
       
-      setConcepts(prev => prev.map(c => c.id === concept.id ? { ...refined, id: c.id } : c));
+      const data = await response.json();
+      
+      if (!data.text) {
+        const standardError = normalizeError(
+          new Error('优化响应格式错误'),
+          ErrorCode.MODEL_ERROR
+        );
+        setError(standardError);
+        setLoadingConceptId(null);
+        return;
+      }
+      
+      try {
+        const jsonStr = data.text.replace(/```json\s*|\s*```/g, '');
+        const refined = JSON.parse(jsonStr);
+        setConcepts(prev => prev.map(c => c.id === concept.id ? { ...refined, id: c.id } : c));
+      } catch (parseError) {
+        const standardError = normalizeError(
+          new Error('优化结果格式错误，无法解析 JSON'),
+          ErrorCode.MODEL_ERROR
+        );
+        setError(standardError);
+      }
     } catch (e: any) {
+      // 捕获所有错误，不抛出，只设置错误状态
       const standardError = normalizeError(e);
       setError(standardError);
     } finally {
@@ -233,34 +282,67 @@ export default function DreamFactoryPage() {
         - voiceoverScript: 本场景的中文旁白脚本（1-2句）
       `;
       
-      const response = await fetch('/api/ai/generate-text', {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          prompt, 
-          responseFormat: 'json',
-          mode: userInfo ? {
-            billingMode: userInfo.billingMode,
-            modelMode: userInfo.modelMode,
-          } : undefined,
+          prompt,
+          type: 'text',
+          userId: userInfo?.userId,
         }),
       });
       
-      const data = await response.json();
-      const jsonStr = data.text.replace(/```json\s*|\s*```/g, '');
-      const scenes = JSON.parse(jsonStr);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: '生成分镜失败，请重试' }));
+        const standardError = normalizeError(
+          new Error(errorData.message || errorData.userMessage || '生成分镜失败，请重试'),
+          ErrorCode.MODEL_ERROR,
+          response.status
+        );
+        setError(standardError);
+        setLoading(false);
+        return; // 不抛出错误，保持页面可用
+      }
       
-      const initializedScenes = scenes.map((s: any, index: number) => ({
-        ...s,
-        id: s.id || `scene-${Date.now()}-${index}`, // 确保有唯一 id
-        isGeneratingImage: false,
-        isGeneratingVideo: false,
-        isGeneratingAudio: false,
-        referenceAssetId: undefined
-      }));
-      setProject(prev => ({ ...prev, storyboard: initializedScenes }));
-      setCurrentStep(AppStep.STORYBOARD_GENERATION);
+      const data = await response.json();
+      
+      if (!data.text) {
+        const standardError = normalizeError(
+          new Error('生成分镜响应格式错误'),
+          ErrorCode.MODEL_ERROR
+        );
+        setError(standardError);
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        const jsonStr = data.text.replace(/```json\s*|\s*```/g, '');
+        const scenes = JSON.parse(jsonStr);
+        
+        if (!Array.isArray(scenes)) {
+          throw new Error('分镜数据格式错误：不是数组');
+        }
+        
+        const initializedScenes = scenes.map((s: any, index: number) => ({
+          ...s,
+          id: s.id || `scene-${Date.now()}-${index}`, // 确保有唯一 id
+          isGeneratingImage: false,
+          isGeneratingVideo: false,
+          isGeneratingAudio: false,
+          referenceAssetId: undefined
+        }));
+        setProject(prev => ({ ...prev, storyboard: initializedScenes }));
+        setCurrentStep(AppStep.STORYBOARD_GENERATION);
+      } catch (parseError) {
+        const standardError = normalizeError(
+          new Error('分镜数据格式错误，无法解析 JSON'),
+          ErrorCode.MODEL_ERROR
+        );
+        setError(standardError);
+      }
     } catch (e: any) {
+      // 捕获所有错误，不抛出，只设置错误状态
       const standardError = normalizeError(e);
       setError(standardError);
     } finally {
@@ -282,7 +364,11 @@ export default function DreamFactoryPage() {
   const generateImageForScene = async (sceneIndex: number) => {
     const scene = project.storyboard[sceneIndex];
     if (!scene.visualPrompt) {
-      setError('请先填写画面提示词');
+      const standardError = normalizeError(
+        new Error('请先填写画面提示词'),
+        ErrorCode.INVALID_INPUT
+      );
+      setError(standardError);
       return;
     }
     
@@ -290,36 +376,48 @@ export default function DreamFactoryPage() {
     setError(null);
     
     try {
-      const response = await fetch('/api/ai/generate-image', {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: scene.visualPrompt,
-          aspectRatio: '16:9',
-          size: '2K',
-          provider: 'qwen',
+          type: 'image',
+          userId: userInfo?.userId,
           ...(scene.referenceAssetUrl && { referenceImageUrl: scene.referenceAssetUrl }),
-          mode: userInfo ? {
-            billingMode: userInfo.billingMode,
-            modelMode: userInfo.modelMode,
-          } : undefined,
         }),
       });
       
       if (!response.ok) {
-        const { createErrorFromResponse } = await import('@/lib/errors/error-handler');
-        const standardError = await createErrorFromResponse(response, '图片生成失败');
-        throw standardError;
+        const errorData = await response.json().catch(() => ({ message: '图片生成失败，请重试' }));
+        const standardError = normalizeError(
+          new Error(errorData.message || errorData.userMessage || '图片生成失败，请重试'),
+          ErrorCode.MODEL_ERROR,
+          response.status
+        );
+        setError(standardError);
+        updateScene(sceneIndex, { isGeneratingImage: false });
+        return; // 不抛出错误，保持页面可用
       }
       
       const data = await response.json();
+      
+      if (!data.imageUrl) {
+        const standardError = normalizeError(
+          new Error('图片生成响应格式错误'),
+          ErrorCode.MODEL_ERROR
+        );
+        setError(standardError);
+        updateScene(sceneIndex, { isGeneratingImage: false });
+        return;
+      }
+      
       updateScene(sceneIndex, { 
         imageUrl: data.imageUrl,
         isGeneratingImage: false 
       });
     } catch (e: any) {
-      // 如果已经是 StandardError 对象，直接使用；否则标准化
-      const standardError = e.code && e.userMessage ? e : normalizeError(e, undefined, e.status);
+      // 捕获所有错误，不抛出，只设置错误状态
+      const standardError = normalizeError(e);
       setError(standardError);
       updateScene(sceneIndex, { isGeneratingImage: false });
     }
@@ -329,7 +427,11 @@ export default function DreamFactoryPage() {
   const generateVideoForScene = async (sceneIndex: number) => {
     const scene = project.storyboard[sceneIndex];
     if (!scene.imageUrl) {
-      setError('请先生成画面');
+      const standardError = normalizeError(
+        new Error('请先生成画面'),
+        ErrorCode.INVALID_INPUT
+      );
+      setError(standardError);
       return;
     }
     
@@ -337,31 +439,29 @@ export default function DreamFactoryPage() {
     setError(null);
     
     try {
-      const response = await fetch('/api/ai/generate-job', {
+      const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'video',
-          imageUrl: scene.imageUrl,
           prompt: scene.description || scene.visualPrompt,
-          provider: 'jimeng',
+          type: 'video',
+          userId: userInfo?.userId,
+          imageUrl: scene.imageUrl,
           duration: 5,
           resolution: '1080p',
-          mode: userInfo ? {
-            billingMode: userInfo.billingMode,
-            modelMode: userInfo.modelMode,
-          } : undefined,
         }),
       });
       
-      if (response.status === 501) {
-        const { createStandardError, ErrorCode } = require('@/lib/errors/error-handler');
-        throw createStandardError(ErrorCode.MODEL_NOT_AVAILABLE, '视频生成功能待接入 (即梦/可灵 Provider)');
-      }
-      
       if (!response.ok) {
-        const standardError = await createErrorFromResponse(response, '视频生成失败');
-        throw standardError;
+        const errorData = await response.json().catch(() => ({ message: '视频生成失败，请重试' }));
+        const standardError = normalizeError(
+          new Error(errorData.message || errorData.userMessage || '视频生成失败，请重试'),
+          ErrorCode.MODEL_ERROR,
+          response.status
+        );
+        setError(standardError);
+        updateScene(sceneIndex, { isGeneratingVideo: false });
+        return; // 不抛出错误，保持页面可用
       }
       
       const data = await response.json();
@@ -380,10 +480,17 @@ export default function DreamFactoryPage() {
           videoUrl: data.videoUrl,
           isGeneratingVideo: false 
         });
+      } else {
+        const standardError = normalizeError(
+          new Error('视频生成响应格式错误：缺少 videoUrl 或 operationId'),
+          ErrorCode.MODEL_ERROR
+        );
+        setError(standardError);
+        updateScene(sceneIndex, { isGeneratingVideo: false });
       }
     } catch (e: any) {
-      // 如果已经是 StandardError 对象，直接使用；否则标准化
-      const standardError = e.code && e.userMessage ? e : normalizeError(e, undefined, e.status);
+      // 捕获所有错误，不抛出，只设置错误状态
+      const standardError = normalizeError(e);
       setError(standardError);
       updateScene(sceneIndex, { isGeneratingVideo: false });
     }

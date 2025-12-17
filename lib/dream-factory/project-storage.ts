@@ -29,26 +29,38 @@ export async function getAllSavedProjects(): Promise<SavedProject[]> {
   try {
     // 优先使用服务器端存储
     const serverProjects = await serverStorage.getAllSavedProjects();
-    if (serverProjects.length > 0) {
-      return serverProjects;
-    }
+    // 即使服务器返回空数组，也使用服务器端的结果（表示服务器端确实没有数据）
+    // 只有在抛出错误时才回退到 localStorage
+    return serverProjects;
   } catch (error) {
-    console.warn('[ProjectStorage] 服务器端获取失败，使用本地存储:', error);
-  }
-  
-  // 回退到 localStorage
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return [];
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.warn('[ProjectStorage] 服务器端获取失败，回退到本地存储:', {
+      error: errorMessage,
+      note: '如果后端服务未运行或配置错误，将使用 localStorage 作为备用存储',
+    });
     
-    const projects = JSON.parse(stored);
-    // 按更新时间倒序排列（最新的在前）
-    return projects.sort((a: SavedProject, b: SavedProject) => 
-      (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)
-    );
-  } catch (error) {
-    console.error('[ProjectStorage] 读取项目列表失败:', error);
-    return [];
+    // 回退到 localStorage
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) {
+        console.log('[ProjectStorage] localStorage 中也没有项目数据');
+        return [];
+      }
+      
+      const projects = JSON.parse(stored);
+      if (!Array.isArray(projects)) {
+        console.warn('[ProjectStorage] localStorage 中的数据格式不正确');
+        return [];
+      }
+      
+      // 按更新时间倒序排列（最新的在前）
+      return projects.sort((a: SavedProject, b: SavedProject) => 
+        (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)
+      );
+    } catch (localError) {
+      console.error('[ProjectStorage] 读取本地项目列表也失败:', localError);
+      return [];
+    }
   }
 }
 

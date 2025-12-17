@@ -43,7 +43,7 @@ function CreditsPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const [recharging, setRecharging] = useState(false);
-  const [rechargeAmount, setRechargeAmount] = useState('');
+  const [rechargeAmount, setRechargeAmount] = useState('100'); // 设置默认值为 100
 
   useEffect(() => {
     if (authLoading) return;
@@ -99,14 +99,20 @@ function CreditsPageContent() {
   };
 
   const handleRecharge = async () => {
+    console.log('[Credits] 充值按钮点击:', { targetUserId, rechargeAmount });
+    
     if (!targetUserId) {
-      setError(createStandardError(ErrorCode.VALIDATION_ERROR, '请先选择用户'));
+      const error = createStandardError(ErrorCode.VALIDATION_ERROR, '请先选择用户');
+      console.error('[Credits] 充值失败:', error);
+      setError(error);
       return;
     }
 
     const amount = parseFloat(rechargeAmount);
-    if (!amount || amount <= 0) {
-      setError(createStandardError(ErrorCode.VALIDATION_ERROR, '充值金额必须大于0'));
+    if (isNaN(amount) || amount <= 0) {
+      const error = createStandardError(ErrorCode.VALIDATION_ERROR, '充值金额必须大于0');
+      console.error('[Credits] 充值失败:', error, { rechargeAmount, parsedAmount: amount });
+      setError(error);
       return;
     }
 
@@ -114,6 +120,8 @@ function CreditsPageContent() {
     setError(null);
 
     try {
+      console.log('[Credits] 发送充值请求:', { targetUserId, amount });
+      
       const response = await fetch('/api/credits/admin/recharge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,12 +131,21 @@ function CreditsPageContent() {
         }),
       });
 
+      console.log('[Credits] 充值响应:', { status: response.status, ok: response.ok });
+
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        console.error('[Credits] 充值失败:', errorData);
         throw normalizeError(errorData, ErrorCode.UNKNOWN_ERROR);
       }
 
       const result = await response.json();
+      console.log('[Credits] 充值成功:', result);
       
       // 重新加载用户信息和交易记录
       await loadUserInfo(targetUserId);
@@ -137,7 +154,9 @@ function CreditsPageContent() {
       setRechargeAmount('');
       alert(`成功充值 ${amount} 积分！当前余额: ${result.balance}`);
     } catch (err) {
-      setError(normalizeError(err, ErrorCode.UNKNOWN_ERROR));
+      console.error('[Credits] 充值异常:', err);
+      const normalizedError = normalizeError(err, ErrorCode.UNKNOWN_ERROR);
+      setError(normalizedError);
     } finally {
       setRecharging(false);
     }
@@ -243,16 +262,28 @@ function CreditsPageContent() {
                     id="recharge-amount"
                     type="number"
                     min="1"
+                    step="1"
                     value={rechargeAmount}
-                    onChange={(e) => setRechargeAmount(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      console.log('[Credits] 输入框值变化:', value);
+                      setRechargeAmount(value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && rechargeAmount && parseFloat(rechargeAmount) > 0) {
+                        e.preventDefault();
+                        handleRecharge();
+                      }
+                    }}
                     placeholder="100"
                     className="mt-1"
                   />
                 </div>
                 <Button
                   onClick={handleRecharge}
-                  disabled={recharging || !rechargeAmount}
+                  disabled={recharging || !rechargeAmount || isNaN(parseFloat(rechargeAmount)) || parseFloat(rechargeAmount) <= 0}
                   className="w-full"
+                  type="button"
                 >
                   {recharging ? '充值中...' : '充值'}
                 </Button>

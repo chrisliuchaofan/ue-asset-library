@@ -45,7 +45,15 @@ export async function migrateProjects(): Promise<{
   }
 
   // 从 localStorage 读取项目
-  const localProjects = await getLocalProjects();
+  let localProjects: any[] = [];
+  try {
+    localProjects = await getLocalProjects();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[Migration] 获取本地项目失败:', errorMessage);
+    // 如果获取失败，返回空结果，不进行迁移
+    return { total: 0, success: 0, failed: 0, results: [] };
+  }
   
   if (localProjects.length === 0) {
     console.log('[Migration] 没有需要迁移的项目');
