@@ -1,0 +1,12 @@
+ue-asset-library@1.0.0 /Users/chrisl/Documents/恒星UE资产库/web
+├── @google/genai@1.33.0
+├── graceful-fs@4.2.11
+├── gsap@3.13.0
+└─┬ proxy-agent@5.0.0
+  └─┬ pac-proxy-agent@5.0.0
+    └─┬ get-uri@3.0.2
+      └─┬ fs-extra@8.1.0
+        ├── graceful-fs@4.2.11 deduped
+        └─┬ jsonfile@4.0.0
+          └── graceful-fs@4.2.11 deduped
+

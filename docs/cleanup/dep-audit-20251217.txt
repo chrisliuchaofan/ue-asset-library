@@ -1,0 +1,12 @@
+npm warn exec The following package was not found and will be installed: depcheck@1.4.7
+Unused dependencies
+* @google/genai
+* graceful-fs
+* gsap
+* proxy-agent
+Unused devDependencies
+* autoprefixer
+* postcss
+* typescript
+Missing dependencies
+* dotenv: ./scripts/test-users-list-api.ts

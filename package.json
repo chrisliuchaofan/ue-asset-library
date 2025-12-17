@@ -25,7 +25,6 @@
     "health-check:all": "tsx scripts/health-check.ts --all"
   },
   "dependencies": {
-    "@google/genai": "^1.33.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-radio-group": "^1.3.8",
@@ -37,8 +36,6 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "framer-motion": "^12.23.24",
-    "graceful-fs": "^4.2.11",
-    "gsap": "^3.13.0",
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
     "lucide-react": "^0.446.0",
