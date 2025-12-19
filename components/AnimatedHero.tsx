@@ -2,11 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Library, Box, BookOpen, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { Library, Box, BookOpen, ChevronDown, ChevronUp, Sparkles, Palette, Wand2, Crown } from 'lucide-react';
 import clsx from 'clsx';
 import { SearchBox } from '@/components/search-box';
 import { HomeProjectSelector } from '@/components/home-project-selector';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useToast } from '@/components/toast-provider';
 
 /**
  * AnimatedHero - 首页 Hero 组件 (方案 B: 磨砂控制台风格 - 优化版)
@@ -22,6 +30,8 @@ export function AnimatedHero({ onCardVisible }: { onCardVisible?: (visible: bool
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showExpandButton, setShowExpandButton] = useState(false); // 显示展开按钮
   const [viewportHeight, setViewportHeight] = useState(800);
+  const [showDreamFactoryDialog, setShowDreamFactoryDialog] = useState(false);
+  const { info } = useToast();
   
   useEffect(() => {
     setMounted(true);
@@ -236,23 +246,20 @@ export function AnimatedHero({ onCardVisible }: { onCardVisible?: (visible: bool
                 </Link>
 
                 {/* 梦工厂入口卡片 */}
-                <Link
-                  href="/dream-factory"
-                  prefetch
-                  className="group relative flex flex-col items-start overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-xl hover:shadow-amber-500/10"
+                <button
+                  onClick={() => setShowDreamFactoryDialog(true)}
+                  className="group relative flex flex-col items-start overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-xl hover:shadow-amber-500/10 text-left w-full"
                 >
-                  <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                  <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300 group-hover:bg-amber-500/30 transition-colors">
                     <Sparkles className="h-5 w-5" />
                   </div>
                   <h3 className="text-lg font-bold text-white mb-1 group-hover:text-amber-200 transition-colors">梦工厂</h3>
                   <p className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
                     AI 驱动的创意视频生成工具
                   </p>
-                  {/* 装饰性箭头 */}
-                  <div className="absolute right-3 top-3 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/50"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                  </div>
-                </Link>
+                  {/* 开发中标签 */}
+                  <span className="absolute right-3 top-3 text-xs text-amber-400 font-medium">开发中</span>
+                </button>
 
               </div>
 
@@ -305,6 +312,73 @@ export function AnimatedHero({ onCardVisible }: { onCardVisible?: (visible: bool
           </motion.button>
         )}
       </AnimatePresence>
+
+      {/* 梦工厂选项对话框 */}
+      <Dialog open={showDreamFactoryDialog} onOpenChange={setShowDreamFactoryDialog}>
+        <DialogContent className="sm:max-w-md bg-black/90 backdrop-blur-md border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-white text-xl">选择梦工厂入口</DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              请选择您要进入的功能模块
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-4">
+            {/* 创意入口 - 开发中 */}
+            <button
+              onClick={() => {
+                setShowDreamFactoryDialog(false);
+                info('创意功能开发中', '敬请期待！');
+              }}
+              className="group relative flex items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-4 transition-all hover:bg-white/10 hover:border-white/20 cursor-pointer"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300 group-hover:bg-purple-500/30 transition-colors">
+                <Wand2 className="h-6 w-6" />
+              </div>
+              <div className="flex-1 text-left">
+                <h3 className="text-base font-semibold text-white">创意</h3>
+                <p className="text-sm text-zinc-400">AI 创意生成工具</p>
+              </div>
+              <span className="text-xs text-amber-400 font-medium">开发中</span>
+            </button>
+
+            {/* 设计入口 - 开发中 */}
+            <button
+              onClick={() => {
+                setShowDreamFactoryDialog(false);
+                info('设计功能开发中', '敬请期待！');
+              }}
+              className="group relative flex items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-4 transition-all hover:bg-white/10 hover:border-white/20 cursor-pointer"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/20 text-blue-300 group-hover:bg-blue-500/30 transition-colors">
+                <Palette className="h-6 w-6" />
+              </div>
+              <div className="flex-1 text-left">
+                <h3 className="text-base font-semibold text-white">设计</h3>
+                <p className="text-sm text-zinc-400">AI 驱动的视频设计工具</p>
+              </div>
+              <span className="text-xs text-amber-400 font-medium">开发中</span>
+            </button>
+
+            {/* 大师入口 - 开发中 */}
+            <button
+              onClick={() => {
+                setShowDreamFactoryDialog(false);
+                info('大师功能开发中', '敬请期待！');
+              }}
+              className="group relative flex items-center gap-4 rounded-lg border border-white/10 bg-white/5 p-4 transition-all hover:bg-white/10 hover:border-white/20 cursor-pointer"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300 group-hover:bg-amber-500/30 transition-colors">
+                <Crown className="h-6 w-6" />
+              </div>
+              <div className="flex-1 text-left">
+                <h3 className="text-base font-semibold text-white">大师</h3>
+                <p className="text-sm text-zinc-400">高级 AI 创作工具</p>
+              </div>
+              <span className="text-xs text-amber-400 font-medium">开发中</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
