@@ -71,15 +71,15 @@ export async function GET() {
         .limit(1);
 
       if (!sampleError && sampleData && sampleData.length > 0) {
-        const sample = sampleData[0];
+        const sample = sampleData[0] as Record<string, any>;
         checks.sample = {
           status: 'success',
           fields: Object.keys(sample),
           fieldCount: Object.keys(sample).length,
           preview: {
-            id: sample.id,
-            name: sample.name || sample.title || 'N/A',
-            type: sample.type || sample.file_type || 'N/A',
+            id: sample.id as string,
+            name: (sample.name as string) || (sample.title as string) || 'N/A',
+            type: (sample.type as string) || (sample.file_type as string) || 'N/A',
           },
         };
       }
