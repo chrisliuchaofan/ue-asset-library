@@ -33,21 +33,55 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './types'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-// 防误用保护：确保永远不会在浏览器端使用
-if (typeof window !== 'undefined') {
-  throw new Error(
-    'supabaseAdmin 只能在服务器端使用。请使用 createBrowserSupabaseClient() 或 createServerSupabaseClient()。'
+// 懒加载的 Supabase Admin Client
+let _supabaseAdmin: SupabaseClient<Database> | null = null
+
+/**
+ * 获取 Supabase Admin Client（懒加载）
+ * 
+ * 使用 Service Role Key，拥有完全数据库访问权限
+ * 绕过所有 Row Level Security (RLS) 策略
+ * 
+ * 注意：环境变量检查延迟到首次使用时，避免构建时失败
+ */
+function getSupabaseAdmin(): SupabaseClient<Database> {
+  // 防误用保护：确保永远不会在浏览器端使用
+  if (typeof window !== 'undefined') {
+    throw new Error(
+      'supabaseAdmin 只能在服务器端使用。请使用 createBrowserSupabaseClient() 或 createServerSupabaseClient()。'
+    )
+  }
+
+  // 如果已经初始化，直接返回
+  if (_supabaseAdmin) {
+    return _supabaseAdmin
+  }
+
+  // 延迟检查环境变量（仅在首次使用时）
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error(
+      'Missing Supabase admin environment variables. Please check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your environment variables.'
+    )
+  }
+
+  // 创建并缓存客户端
+  _supabaseAdmin = createClient<Database>(
+    supabaseUrl,
+    supabaseServiceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
   )
-}
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error(
-    'Missing Supabase admin environment variables. Please check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local'
-  )
+  return _supabaseAdmin
 }
 
 /**
@@ -55,17 +89,20 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
  * 
  * 使用 Service Role Key，拥有完全数据库访问权限
  * 绕过所有 Row Level Security (RLS) 策略
+ * 
+ * 注意：这是一个 getter，实际客户端在首次使用时才初始化
  */
-export const supabaseAdmin = createClient<Database>(
-  supabaseUrl,
-  supabaseServiceRoleKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-)
+export const supabaseAdmin = new Proxy({} as SupabaseClient<Database>, {
+  get(_target, prop) {
+    const client = getSupabaseAdmin()
+    const value = (client as any)[prop]
+    // 如果是函数，绑定 this 上下文
+    if (typeof value === 'function') {
+      return value.bind(client)
+    }
+    return value
+  },
+})
 
 
 
