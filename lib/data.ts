@@ -71,6 +71,20 @@ function mapSupabaseRowToAsset(row: any): Asset {
 
 export async function getAllAssets(): Promise<Asset[]> {
   try {
+    // 检查 Supabase 环境变量
+    const hasSupabaseConfig = !!(
+      process.env.NEXT_PUBLIC_SUPABASE_URL && 
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    if (!hasSupabaseConfig) {
+      console.warn('[getAllAssets] ⚠️ Supabase 环境变量未配置，回退到 manifest.json');
+      console.warn('[getAllAssets] 请在 Vercel 环境变量中配置:');
+      console.warn('[getAllAssets]   - NEXT_PUBLIC_SUPABASE_URL');
+      console.warn('[getAllAssets]   - NEXT_PUBLIC_SUPABASE_ANON_KEY');
+      return listAssets();
+    }
+
     // 优先从 Supabase 读取资产数据
     const supabase = await createServerSupabaseClient();
     

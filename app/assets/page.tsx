@@ -104,18 +104,32 @@ export default async function AssetsPage() {
   let engineVersions: string[] = [];
 
   try {
-    const supabase = await createServerSupabaseClient();
-    
-    // 查询所有资产，按创建时间倒序排列
-    const { data, error } = await supabase
-      .from('assets')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // 检查 Supabase 环境变量
+    const hasSupabaseConfig = !!(
+      process.env.NEXT_PUBLIC_SUPABASE_URL && 
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
 
-    if (error) {
-      console.error('[AssetsPage] Supabase query error:', error);
-      // 不 throw，返回空数组确保页面不白屏
-    } else if (data && data.length > 0) {
+    if (!hasSupabaseConfig) {
+      console.warn('[AssetsPage] ⚠️ Supabase 环境变量未配置，无法从数据库读取资产');
+      console.warn('[AssetsPage] 请在 Vercel 环境变量中配置:');
+      console.warn('[AssetsPage]   - NEXT_PUBLIC_SUPABASE_URL');
+      console.warn('[AssetsPage]   - NEXT_PUBLIC_SUPABASE_ANON_KEY');
+      // 回退到从 manifest.json 读取（如果存在）
+      // 这里不读取，让 AssetsListWithSelection 处理
+    } else {
+      const supabase = await createServerSupabaseClient();
+      
+      // 查询所有资产，按创建时间倒序排列
+      const { data, error } = await supabase
+        .from('assets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[AssetsPage] Supabase query error:', error);
+        // 不 throw，返回空数组确保页面不白屏
+      } else if (data && data.length > 0) {
       // 映射数据
       allAssets = data.map(mapSupabaseRowToAsset);
 
@@ -164,13 +178,14 @@ export default async function AssetsPage() {
         }
       });
 
-      tags = Array.from(tagSet).sort();
-      types = Array.from(typeSet).sort();
-      styles = Array.from(styleSet).sort();
-      sources = Array.from(sourceSet).sort();
-      engineVersions = Array.from(versionSet).sort();
-    } else {
-      console.warn('[AssetsPage] Supabase 返回空数据或没有数据');
+        tags = Array.from(tagSet).sort();
+        types = Array.from(typeSet).sort();
+        styles = Array.from(styleSet).sort();
+        sources = Array.from(sourceSet).sort();
+        engineVersions = Array.from(versionSet).sort();
+      } else {
+        console.warn('[AssetsPage] Supabase 返回空数据或没有数据');
+      }
     }
 
     const duration = Date.now() - start;
