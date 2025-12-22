@@ -30,10 +30,11 @@ export async function GET() {
 
     console.log('[API /users/list] 开始从 Supabase 获取用户列表');
     
-    // 从 Supabase 获取所有用户（包含 is_admin 字段，如果存在）
+    // 从 Supabase 获取所有用户
+    // 注意：不查询 is_admin 字段，因为可能不存在，通过 isAdmin 函数判断
     const { data: profiles, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, credits, billing_mode, model_mode, is_admin, role, created_at, updated_at')
+      .select('id, email, credits, billing_mode, model_mode, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -42,16 +43,22 @@ export async function GET() {
     }
 
     // 转换为前端需要的格式
-    const users = (profiles || []).map((profile: any) => ({
-      id: profile.id,
-      email: profile.email || '',
-      name: profile.email?.split('@')[0] || '', // 从 email 提取用户名
-      credits: profile.credits || 0,
-      billingMode: (profile.billing_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
-      modelMode: (profile.model_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
-      createdAt: profile.created_at || new Date().toISOString(),
-      updatedAt: profile.updated_at || profile.created_at || new Date().toISOString(),
-      isAdmin: profile.is_admin === true || profile.role === 'admin' || profile.role === 'ADMIN', // 管理员标识
+    const users = await Promise.all((profiles || []).map(async (profile: any) => {
+      // 通过 isAdmin 函数判断是否是管理员（会处理字段不存在的情况）
+      const email = profile.email || '';
+      const userIsAdmin = await isAdmin(email);
+      
+      return {
+        id: profile.id,
+        email: email,
+        name: email.split('@')[0] || '', // 从 email 提取用户名
+        credits: profile.credits || 0,
+        billingMode: (profile.billing_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
+        modelMode: (profile.model_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
+        createdAt: profile.created_at || new Date().toISOString(),
+        updatedAt: profile.updated_at || profile.created_at || new Date().toISOString(),
+        isAdmin: userIsAdmin, // 通过 isAdmin 函数判断
+      };
     }));
 
     console.log('[API /users/list] 成功获取用户列表，用户数量:', users.length);

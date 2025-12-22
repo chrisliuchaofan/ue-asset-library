@@ -4,7 +4,7 @@ import { useState, Children, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FolderOpen, Video, ChevronLeft, ChevronRight, Settings, Plus, List, ChevronDown, ChevronUp, Save, X, Edit, Trash2, LogOut, Users, Gift, CreditCard } from 'lucide-react';
+import { FolderOpen, Video, ChevronLeft, ChevronRight, Settings, Plus, List, ChevronDown, ChevronUp, Save, X, Edit, Trash2, LogOut, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -818,38 +818,6 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
           >
             <Users className="h-5 w-5 shrink-0" />
             {!sidebarCollapsed && <span className="flex-1 text-left">用户管理</span>}
-          </a>
-
-          {/* 兑换码管理 */}
-          <a
-            href="/admin/redeem-codes"
-            onClick={(e) => {
-              e.preventDefault();
-              router.push('/admin/redeem-codes');
-            }}
-            className={cn(
-              'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
-              'text-gray-700 hover:bg-gray-100'
-            )}
-          >
-            <Gift className="h-5 w-5 shrink-0" />
-            {!sidebarCollapsed && <span className="flex-1 text-left">兑换码管理</span>}
-          </a>
-
-          {/* 积分管理 */}
-          <a
-            href="/admin/credits"
-            onClick={(e) => {
-              e.preventDefault();
-              router.push('/admin/credits');
-            }}
-            className={cn(
-              'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
-              'text-gray-700 hover:bg-gray-100'
-            )}
-          >
-            <CreditCard className="h-5 w-5 shrink-0" />
-            {!sidebarCollapsed && <span className="flex-1 text-left">积分管理</span>}
           </a>
 
           {/* 设置 */}

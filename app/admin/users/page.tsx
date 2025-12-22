@@ -389,12 +389,9 @@ export default function UsersPage() {
                       </td>
                       <td className="py-3 px-4 text-slate-300">{user.name || '-'}</td>
                       <td className="py-3 px-4 text-right">
-                        <Link
-                          href={`/admin/credits?userId=${user.id}`}
-                          className="text-indigo-400 hover:text-indigo-300 font-semibold"
-                        >
+                        <span className="font-semibold">
                           {user.credits}
-                        </Link>
+                        </span>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <button
@@ -439,12 +436,6 @@ export default function UsersPage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`/admin/credits?userId=${user.id}`}
-                            className="text-indigo-400 hover:text-indigo-300 text-sm"
-                          >
-                            积分管理
-                          </Link>
                           <Button
                             variant="ghost"
                             size="sm"

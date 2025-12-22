@@ -63,8 +63,6 @@ export function UserNavigation({ className }: UserNavigationProps) {
   const adminNavItems: Array<{ href: string; label: string; icon: any; hash?: string }> = [
     { href: '/admin', label: '资产管理', icon: Settings },
     { href: '/admin/users', label: '用户管理', icon: Shield },
-    { href: '/admin/redeem-codes', label: '兑换码管理', icon: Gift },
-    { href: '/admin/credits', label: '积分管理', icon: CreditCard },
   ];
 
   const navItems = userIsAdmin ? adminNavItems : userNavItems;
