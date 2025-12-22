@@ -18,11 +18,20 @@ if (typeof window === 'undefined') {
     console.warn('[Auth Config] ⚠️ 缺少必需的环境变量:', missingVars);
     console.warn('[Auth Config] 这可能导致 NextAuth "Configuration" 错误');
   } else {
-    console.log('[Auth Config] ✅ NextAuth 环境变量已配置:', {
-      hasSecret: !!requiredEnvVars.NEXTAUTH_SECRET,
-      secretLength: requiredEnvVars.NEXTAUTH_SECRET?.length || 0,
-      url: requiredEnvVars.NEXTAUTH_URL,
-    });
+    // 验证 NEXTAUTH_URL 格式
+    const nextAuthUrl = requiredEnvVars.NEXTAUTH_URL;
+    if (nextAuthUrl && !nextAuthUrl.startsWith('http://') && !nextAuthUrl.startsWith('https://')) {
+      console.error('[Auth Config] ❌ NEXTAUTH_URL 格式错误，必须以 http:// 或 https:// 开头:', nextAuthUrl);
+    } else if (nextAuthUrl && nextAuthUrl.includes('factory-buy.com')) {
+      console.error('[Auth Config] ❌ NEXTAUTH_URL 配置错误，指向了 factory-buy.com:', nextAuthUrl);
+      console.error('[Auth Config] 请将 NEXTAUTH_URL 设置为正确的 Vercel 域名，例如: https://ue-asset-library.vercel.app');
+    } else {
+      console.log('[Auth Config] ✅ NextAuth 环境变量已配置:', {
+        hasSecret: !!requiredEnvVars.NEXTAUTH_SECRET,
+        secretLength: requiredEnvVars.NEXTAUTH_SECRET?.length || 0,
+        url: requiredEnvVars.NEXTAUTH_URL,
+      });
+    }
   }
 }
 

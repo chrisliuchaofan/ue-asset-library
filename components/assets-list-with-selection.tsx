@@ -560,12 +560,20 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       })
       .then(({ assets: nextAssets }) => {
         const duration = performance.now() - start;
-        setDisplayAssets(nextAssets);
+        console.log('[AssetsListWithSelection] 服务端筛选成功:', {
+          returnedCount: nextAssets.length,
+          durationMs: duration,
+        });
+        setDisplayAssets(nextAssets || []);
         setFilterDurationMs(duration);
       })
       .catch((error) => {
         if (error.name === 'AbortError') return;
-        console.error('筛选接口错误:', error);
+        console.error('[AssetsListWithSelection] 筛选接口错误:', error);
+        // 筛选失败时，回退到原始资产数据（至少显示一些内容）
+        console.warn('[AssetsListWithSelection] 筛选失败，回退到原始资产数据');
+        setDisplayAssets(assets);
+        setFilterDurationMs(null);
       })
       .finally(() => {
         if (!controller.signal.aborted) {
