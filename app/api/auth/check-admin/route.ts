@@ -5,6 +5,7 @@ import { isAdmin } from '@/lib/auth/is-admin';
 /**
  * GET /api/auth/check-admin
  * 检查当前用户是否是管理员
+ * 优先从 Supabase 数据库读取 is_admin 字段
  * 用于客户端组件检查权限
  */
 export async function GET() {
@@ -15,7 +16,8 @@ export async function GET() {
       return NextResponse.json({ isAdmin: false, authenticated: false });
     }
 
-    const adminCheck = isAdmin(session.user.email);
+    // 使用异步版本从 Supabase 读取
+    const adminCheck = await isAdmin(session.user.email);
     
     return NextResponse.json({ 
       isAdmin: adminCheck,

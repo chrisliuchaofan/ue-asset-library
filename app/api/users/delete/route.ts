@@ -24,8 +24,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // 检查管理员权限
-    if (!isAdmin(session.user.email)) {
+    // 检查管理员权限（从 Supabase 数据库读取）
+    const adminCheck = await isAdmin(session.user.email);
+    if (!adminCheck) {
       return NextResponse.json(
         createStandardError(ErrorCode.FORBIDDEN, '权限不足，需要管理员权限'),
         { status: 403 }

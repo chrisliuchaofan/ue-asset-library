@@ -28,9 +28,10 @@ export async function GET(request: Request) {
     const limit = parseInt(limitParam, 10);
     const offset = parseInt(offsetParam, 10);
 
-    // 如果提供了 targetUserId，检查是否是管理员
+    // 如果提供了 targetUserId，检查是否是管理员（从 Supabase 数据库读取）
     if (targetUserId) {
-      if (!isAdmin(session.user.email)) {
+      const adminCheck = await isAdmin(session.user.email);
+      if (!adminCheck) {
         return NextResponse.json(
           createStandardError(ErrorCode.FORBIDDEN, '权限不足，只有管理员可以查看其他用户的交易记录'),
           { status: 403 }
@@ -59,11 +60,12 @@ export async function GET(request: Request) {
       queryUserId = (profile as { id: string }).id;
     }
 
+    const adminCheck = await isAdmin(session.user.email);
     console.log('[API /credits/transactions] 查询交易记录:', {
       userId: queryUserId,
       limit,
       offset,
-      isAdmin: isAdmin(session.user.email),
+      isAdmin: adminCheck,
     });
 
     // 查询交易记录
