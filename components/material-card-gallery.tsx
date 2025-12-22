@@ -749,7 +749,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
               </Badge>
             ))}
             {material.quality.length > 2 && (
-              <span className="text-[10px] text-muted-foreground">+{material.quality.length - 2}</span>
+              <span className="text-[10px] text-muted-foreground">+{String(material.quality.length - 2)}</span>
             )}
           </div>
           {/* AI分析结果 - 显示在文字信息区域，使用tooltip方式，保持卡片大小不变 */}

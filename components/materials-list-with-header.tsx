@@ -347,13 +347,13 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
     <>
       <div className="mb-3 sm:mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-xs sm:text-sm text-muted-foreground flex-shrink-0 min-w-0 overflow-hidden">
-          <span className="whitespace-nowrap">找到 {sortedDisplayMaterials.length} 个素材</span>
+          <span className="whitespace-nowrap">找到 {String(sortedDisplayMaterials.length)} 个素材</span>
           {summary.total > 0 && !hasServerFilters && (
-            <span className="ml-1 sm:ml-2 text-xs text-muted-foreground/80 whitespace-nowrap">共 {summary.total} 个</span>
+            <span className="ml-1 sm:ml-2 text-xs text-muted-foreground/80 whitespace-nowrap">共 {String(summary.total)} 个</span>
           )}
           {filterDuration !== null && (
             <span className="ml-1 sm:ml-2 text-xs text-muted-foreground/80 whitespace-nowrap">
-              ({Math.round(filterDuration)} ms)
+              ({String(Math.round(filterDuration))} ms)
             </span>
           )}
         </div>
