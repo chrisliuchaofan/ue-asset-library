@@ -51,6 +51,7 @@ export async function GET() {
       modelMode: (profile.model_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
       createdAt: profile.created_at || new Date().toISOString(),
       updatedAt: profile.updated_at || profile.created_at || new Date().toISOString(),
+      isAdmin: profile.is_admin === true || profile.role === 'admin' || profile.role === 'ADMIN', // 管理员标识
     }));
 
     console.log('[API /users/list] 成功获取用户列表，用户数量:', users.length);

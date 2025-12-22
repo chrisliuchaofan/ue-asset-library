@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/dialog';
 import { ErrorDisplay } from '@/components/errors/error-display';
 import { normalizeError, createStandardError, ErrorCode } from '@/lib/errors/error-handler';
-import { isAdmin } from '@/lib/auth/is-admin';
 import { useRequireAdmin } from '@/lib/auth/require-admin';
 
 interface User {
@@ -30,6 +29,7 @@ interface User {
   modelMode: 'DRY_RUN' | 'REAL';
   createdAt: string;
   updatedAt: string;
+  isAdmin?: boolean; // 管理员标识（从 Supabase 读取）
 }
 
 export default function UsersPage() {
@@ -380,7 +380,7 @@ export default function UsersPage() {
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
                           <span className="font-mono">{user.email}</span>
-                          {isAdmin(user.email) && (
+                          {user.isAdmin && (
                             <div title="管理员">
                               <Shield className="w-4 h-4 text-indigo-400" />
                             </div>
@@ -460,7 +460,7 @@ export default function UsersPage() {
                             onClick={() => handleDeleteUser(user)}
                             className="h-8 w-8 p-0 text-red-400 hover:text-red-500"
                             title="删除用户"
-                            disabled={isAdmin(user.email)}
+                            disabled={user.isAdmin}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
