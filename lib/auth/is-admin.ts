@@ -24,20 +24,23 @@ export async function isAdmin(email: string): Promise<boolean> {
       .single();
 
     if (!error && profile) {
+      // 使用类型断言，因为 is_admin 字段可能不在类型定义中
+      const profileData = profile as any;
+      
       // 如果数据库中有 is_admin 字段，使用它
-      if (profile.is_admin === true) {
+      if (profileData.is_admin === true) {
         console.log('[isAdmin] ✅ 从 Supabase 读取：用户是管理员', { email });
         return true;
       }
       
       // 如果数据库中有 role 字段，检查是否是 admin
-      if (profile.role === 'admin' || profile.role === 'ADMIN') {
-        console.log('[isAdmin] ✅ 从 Supabase 读取：用户角色是管理员', { email, role: profile.role });
+      if (profileData.role === 'admin' || profileData.role === 'ADMIN') {
+        console.log('[isAdmin] ✅ 从 Supabase 读取：用户角色是管理员', { email, role: profileData.role });
         return true;
       }
       
       // 如果明确标记为非管理员
-      if (profile.is_admin === false) {
+      if (profileData.is_admin === false) {
         console.log('[isAdmin] ❌ 从 Supabase 读取：用户不是管理员', { email });
         return false;
       }
