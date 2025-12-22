@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from '@/components/providers';
+import { getStorageMode } from '@/lib/storage';
 
 export const metadata: Metadata = {
   title: {
@@ -47,7 +48,8 @@ export default function RootLayout({
 }>) {
   // ✅ 获取 CDN base（优先使用客户端可访问的变量）
   const cdnBase = process.env.NEXT_PUBLIC_CDN_BASE || '/';
-  const storageMode = process.env.STORAGE_MODE || process.env.NEXT_PUBLIC_STORAGE_MODE || 'local';
+  // 使用统一的存储模式推断函数，确保与 storage.ts 逻辑一致
+  const storageMode = getStorageMode();
   // 优先使用 NEXT_PUBLIC_ 前缀的变量（客户端可访问），如果没有则使用服务端变量
   // 注意：服务端变量在客户端不可访问，所以需要 NEXT_PUBLIC_ 前缀
   const ossBucket = process.env.NEXT_PUBLIC_OSS_BUCKET || '';

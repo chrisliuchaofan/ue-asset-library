@@ -69,12 +69,12 @@ export async function POST(request: Request) {
     }
 
     // 更新 profiles 表
-    const { data: profileData, error: profileError } = await supabaseAdmin
-      .from('profiles')
+    const { data: profileData, error: profileError } = await ((supabaseAdmin
+      .from('profiles') as any)
       .update(updateData)
       .eq('id', targetUserId)
       .select()
-      .single();
+      .single() as any);
 
     if (profileError) {
       if (profileError.code === 'PGRST116') {
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     }
 
     // 如果更新了邮箱，也需要更新 auth.users 表
-    if (email !== undefined && email !== profileData.email) {
+    if (email !== undefined && email !== (profileData as any).email) {
       const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
         email,
       });
@@ -104,10 +104,10 @@ export async function POST(request: Request) {
       success: true,
       user: {
         id: targetUserId,
-        email: profileData.email,
-        credits: profileData.credits || 0,
-        billingMode: profileData.billing_mode || 'DRY_RUN',
-        modelMode: profileData.model_mode || 'DRY_RUN',
+        email: (profileData as any).email,
+        credits: (profileData as any).credits || 0,
+        billingMode: (profileData as any).billing_mode || 'DRY_RUN',
+        modelMode: (profileData as any).model_mode || 'DRY_RUN',
       },
     });
   } catch (error: any) {

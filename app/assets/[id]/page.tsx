@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MediaGallery } from '@/components/media-gallery';
+import { NasPathDisplay } from '@/components/nas-path-display';
 import { getAssetById, getAllAssets } from '@/lib/data';
 import { formatFileSize, formatDuration, getAssetUrl } from '@/lib/utils';
 import type { Metadata } from 'next';
@@ -187,6 +188,10 @@ export default async function AssetDetailPage({
                 <div className="font-medium">{formatFileSize(currentAsset.filesize)}</div>
               </div>
             )}
+            <NasPathDisplay
+              guangzhouNas={currentAsset.guangzhouNas}
+              shenzhenNas={currentAsset.shenzhenNas}
+            />
           </div>
         </div>
 

@@ -74,8 +74,8 @@ export async function POST(request: Request) {
     const userId = authData.user.id;
 
     // 2. 创建或更新 profiles 记录
-    const { data: profileData, error: profileError } = await supabaseAdmin
-      .from('profiles')
+    const { data: profileData, error: profileError } = await ((supabaseAdmin
+      .from('profiles') as any)
       .upsert({
         id: userId,
         email,
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
         onConflict: 'id',
       })
       .select()
-      .single();
+      .single() as any);
 
     if (profileError) {
       // 如果 profile 创建失败，尝试删除已创建的 auth 用户
@@ -102,10 +102,10 @@ export async function POST(request: Request) {
       success: true,
       user: {
         id: userId,
-        email: profileData.email,
-        credits: profileData.credits || 0,
-        billingMode: profileData.billing_mode || 'DRY_RUN',
-        modelMode: profileData.model_mode || 'DRY_RUN',
+        email: (profileData as any).email,
+        credits: (profileData as any).credits || 0,
+        billingMode: (profileData as any).billing_mode || 'DRY_RUN',
+        modelMode: (profileData as any).model_mode || 'DRY_RUN',
       },
     });
   } catch (error: any) {

@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       .eq('email', session.user.email)
       .single();
 
-    if (currentProfile?.id === targetUserId) {
+    if ((currentProfile as { id?: string } | null)?.id === targetUserId) {
       return NextResponse.json(
         createStandardError(ErrorCode.VALIDATION_ERROR, '不能删除自己的账号'),
         { status: 400 }

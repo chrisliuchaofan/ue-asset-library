@@ -83,8 +83,8 @@ export async function POST(request: Request) {
         
         if (profile) {
           userModeInfo = {
-            billingMode: (profile.billing_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
-            modelMode: (profile.model_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
+            billingMode: ((profile as any).billing_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
+            modelMode: ((profile as any).model_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
           };
         }
       } catch (error) {
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     if (shouldDeductRealCredits) {
       try {
         // 优先使用 RPC 函数进行原子扣减
-        const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
+        const { data: rpcData, error: rpcError } = await (supabaseAdmin.rpc as any)(
           'deduct_credits',
           {
             p_user_id: userId,
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
             );
           }
 
-          const currentCredits = profile.credits ?? 0;
+          const currentCredits = (profile as { credits?: number }).credits ?? 0;
           
           if (currentCredits < finalCost) {
             return NextResponse.json(
@@ -154,21 +154,21 @@ export async function POST(request: Request) {
           }
 
           // 使用条件更新进行原子扣减
-          const { data: updated, error: updateError } = await supabaseAdmin
-            .from('profiles')
+          const { data: updated, error: updateError } = await ((supabaseAdmin
+            .from('profiles') as any)
             .update({ credits: currentCredits - finalCost })
             .eq('id', userId)
             .gte('credits', finalCost) // 只有余额 >= cost 时才更新
             .select('credits')
-            .single();
+            .single());
 
-          if (updateError || !updated) {
+          if (updateError || !updated || !(updated as { credits?: number }).credits) {
             // 如果更新失败，可能是并发导致余额不足
             const { data: recheckProfile } = await supabaseAdmin
               .from('profiles')
               .select('credits')
               .eq('id', userId)
-              .single();
+              .single() as { data: { credits?: number } | null };
 
             const recheckCredits = recheckProfile?.credits ?? 0;
             
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
             );
           }
 
-          remainingCredits = updated.credits;
+            remainingCredits = (updated as { credits?: number }).credits ?? null;
         } else {
           // RPC 函数返回结果
           if (rpcData === null || rpcData === false) {
@@ -194,7 +194,7 @@ export async function POST(request: Request) {
               .eq('id', userId)
               .single();
 
-            const currentCredits = profile?.credits ?? 0;
+            const currentCredits = (profile as { credits?: number } | null)?.credits ?? 0;
             
             return NextResponse.json(
               createStandardError(
@@ -223,8 +223,8 @@ export async function POST(request: Request) {
     const generationId = randomUUID();
     const now = new Date().toISOString();
 
-    const { error: generationError } = await supabaseAdmin
-      .from('generations')
+    const { error: generationError } = await (supabaseAdmin
+      .from('generations') as any)
       .insert({
         id: generationId,
         user_id: userId || 'anonymous',
@@ -322,21 +322,21 @@ export async function POST(request: Request) {
     } catch (aiError) {
       // AI 调用失败，更新 generation 状态为 failed
       const errorMessage = aiError instanceof Error ? aiError.message : 'AI 调用失败';
-      await supabaseAdmin
-        .from('generations')
+      await ((supabaseAdmin
+        .from('generations') as any)
         .update({
           status: 'failed',
           error_message: errorMessage,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', generationId);
+        .eq('id', generationId));
 
       // 如果已经扣费，需要回退积分（只有在 REAL 模式下才需要回退）
       if (shouldDeductRealCredits && userId) {
         console.log('[Generate API] AI 调用失败，开始回退积分:', { userId, finalCost });
         
         // 尝试使用 RPC 函数回退
-        const { data: refundData, error: refundError } = await supabaseAdmin.rpc('add_credits', {
+        const { data: refundData, error: refundError } = await (supabaseAdmin.rpc as any)('add_credits', {
           p_user_id: userId,
           p_amount: finalCost,
         });
@@ -352,11 +352,11 @@ export async function POST(request: Request) {
             .single();
 
           if (profile) {
-            const currentCredits = profile.credits ?? 0;
-            const { error: updateError } = await supabaseAdmin
-              .from('profiles')
+            const currentCredits = (profile as { credits?: number }).credits ?? 0;
+            const { error: updateError } = await ((supabaseAdmin
+              .from('profiles') as any)
               .update({ credits: currentCredits + finalCost, updated_at: new Date().toISOString() })
-              .eq('id', userId);
+              .eq('id', userId));
 
             if (updateError) {
               console.error('[Generate API] 回退积分失败（直接更新）:', updateError);
@@ -381,8 +381,8 @@ export async function POST(request: Request) {
     if (shouldDeductRealCredits && userId) {
       try {
         // 插入账本记录
-        const { error: transactionError } = await supabaseAdmin
-          .from('credit_transactions')
+        const { error: transactionError } = await (supabaseAdmin
+          .from('credit_transactions') as any)
           .insert({
             id: randomUUID(),
             user_id: userId,
@@ -423,10 +423,10 @@ export async function POST(request: Request) {
       updateData.result_url = resultUrl;
     }
     
-    const { error: updateGenerationError } = await supabaseAdmin
-      .from('generations')
+    const { error: updateGenerationError } = await ((supabaseAdmin
+      .from('generations') as any)
       .update(updateData)
-      .eq('id', generationId);
+      .eq('id', generationId));
 
     if (updateGenerationError) {
       console.error('[Generate API] 更新 generation 状态失败:', updateGenerationError);

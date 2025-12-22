@@ -67,6 +67,43 @@ web/
     └── demo/             # 示例资产文件
 ```
 
+## 开发环境要求
+
+- **Node.js**: 20.x（主版本锁定为 20）
+- **包管理器**: npm
+
+### 推荐安装方式
+
+**使用 nvm（Node Version Manager）**：
+
+```bash
+# 安装 nvm（如果还没有安装）
+# macOS/Linux: https://github.com/nvm-sh/nvm
+# Windows: https://github.com/coreybutler/nvm-windows
+
+# 安装并使用 Node 20
+nvm install 20
+nvm use 20
+
+# 或者直接使用项目根目录的 .nvmrc 文件
+nvm use
+```
+
+**使用 fnm（Fast Node Manager）**：
+
+```bash
+# 安装 fnm（如果还没有安装）
+# macOS/Linux: https://github.com/Schniz/fnm
+# Windows: https://github.com/Schniz/fnm
+
+# 安装并使用 Node 20
+fnm install 20
+fnm use 20
+
+# 或者直接使用项目根目录的 .nvmrc 文件
+fnm use
+```
+
 ## 快速开始
 
 ### 1. 安装依赖

@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     }
 
     // 使用 Supabase RPC 函数增加积分
-    const { data: newBalance, error: rpcError } = await supabaseAdmin.rpc(
+    const { data: newBalance, error: rpcError } = await (supabaseAdmin.rpc as any)(
       'add_credits',
       {
         p_user_id: targetUserId,
@@ -70,13 +70,13 @@ export async function POST(request: Request) {
         );
       }
 
-      const currentCredits = profile.credits || 0;
+      const currentCredits = (profile as { credits?: number }).credits || 0;
       const updatedCredits = currentCredits + amount;
 
-      const { error: updateError } = await supabaseAdmin
-        .from('profiles')
+      const { error: updateError } = await ((supabaseAdmin
+        .from('profiles') as any)
         .update({ credits: updatedCredits, updated_at: new Date().toISOString() })
-        .eq('id', targetUserId);
+        .eq('id', targetUserId));
 
       if (updateError) {
         throw updateError;
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 
       // 记录交易
       const transactionId = randomUUID();
-      await supabaseAdmin.from('credit_transactions').insert({
+      await (supabaseAdmin.from('credit_transactions') as any).insert({
         id: transactionId,
         user_id: targetUserId,
         amount,
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
 
     // RPC 成功，记录交易
     const transactionId = randomUUID();
-    await supabaseAdmin.from('credit_transactions').insert({
+    await (supabaseAdmin.from('credit_transactions') as any).insert({
       id: transactionId,
       user_id: targetUserId,
       amount,

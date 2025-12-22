@@ -15,42 +15,25 @@ import {
 
 export type StorageMode = 'local' | 'oss';
 
-const inferDefaultStorageMode = (): StorageMode => {
-  const envMode =
-    (process.env.STORAGE_MODE as StorageMode | undefined) ??
-    (process.env.NEXT_PUBLIC_STORAGE_MODE as StorageMode | undefined);
-
-  if (envMode === 'local' || envMode === 'oss') {
-    return envMode;
-  }
-
-  if (
-    process.env.NODE_ENV === 'production' ||
-    process.env.VERCEL === '1' ||
-    process.env.NEXT_RUNTIME === 'edge'
-  ) {
-    return 'oss';
-  }
-
-  return 'local';
-};
-
-const STORAGE_MODE: StorageMode = inferDefaultStorageMode();
+// 存储模式改为运行时函数调用，避免在模块加载时执行（防止构建时失败）
+// 使用 getStorageMode() 函数获取存储模式，而不是模块级常量
 
 const manifestPath = join(process.cwd(), 'data', 'manifest.json');
 const MANIFEST_FILE_NAME = 'manifest.json';
 
-const MANIFEST_CACHE_TTL_MS = (() => {
+// 缓存 TTL 改为运行时计算，避免在模块加载时依赖存储模式
+function getManifestCacheTTL(): number {
+  const storageMode = getStorageMode();
   const rawTTL =
     process.env.ASSET_MANIFEST_CACHE_TTL ??
     process.env.MANIFEST_CACHE_TTL ??
-    (STORAGE_MODE === 'local' ? '3600000' : '60000'); // Local模式默认缓存1小时，依赖Watcher失效
+    (storageMode === 'local' ? '3600000' : '60000'); // Local模式默认缓存1小时，依赖Watcher失效
   const parsed = Number.parseInt(rawTTL, 10);
   if (Number.isNaN(parsed) || !Number.isFinite(parsed)) {
     return 60000;
   }
   return Math.max(0, parsed);
-})();
+}
 
 // 全局 watcher 状态
 declare global {
@@ -58,7 +41,7 @@ declare global {
 }
 
 function setupLocalManifestWatcher() {
-  if (STORAGE_MODE !== 'local') return;
+  if (getStorageMode() !== 'local') return;
   if (globalThis.__manifestWatcher) return; // 已存在
 
   try {
@@ -117,7 +100,8 @@ function getAssetManifestCacheStore(): AssetManifestCacheStore {
 }
 
 function readAssetManifestCache(): AssetManifestCacheEntry['data'] | null {
-  if (MANIFEST_CACHE_TTL_MS <= 0) {
+  const ttl = getManifestCacheTTL();
+  if (ttl <= 0) {
     return null;
   }
   const store = getAssetManifestCacheStore();
@@ -128,7 +112,8 @@ function readAssetManifestCache(): AssetManifestCacheEntry['data'] | null {
 }
 
 function writeAssetManifestCache(manifest: Manifest): void {
-  if (MANIFEST_CACHE_TTL_MS <= 0) {
+  const ttl = getManifestCacheTTL();
+  if (ttl <= 0) {
     invalidateAssetManifestCache();
     return;
   }
@@ -147,7 +132,7 @@ function writeAssetManifestCache(manifest: Manifest): void {
       allowedTypes,
       manifest: manifestForCache,
     },
-    expires: Date.now() + MANIFEST_CACHE_TTL_MS,
+    expires: Date.now() + getManifestCacheTTL(),
   };
 }
 
@@ -812,7 +797,7 @@ async function writeOSSManifest(assets: Asset[], allowedTypes?: string[]): Promi
 
 export async function listAssets(): Promise<Asset[]> {
   const start = Date.now();
-  if (STORAGE_MODE === 'local') {
+  if (getStorageMode() === 'local') {
     const result = await readLocalManifest();
     const duration = Date.now() - start;
     console.info('[AssetsManifest]', { mode: 'local', count: result.assets.length, durationMs: duration });
@@ -837,7 +822,7 @@ export async function getAssetsCount(): Promise<number> {
   }
 
   // If not cached, we can optimize for empty files
-  if (STORAGE_MODE === 'local') {
+  if (getStorageMode() === 'local') {
     try {
       // Quick check: if file doesn't exist or is very small, likely empty
       const stats = await fs.stat(manifestPath).catch(() => null);
@@ -866,13 +851,13 @@ export async function getAssetsCount(): Promise<number> {
   }
 
   // If we get here, we need to read the full file (but cache will help)
-  const result = STORAGE_MODE === 'local' ? await readLocalManifest() : await readOSSManifest();
+  const result = getStorageMode() === 'local' ? await readLocalManifest() : await readOSSManifest();
   return result.assets.length;
 }
 
 // 获取允许的类型列表
 export async function getAllowedTypes(): Promise<string[]> {
-  if (STORAGE_MODE === 'local') {
+  if (getStorageMode() === 'local') {
     const result = await readLocalManifest();
     return result.allowedTypes;
   }
@@ -884,7 +869,7 @@ export async function getAllowedTypes(): Promise<string[]> {
 // 更新允许的类型列表
 export async function updateAllowedTypes(allowedTypes: string[]): Promise<void> {
   const assets = await listAssets();
-  if (STORAGE_MODE === 'local') {
+  if (getStorageMode() === 'local') {
     await writeLocalManifest(assets, allowedTypes);
   } else {
     await writeOSSManifest(assets, allowedTypes);
@@ -898,7 +883,7 @@ export async function getAsset(id: string): Promise<Asset | null> {
 
 export async function createAsset(input: AssetCreateInput): Promise<Asset> {
   const assetsResult =
-    STORAGE_MODE === 'local' ? await readLocalManifest() : await readOSSManifest();
+    getStorageMode() === 'local' ? await readLocalManifest() : await readOSSManifest();
   const assets = assetsResult.assets;
   const allowedTypes = assetsResult.allowedTypes;
 
@@ -949,7 +934,7 @@ export async function createAsset(input: AssetCreateInput): Promise<Asset> {
   }
 
   const updated = [...assets, newAsset];
-  if (STORAGE_MODE === 'local') {
+  if (getStorageMode() === 'local') {
     await writeLocalManifest(updated);
   } else {
     await writeOSSManifest(updated);
@@ -959,7 +944,7 @@ export async function createAsset(input: AssetCreateInput): Promise<Asset> {
 
 export async function updateAsset(id: string, input: AssetUpdateInput): Promise<Asset> {
   const assetsResult =
-    STORAGE_MODE === 'local' ? await readLocalManifest() : await readOSSManifest();
+    getStorageMode() === 'local' ? await readLocalManifest() : await readOSSManifest();
   const assets = assetsResult.assets;
   const allowedTypes = assetsResult.allowedTypes;
 
@@ -1005,7 +990,7 @@ export async function updateAsset(id: string, input: AssetUpdateInput): Promise<
 
   const updatedAssets = [...assets];
   updatedAssets[index] = updatedAsset;
-  if (STORAGE_MODE === 'local') {
+  if (getStorageMode() === 'local') {
     await writeLocalManifest(updatedAssets);
   } else {
     await writeOSSManifest(updatedAssets);
@@ -1015,13 +1000,13 @@ export async function updateAsset(id: string, input: AssetUpdateInput): Promise<
 
 export async function deleteAsset(id: string): Promise<void> {
   const assetsResult =
-    STORAGE_MODE === 'local' ? await readLocalManifest() : await readOSSManifest();
+    getStorageMode() === 'local' ? await readLocalManifest() : await readOSSManifest();
   const assets = assetsResult.assets;
   const nextAssets = assets.filter((asset) => asset.id !== id);
   if (nextAssets.length === assets.length) {
     throw new Error(`未找到 ID 为 ${id} 的资产`);
   }
-  if (STORAGE_MODE === 'local') {
+  if (getStorageMode() === 'local') {
     await writeLocalManifest(nextAssets);
   } else {
     await writeOSSManifest(nextAssets);
@@ -1030,24 +1015,38 @@ export async function deleteAsset(id: string): Promise<void> {
 
 export function getStorageMode(): StorageMode {
   // 运行时读取环境变量，而不是使用模块加载时的常量
-  // 这样可以确保在环境变量更新后能正确读取
+  // 这样可以确保在环境变量更新后能正确读取，并避免构建时失败
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL === '1' ||
+    process.env.NEXT_RUNTIME === 'edge';
+
   const envMode =
     (process.env.STORAGE_MODE as StorageMode | undefined) ??
     (process.env.NEXT_PUBLIC_STORAGE_MODE as StorageMode | undefined);
 
+  // 生产环境强制使用 OSS 模式
+  if (isProduction) {
+    if (envMode === 'local') {
+      // 运行时检查：如果生产环境配置为 local，记录警告但不抛出错误（避免构建失败）
+      // 实际运行时会在 OSS 操作时失败，但不会阻止构建
+      console.warn(
+        '⚠️  存储模式配置警告：生产环境应使用 OSS 模式，当前配置为 local。' +
+        '请检查 Vercel Dashboard 中的 STORAGE_MODE 和 NEXT_PUBLIC_STORAGE_MODE 环境变量。'
+      );
+      // 生产环境强制返回 'oss'，即使配置为 'local'
+      return 'oss';
+    }
+    // 生产环境默认返回 'oss'（即使未明确配置）
+    return envMode === 'oss' ? 'oss' : 'oss';
+  }
+
+  // 开发环境：如果明确配置了模式，使用配置的值
   if (envMode === 'local' || envMode === 'oss') {
     return envMode;
   }
 
-  // 如果没有明确设置，根据环境推断
-  if (
-    process.env.NODE_ENV === 'production' ||
-    process.env.VERCEL === '1' ||
-    process.env.NEXT_RUNTIME === 'edge'
-  ) {
-    return 'oss';
-  }
-
+  // 开发环境：默认使用 local 模式
   return 'local';
 }
 

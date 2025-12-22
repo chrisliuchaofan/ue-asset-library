@@ -56,7 +56,7 @@ export async function GET(request: Request) {
         );
       }
 
-      queryUserId = profile.id;
+      queryUserId = (profile as { id: string }).id;
     }
 
     console.log('[API /credits/transactions] 查询交易记录:', {
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
     }
 
     // 格式化交易记录
-    const formattedTransactions = (transactions || []).map((tx) => ({
+    const formattedTransactions = (transactions || []).map((tx: any) => ({
       id: tx.id,
       userId: tx.user_id,
       amount: tx.amount,

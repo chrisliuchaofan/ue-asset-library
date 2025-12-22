@@ -68,12 +68,12 @@ export async function POST(request: Request) {
     }
 
     // 更新用户模式
-    const { data: updatedProfile, error } = await supabaseAdmin
-      .from('profiles')
+    const { data: updatedProfile, error } = await ((supabaseAdmin
+      .from('profiles') as any)
       .update(updateData)
       .eq('id', targetUserId)
       .select()
-      .single();
+      .single() as any);
 
     if (error) {
       // 如果是字段不存在的错误，返回友好提示
@@ -104,10 +104,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       user: {
-        id: updatedProfile.id,
-        email: updatedProfile.email,
-        billingMode: updatedProfile.billing_mode || billingMode || 'DRY_RUN',
-        modelMode: updatedProfile.model_mode || modelMode || 'DRY_RUN',
+        id: (updatedProfile as any).id,
+        email: (updatedProfile as any).email,
+        billingMode: (updatedProfile as any).billing_mode || billingMode || 'DRY_RUN',
+        modelMode: (updatedProfile as any).model_mode || modelMode || 'DRY_RUN',
       },
     });
   } catch (error: any) {

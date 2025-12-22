@@ -41,7 +41,7 @@ export async function GET() {
     }
 
     // 转换为前端需要的格式
-    const users = (profiles || []).map((profile) => ({
+    const users = (profiles || []).map((profile: any) => ({
       id: profile.id,
       email: profile.email || '',
       name: profile.email?.split('@')[0] || '', // 从 email 提取用户名

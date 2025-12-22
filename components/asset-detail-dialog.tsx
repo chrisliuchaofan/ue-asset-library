@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { MediaGallery } from '@/components/media-gallery';
+import { NasPathDisplay } from '@/components/nas-path-display';
 import { formatFileSize, formatDuration } from '@/lib/utils';
 import { type Asset } from '@/data/manifest.schema';
 
@@ -109,12 +110,10 @@ export function AssetDetailDialog({ open, onOpenChange, asset }: AssetDetailDial
                 <div className="font-medium text-xs break-all">{asset.guangzhouNas}</div>
               </div>
             )}
-            {asset.shenzhenNas && (
-              <div>
-                <div className="text-sm text-muted-foreground">深圳NAS路径</div>
-                <div className="font-medium text-xs break-all">{asset.shenzhenNas}</div>
-              </div>
-            )}
+            <NasPathDisplay
+              guangzhouNas={asset.guangzhouNas}
+              shenzhenNas={asset.shenzhenNas}
+            />
             {!isVideoUrl(asset.src) && asset.width && asset.height && (
               <div>
                 <div className="text-sm text-muted-foreground">尺寸</div>

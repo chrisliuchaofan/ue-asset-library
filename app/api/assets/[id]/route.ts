@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { AssetUpdateSchema } from '@/data/manifest.schema';
 import { deleteAsset, getAsset, updateAsset, getAllowedTypes, updateAllowedTypes } from '@/lib/storage';
+import { handleApiError } from '@/lib/error-handler';
 import { z } from 'zod';
 
 interface RouteContext {
@@ -8,12 +9,16 @@ interface RouteContext {
 }
 
 export async function GET(_: Request, { params }: RouteContext) {
-  const { id } = await params;
-  const asset = await getAsset(id);
-  if (!asset) {
-    return NextResponse.json({ message: '资产不存在' }, { status: 404 });
+  try {
+    const { id } = await params;
+    const asset = await getAsset(id);
+    if (!asset) {
+      return NextResponse.json({ message: '资产不存在' }, { status: 404 });
+    }
+    return NextResponse.json(asset);
+  } catch (error) {
+    return handleApiError(error, '获取资产失败');
   }
-  return NextResponse.json(asset);
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
@@ -59,23 +64,17 @@ export async function PUT(request: Request, { params }: RouteContext) {
     const asset = await updateAsset(id, parsed.data);
     return NextResponse.json(asset);
   } catch (error) {
-    console.error(`更新资产失败`, error);
-    const message =
-      error instanceof Error ? error.message : '更新资产失败';
-    return NextResponse.json({ message }, { status: 500 });
+    return handleApiError(error, '更新资产失败');
   }
 }
 
 export async function DELETE(_: Request, { params }: RouteContext) {
-  const { id } = await params;
   try {
+    const { id } = await params;
     await deleteAsset(id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error(`删除资产失败`, error);
-    const message =
-      error instanceof Error ? error.message : '删除资产失败或资产不存在';
-    return NextResponse.json({ message }, { status: 500 });
+    return handleApiError(error, '删除资产失败或资产不存在');
   }
 }
 

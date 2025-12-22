@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const userId = session.user.id || email;
 
     // 使用 Supabase RPC 函数增加积分
-    const { data: newBalance, error: rpcError } = await supabaseAdmin.rpc(
+    const { data: newBalance, error: rpcError } = await (supabaseAdmin.rpc as any)(
       'add_credits',
       {
         p_user_id: userId,
@@ -69,20 +69,20 @@ export async function POST(request: Request) {
         );
       }
 
-      const currentCredits = profile.credits || 0;
+      const currentCredits = (profile as { credits?: number }).credits || 0;
       const updatedCredits = currentCredits + amount;
 
-      const { error: updateError } = await supabaseAdmin
-        .from('profiles')
+      const { error: updateError } = await ((supabaseAdmin
+        .from('profiles') as any)
         .update({ credits: updatedCredits, updated_at: new Date().toISOString() })
-        .eq('id', userId);
+        .eq('id', userId));
 
       if (updateError) {
         throw updateError;
       }
 
       // 记录交易
-      await supabaseAdmin.from('credit_transactions').insert({
+      await (supabaseAdmin.from('credit_transactions') as any).insert({
         id: randomUUID(),
         user_id: userId,
         amount,
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     }
 
     // RPC 成功，记录交易
-    await supabaseAdmin.from('credit_transactions').insert({
+    await (supabaseAdmin.from('credit_transactions') as any).insert({
       id: randomUUID(),
       user_id: userId,
       amount,

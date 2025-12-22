@@ -32,8 +32,8 @@ export async function GET() {
       // 如果用户不存在，创建默认 profile
       console.warn('[API /me] 用户 profile 不存在，创建默认 profile:', email);
       
-      const { data: newProfile, error: createError } = await supabaseAdmin
-        .from('profiles')
+      const { data: newProfile, error: createError } = await (supabaseAdmin
+        .from('profiles') as any)
         .insert({
           id: userId,
           email,
@@ -67,9 +67,9 @@ export async function GET() {
 
     // 返回用户信息
     return NextResponse.json({
-      userId: profile.id,
-      email: profile.email,
-      balance: profile.credits || 0,
+      userId: (profile as { id: string }).id,
+      email: (profile as { email: string }).email,
+      balance: (profile as { credits?: number }).credits || 0,
       billingMode: 'DRY_RUN' as const, // TODO: 从数据库读取模式配置
       modelMode: 'DRY_RUN' as const, // TODO: 从数据库读取模式配置
     });
