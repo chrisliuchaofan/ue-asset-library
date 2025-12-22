@@ -67,7 +67,7 @@ export async function createServerSupabaseClient() {
             cookieStore.set(name, value, options)
           })
         } catch (error) {
-          // 在某些场景下（如 middleware）可能无法设置 cookie
+          // 在某些场景下（如 proxy）可能无法设置 cookie
           // 这里静默处理，避免中断执行
         }
       },
