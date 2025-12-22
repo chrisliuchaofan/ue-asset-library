@@ -4,6 +4,12 @@
 
 系统已迁移到从 Supabase 数据库读取管理员权限，而不是依赖环境变量。这样可以在数据库中直接管理管理员，无需重新部署。
 
+**✅ 确认：用户管理功能已经完全基于 Supabase**
+- 用户列表：从 `profiles` 表读取
+- 用户创建：在 Supabase Auth + `profiles` 表创建
+- 用户更新：更新 `profiles` 表（包括积分、billing_mode、model_mode）
+- 用户删除：删除 Supabase Auth 用户（自动级联删除 profile）
+
 ## 数据库字段配置
 
 ### 方法 1：使用 `is_admin` 字段（推荐）
@@ -17,7 +23,7 @@
 
 **SQL 迁移脚本**：
 ```sql
--- 添加 is_admin 字段
+-- 添加 is_admin 字段（如果还没有）
 ALTER TABLE profiles 
 ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false NOT NULL;
 

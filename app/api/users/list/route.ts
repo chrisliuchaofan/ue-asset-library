@@ -30,10 +30,10 @@ export async function GET() {
 
     console.log('[API /users/list] 开始从 Supabase 获取用户列表');
     
-    // 从 Supabase 获取所有用户
+    // 从 Supabase 获取所有用户（包含 is_admin 字段，如果存在）
     const { data: profiles, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, credits, billing_mode, model_mode, created_at, updated_at')
+      .select('id, email, credits, billing_mode, model_mode, is_admin, role, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (error) {
