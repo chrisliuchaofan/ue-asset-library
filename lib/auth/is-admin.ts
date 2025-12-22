@@ -7,18 +7,31 @@
  * 2. 用户名（如 admin，会自动匹配 admin@admin.local）
  * 3. ADMIN_USERS 中配置的用户名（如 admin）
  * 
- * 注意：在客户端组件中需要使用 NEXT_PUBLIC_ADMIN_USERS
+ * 注意：
+ * - 服务端：使用 ADMIN_USERS 环境变量
+ * - 客户端：使用 NEXT_PUBLIC_ADMIN_USERS 或调用 /api/auth/check-admin API
  */
 
 export function isAdmin(email: string): boolean {
-  // 优先使用 NEXT_PUBLIC_ADMIN_USERS（客户端可用），回退到 ADMIN_USERS（服务端可用）
-  const adminUsers = process.env.NEXT_PUBLIC_ADMIN_USERS || process.env.ADMIN_USERS || '';
+  // 服务端：使用 ADMIN_USERS
+  // 客户端：优先使用 NEXT_PUBLIC_ADMIN_USERS，如果没有则返回 false（需要调用 API）
+  const isClient = typeof window !== 'undefined';
+  const adminUsers = isClient 
+    ? (process.env.NEXT_PUBLIC_ADMIN_USERS || '')
+    : (process.env.ADMIN_USERS || process.env.NEXT_PUBLIC_ADMIN_USERS || '');
+  
   if (!adminUsers) {
-    console.warn('[isAdmin] 未找到管理员配置');
+    if (isClient) {
+      // 客户端没有配置 NEXT_PUBLIC_ADMIN_USERS，需要通过 API 检查
+      // 这里返回 false，调用方应该使用 useIsAdmin hook
+      console.warn('[isAdmin] 客户端未找到管理员配置，建议使用 /api/auth/check-admin API');
+    } else {
+      console.warn('[isAdmin] 服务端未找到管理员配置');
+    }
     return false;
   }
   
-  console.log('[isAdmin] 检查权限:', { email, adminUsers });
+  console.log('[isAdmin] 检查权限:', { email, adminUsers, isClient });
   
   const adminList = adminUsers
     .split(',')
