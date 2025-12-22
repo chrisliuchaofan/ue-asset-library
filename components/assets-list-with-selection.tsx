@@ -453,6 +453,21 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       return null; // 有乐观更新时，不进行客户端筛选
     }
     
+    // 调试：检查初始数据
+    if (assets.length > 0 && assets.length <= 10) {
+      console.log('[AssetsListWithSelection] 初始资产数据（前10个）:', assets.slice(0, 10).map(a => ({ id: a.id, name: a.name, project: a.project })));
+    }
+    console.log('[AssetsListWithSelection] 筛选条件:', {
+      selectedProjects,
+      keyword,
+      selectedTypes,
+      selectedStyles,
+      selectedTags,
+      selectedSources,
+      selectedVersions,
+      assetsCount: assets.length,
+    });
+    
     // 检查是否有除了项目之外的其他筛选条件
     const hasOtherFilters = 
       keyword.trim() !== '' ||
@@ -464,13 +479,20 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     
     // 如果没有其他筛选条件，但有项目参数，使用客户端筛选
     if (!hasOtherFilters && selectedProjects.length > 0) {
-      return assetsIndex.filter({
+      const filtered = assetsIndex.filter({
         projects: selectedProjects,
       });
+      console.log('[AssetsListWithSelection] 客户端项目筛选结果:', {
+        selectedProjects,
+        filteredCount: filtered.length,
+        totalAssets: assets.length,
+      });
+      return filtered;
     }
     
     // 如果没有任何筛选条件，使用初始数据
     if (!hasServerFilters) {
+      console.log('[AssetsListWithSelection] 使用初始数据，无筛选:', assets.length);
       return assets;
     }
     

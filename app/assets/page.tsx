@@ -119,6 +119,15 @@ export default async function AssetsPage() {
       // 映射数据
       allAssets = data.map(mapSupabaseRowToAsset);
 
+      // 调试：检查项目字段
+      const projectCounts = new Map<string, number>();
+      allAssets.forEach((asset) => {
+        const project = asset.project || '未设置';
+        projectCounts.set(project, (projectCounts.get(project) || 0) + 1);
+      });
+      console.log('[AssetsPage] 项目分布:', Object.fromEntries(projectCounts));
+      console.log('[AssetsPage] 前5个资产的project字段:', allAssets.slice(0, 5).map(a => ({ id: a.id, name: a.name, project: a.project })));
+
       // 提取 filters
       const tagSet = new Set<string>();
       const typeSet = new Set<string>();
@@ -160,6 +169,8 @@ export default async function AssetsPage() {
       styles = Array.from(styleSet).sort();
       sources = Array.from(sourceSet).sort();
       engineVersions = Array.from(versionSet).sort();
+    } else {
+      console.warn('[AssetsPage] Supabase 返回空数据或没有数据');
     }
 
     const duration = Date.now() - start;
