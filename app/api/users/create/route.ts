@@ -8,6 +8,7 @@ import { z } from 'zod';
 const CreateUserSchema = z.object({
   email: z.string().email('邮箱格式不正确'),
   password: z.string().min(6, '密码至少需要6个字符'),
+  name: z.string().optional(),
   credits: z.number().int().min(0).default(0),
   billingMode: z.enum(['DRY_RUN', 'REAL']).default('DRY_RUN'),
   modelMode: z.enum(['DRY_RUN', 'REAL']).default('DRY_RUN'),
@@ -47,15 +48,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email, password, credits, billingMode, modelMode } = parsed.data;
+    const { email, password, name, credits, billingMode, modelMode } = parsed.data;
 
-    console.log('[API /users/create] 创建用户:', { email, credits, billingMode, modelMode });
+    console.log('[API /users/create] 创建用户:', { email, name, credits, billingMode, modelMode });
 
     // 1. 使用 Supabase Admin API 创建 Auth 用户
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true, // 自动确认邮箱
+      user_metadata: name ? { name } : undefined,
     });
 
     if (authError) {
@@ -80,6 +82,7 @@ export async function POST(request: Request) {
       .upsert({
         id: userId,
         email,
+        name: name || undefined,
         credits: credits || 0,
         billing_mode: billingMode || 'DRY_RUN',
         model_mode: modelMode || 'DRY_RUN',
@@ -104,6 +107,7 @@ export async function POST(request: Request) {
       user: {
         id: userId,
         email: (profileData as any).email,
+        name: (profileData as any).name || email.split('@')[0] || '',
         credits: (profileData as any).credits || 0,
         billingMode: (profileData as any).billing_mode || 'DRY_RUN',
         modelMode: (profileData as any).model_mode || 'DRY_RUN',

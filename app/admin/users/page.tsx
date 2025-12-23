@@ -4,7 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users, RefreshCw, Shield, CreditCard, Plus, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Users, RefreshCw, Shield, Plus, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,16 +29,15 @@ interface User {
   modelMode: 'DRY_RUN' | 'REAL';
   createdAt: string;
   updatedAt: string;
-  isAdmin?: boolean; // 管理员标识（从 Supabase 读取）
+  isAdmin?: boolean;
 }
 
 export default function UsersPage() {
-  console.log('[UsersPage] 页面加载');
   const { data: session, status } = useSession();
   const router = useRouter();
   const { isAuthorized, isLoading: authLoading } = useRequireAdmin();
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<any>(null);
   const [updating, setUpdating] = useState<string | null>(null);
   
@@ -46,6 +45,7 @@ export default function UsersPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createEmail, setCreateEmail] = useState('');
   const [createPassword, setCreatePassword] = useState('');
+  const [createName, setCreateName] = useState('');
   const [createCredits, setCreateCredits] = useState('0');
   const [createBillingMode, setCreateBillingMode] = useState<'DRY_RUN' | 'REAL'>('DRY_RUN');
   const [createModelMode, setCreateModelMode] = useState<'DRY_RUN' | 'REAL'>('DRY_RUN');
@@ -55,6 +55,7 @@ export default function UsersPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editEmail, setEditEmail] = useState('');
+  const [editName, setEditName] = useState('');
   const [editCredits, setEditCredits] = useState('0');
   const [editBillingMode, setEditBillingMode] = useState<'DRY_RUN' | 'REAL'>('DRY_RUN');
   const [editModelMode, setEditModelMode] = useState<'DRY_RUN' | 'REAL'>('DRY_RUN');
@@ -68,7 +69,6 @@ export default function UsersPage() {
   useEffect(() => {
     if (authLoading) return;
     
-    // 如果权限检查完成但未授权，useRequireAdmin 会自动重定向，这里不需要做任何操作
     if (!isAuthorized) {
       return;
     }
@@ -88,15 +88,12 @@ export default function UsersPage() {
       const response = await fetch('/api/users/list');
       
       if (!response.ok) {
-        // 如果是 503 错误（后端不可用），返回空数组而不是错误
         if (response.status === 503) {
-          console.warn('[Users] 后端服务不可用，显示空用户列表');
           setUsers([]);
           setLoading(false);
           return;
         }
         
-        // 尝试解析错误响应
         let errorMessage = `获取用户列表失败: ${response.status}`;
         try {
           const errorData = await response.json();
@@ -114,14 +111,11 @@ export default function UsersPage() {
       console.error('[Users] 获取用户列表失败:', err);
       const standardError = normalizeError(err, ErrorCode.UNKNOWN_ERROR);
       
-      // 如果是网络错误或后端不可用，显示友好提示而不是错误
       const errorMessage = standardError.userMessage || standardError.message || '';
       if (errorMessage.includes('后端服务不可用') || 
           errorMessage.includes('网络') ||
           errorMessage.includes('503')) {
         setUsers([]);
-        // 可以显示一个警告而不是错误
-        console.warn('[Users] 后端服务不可用，已显示空用户列表');
       } else {
         setError(standardError);
       }
@@ -154,8 +148,12 @@ export default function UsersPage() {
         throw normalizeError(errorData, ErrorCode.UNKNOWN_ERROR);
       }
 
-      // 重新加载用户列表
-      await loadUsers();
+      // 只更新该用户的模式，不重新加载整个列表
+      setUsers(prevUsers => prevUsers.map(user => 
+        user.id === userId 
+          ? { ...user, [type === 'billing' ? 'billingMode' : 'modelMode']: newMode }
+          : user
+      ));
     } catch (err) {
       setError(normalizeError(err, ErrorCode.UNKNOWN_ERROR));
     } finally {
@@ -179,6 +177,7 @@ export default function UsersPage() {
         body: JSON.stringify({
           email: createEmail,
           password: createPassword,
+          name: createName || undefined,
           credits: parseInt(createCredits) || 0,
           billingMode: createBillingMode,
           modelMode: createModelMode,
@@ -190,16 +189,24 @@ export default function UsersPage() {
         throw normalizeError(errorData, ErrorCode.UNKNOWN_ERROR);
       }
 
+      const result = await response.json();
+      
       // 重置表单并关闭对话框
       setCreateEmail('');
       setCreatePassword('');
+      setCreateName('');
       setCreateCredits('0');
       setCreateBillingMode('DRY_RUN');
       setCreateModelMode('DRY_RUN');
       setCreateDialogOpen(false);
 
-      // 重新加载用户列表
-      await loadUsers();
+      // 将新用户添加到列表
+      if (result.user) {
+        setUsers(prevUsers => [...prevUsers, result.user]);
+      } else {
+        // 如果没有返回用户，重新加载列表
+        await loadUsers();
+      }
     } catch (err) {
       setError(normalizeError(err, ErrorCode.UNKNOWN_ERROR));
     } finally {
@@ -210,6 +217,7 @@ export default function UsersPage() {
   const handleEditUser = (user: User) => {
     setEditingUser(user);
     setEditEmail(user.email);
+    setEditName(user.name || '');
     setEditCredits(user.credits.toString());
     setEditBillingMode(user.billingMode);
     setEditModelMode(user.modelMode);
@@ -232,6 +240,7 @@ export default function UsersPage() {
         body: JSON.stringify({
           targetUserId: editingUser.id,
           email: editEmail,
+          name: editName,
           credits: parseInt(editCredits) || 0,
           billingMode: editBillingMode,
           modelMode: editModelMode,
@@ -243,12 +252,32 @@ export default function UsersPage() {
         throw normalizeError(errorData, ErrorCode.UNKNOWN_ERROR);
       }
 
+      const result = await response.json();
+
+      // 只更新该用户，不重新加载整个列表
+      if (result.user) {
+        setUsers(prevUsers => prevUsers.map(user => 
+          user.id === editingUser.id ? result.user : user
+        ));
+      } else {
+        // 如果没有返回用户，只更新本地状态
+        setUsers(prevUsers => prevUsers.map(user => 
+          user.id === editingUser.id 
+            ? { 
+                ...user, 
+                email: editEmail,
+                name: editName,
+                credits: parseInt(editCredits) || 0,
+                billingMode: editBillingMode,
+                modelMode: editModelMode
+              }
+            : user
+        ));
+      }
+
       // 关闭对话框
       setEditDialogOpen(false);
       setEditingUser(null);
-
-      // 重新加载用户列表
-      await loadUsers();
     } catch (err) {
       setError(normalizeError(err, ErrorCode.UNKNOWN_ERROR));
     } finally {
@@ -281,12 +310,12 @@ export default function UsersPage() {
         throw normalizeError(errorData, ErrorCode.UNKNOWN_ERROR);
       }
 
+      // 从列表中移除该用户
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== deletingUser.id));
+
       // 关闭对话框
       setDeleteDialogOpen(false);
       setDeletingUser(null);
-
-      // 重新加载用户列表
-      await loadUsers();
     } catch (err) {
       setError(normalizeError(err, ErrorCode.UNKNOWN_ERROR));
     } finally {
@@ -296,100 +325,85 @@ export default function UsersPage() {
 
   // 如果权限检查失败，useRequireAdmin 会自动重定向，这里显示加载中
   if (status === 'loading' || authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        <div>权限检查中...</div>
-      </div>
-    );
+    return null;
   }
 
   // 如果未授权，useRequireAdmin 会自动重定向，这里显示加载中
   if (!isAuthorized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        <div>权限检查中...</div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        <div>加载用户列表中...</div>
-      </div>
-    );
+    return null;
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* 头部 */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Link href="/admin">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                返回
+    <div className="space-y-4 h-full flex flex-col bg-white">
+      <div className="border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/admin">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  返回
+                </Button>
+              </Link>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">用户</h3>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="default" size="sm" onClick={() => setCreateDialogOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                新建
               </Button>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold mb-2">用户管理</h1>
-              <p className="text-slate-400">查看和管理所有用户</p>
+              <Button variant="outline" size="sm" onClick={loadUsers} disabled={loading}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                刷新
+              </Button>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="default" size="sm" onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              创建用户
-            </Button>
-            <Button variant="outline" size="sm" onClick={loadUsers}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              刷新
-            </Button>
-          </div>
         </div>
+        <div className="space-y-4 px-4 py-4">
+          {/* 错误显示 */}
+          {error && (
+            <div className="mb-4">
+              <ErrorDisplay error={error} onDismiss={() => setError(null)} />
+            </div>
+          )}
 
-        {/* 错误显示 */}
-        {error && (
-          <div className="mb-6">
-            <ErrorDisplay error={error} onDismiss={() => setError(null)} />
-          </div>
-        )}
-
-        {/* 用户列表 */}
-        <div className="glass-panel p-6 rounded-xl">
-          {users.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">暂无用户</div>
+          {/* 用户列表 */}
+          {loading && users.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">加载中...</div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">暂无</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-700">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">邮箱</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">姓名</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-slate-400">积分</th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-slate-400">计费模式</th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-slate-400">模型模式</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-400">创建时间</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-slate-400">操作</th>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">邮箱</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">姓名</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">积分</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-900">计费</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-900">模型</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">创建</th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((user) => (
-                    <tr key={user.id} className="border-b border-slate-800 hover:bg-slate-900/50">
+                    <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono">{user.email}</span>
+                          <span className="font-mono text-sm text-gray-900">{user.email}</span>
                           {user.isAdmin && (
                             <div title="管理员">
-                              <Shield className="w-4 h-4 text-indigo-400" />
+                              <Shield className="w-4 h-4 text-indigo-600" />
                             </div>
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-slate-300">{user.name || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-700">{user.name || '-'}</td>
                       <td className="py-3 px-4 text-right">
-                        <span className="font-semibold">
+                        <span className="font-semibold text-sm text-gray-900">
                           {user.credits}
                         </span>
                       </td>
@@ -399,9 +413,9 @@ export default function UsersPage() {
                           disabled={updating === `${user.id}-billing`}
                           className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
                             user.billingMode === 'DRY_RUN'
-                              ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/50 hover:bg-yellow-800/40'
-                              : 'bg-green-900/30 text-green-400 border border-green-700/50 hover:bg-green-800/40'
-                          }`}
+                              ? 'bg-yellow-100 text-yellow-800 border border-yellow-300 hover:bg-yellow-200'
+                              : 'bg-green-100 text-green-800 border border-green-300 hover:bg-green-200'
+                          } disabled:opacity-50`}
                         >
                           {updating === `${user.id}-billing` ? (
                             '切换中...'
@@ -418,9 +432,9 @@ export default function UsersPage() {
                           disabled={updating === `${user.id}-model`}
                           className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
                             user.modelMode === 'DRY_RUN'
-                              ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/50 hover:bg-yellow-800/40'
-                              : 'bg-green-900/30 text-green-400 border border-green-700/50 hover:bg-green-800/40'
-                          }`}
+                              ? 'bg-yellow-100 text-yellow-800 border border-yellow-300 hover:bg-yellow-200'
+                              : 'bg-green-100 text-green-800 border border-green-300 hover:bg-green-200'
+                          } disabled:opacity-50`}
                         >
                           {updating === `${user.id}-model` ? (
                             '切换中...'
@@ -431,7 +445,7 @@ export default function UsersPage() {
                           )}
                         </button>
                       </td>
-                      <td className="py-3 px-4 text-sm text-slate-300">
+                      <td className="py-3 px-4 text-sm text-gray-700">
                         {new Date(user.createdAt).toLocaleString('zh-CN')}
                       </td>
                       <td className="py-3 px-4 text-right">
@@ -441,7 +455,7 @@ export default function UsersPage() {
                             size="sm"
                             onClick={() => handleEditUser(user)}
                             className="h-8 w-8 p-0"
-                            title="编辑用户"
+                            title="编辑"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -449,8 +463,8 @@ export default function UsersPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteUser(user)}
-                            className="h-8 w-8 p-0 text-red-400 hover:text-red-500"
-                            title="删除用户"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                            title="删除"
                             disabled={user.isAdmin}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -464,68 +478,159 @@ export default function UsersPage() {
             </div>
           )}
         </div>
+      </div>
 
-        {/* 创建用户对话框 */}
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <DialogContent className="bg-slate-900 text-white border-slate-700">
-            <DialogHeader>
-              <DialogTitle>创建新用户</DialogTitle>
-              <DialogDescription>填写用户信息以创建新用户</DialogDescription>
-            </DialogHeader>
+      {/* 创建用户对话框 */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="bg-white border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold text-gray-900">新建</DialogTitle>
+            <DialogDescription className="text-sm text-gray-600">填写用户信息</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="create-email" className="text-sm text-gray-700">邮箱 *</Label>
+              <Input
+                id="create-email"
+                type="email"
+                value={createEmail}
+                onChange={(e) => setCreateEmail(e.target.value)}
+                placeholder="user@example.com"
+                className="mt-1 bg-white border-gray-300 text-sm"
+              />
+            </div>
+            <div>
+              <Label htmlFor="create-password" className="text-sm text-gray-700">密码 *</Label>
+              <Input
+                id="create-password"
+                type="password"
+                value={createPassword}
+                onChange={(e) => setCreatePassword(e.target.value)}
+                placeholder="至少6个字符"
+                className="mt-1 bg-white border-gray-300 text-sm"
+              />
+            </div>
+            <div>
+              <Label htmlFor="create-name" className="text-sm text-gray-700">姓名</Label>
+              <Input
+                id="create-name"
+                type="text"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="用户姓名"
+                className="mt-1 bg-white border-gray-300 text-sm"
+              />
+            </div>
+            <div>
+              <Label htmlFor="create-credits" className="text-sm text-gray-700">积分</Label>
+              <Input
+                id="create-credits"
+                type="number"
+                value={createCredits}
+                onChange={(e) => setCreateCredits(e.target.value)}
+                min="0"
+                className="mt-1 bg-white border-gray-300 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="create-billing-mode" className="text-sm text-gray-700">计费</Label>
+                <select
+                  id="create-billing-mode"
+                  value={createBillingMode}
+                  onChange={(e) => setCreateBillingMode(e.target.value as 'DRY_RUN' | 'REAL')}
+                  className="mt-1 w-full h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900"
+                >
+                  <option value="DRY_RUN">DRY_RUN</option>
+                  <option value="REAL">REAL</option>
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="create-model-mode" className="text-sm text-gray-700">模型</Label>
+                <select
+                  id="create-model-mode"
+                  value={createModelMode}
+                  onChange={(e) => setCreateModelMode(e.target.value as 'DRY_RUN' | 'REAL')}
+                  className="mt-1 w-full h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900"
+                >
+                  <option value="DRY_RUN">DRY_RUN</option>
+                  <option value="REAL">REAL</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)} disabled={creating} size="sm">
+              取消
+            </Button>
+            <Button onClick={handleCreateUser} disabled={creating} size="sm">
+              {creating ? '创建中...' : '创建'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 编辑用户对话框 */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="bg-white border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold text-gray-900">编辑</DialogTitle>
+            <DialogDescription className="text-sm text-gray-600">修改用户信息</DialogDescription>
+          </DialogHeader>
+          {editingUser && (
             <div className="space-y-4 py-4">
               <div>
-                <Label htmlFor="create-email">邮箱 *</Label>
+                <Label htmlFor="edit-email" className="text-sm text-gray-700">邮箱 *</Label>
                 <Input
-                  id="create-email"
+                  id="edit-email"
                   type="email"
-                  value={createEmail}
-                  onChange={(e) => setCreateEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="mt-1 bg-slate-800 border-slate-700"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="mt-1 bg-white border-gray-300 text-sm"
                 />
               </div>
               <div>
-                <Label htmlFor="create-password">密码 *</Label>
+                <Label htmlFor="edit-name" className="text-sm text-gray-700">姓名</Label>
                 <Input
-                  id="create-password"
-                  type="password"
-                  value={createPassword}
-                  onChange={(e) => setCreatePassword(e.target.value)}
-                  placeholder="至少6个字符"
-                  className="mt-1 bg-slate-800 border-slate-700"
+                  id="edit-name"
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="用户姓名"
+                  className="mt-1 bg-white border-gray-300 text-sm"
                 />
               </div>
               <div>
-                <Label htmlFor="create-credits">初始积分</Label>
+                <Label htmlFor="edit-credits" className="text-sm text-gray-700">积分</Label>
                 <Input
-                  id="create-credits"
+                  id="edit-credits"
                   type="number"
-                  value={createCredits}
-                  onChange={(e) => setCreateCredits(e.target.value)}
+                  value={editCredits}
+                  onChange={(e) => setEditCredits(e.target.value)}
                   min="0"
-                  className="mt-1 bg-slate-800 border-slate-700"
+                  className="mt-1 bg-white border-gray-300 text-sm"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="create-billing-mode">计费模式</Label>
+                  <Label htmlFor="edit-billing-mode" className="text-sm text-gray-700">计费</Label>
                   <select
-                    id="create-billing-mode"
-                    value={createBillingMode}
-                    onChange={(e) => setCreateBillingMode(e.target.value as 'DRY_RUN' | 'REAL')}
-                    className="mt-1 w-full h-10 rounded-md border border-slate-700 bg-slate-800 px-3 text-sm"
+                    id="edit-billing-mode"
+                    value={editBillingMode}
+                    onChange={(e) => setEditBillingMode(e.target.value as 'DRY_RUN' | 'REAL')}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900"
                   >
                     <option value="DRY_RUN">DRY_RUN</option>
                     <option value="REAL">REAL</option>
                   </select>
                 </div>
                 <div>
-                  <Label htmlFor="create-model-mode">模型模式</Label>
+                  <Label htmlFor="edit-model-mode" className="text-sm text-gray-700">模型</Label>
                   <select
-                    id="create-model-mode"
-                    value={createModelMode}
-                    onChange={(e) => setCreateModelMode(e.target.value as 'DRY_RUN' | 'REAL')}
-                    className="mt-1 w-full h-10 rounded-md border border-slate-700 bg-slate-800 px-3 text-sm"
+                    id="edit-model-mode"
+                    value={editModelMode}
+                    onChange={(e) => setEditModelMode(e.target.value as 'DRY_RUN' | 'REAL')}
+                    className="mt-1 w-full h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900"
                   >
                     <option value="DRY_RUN">DRY_RUN</option>
                     <option value="REAL">REAL</option>
@@ -533,106 +638,37 @@ export default function UsersPage() {
                 </div>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} disabled={creating}>
-                取消
-              </Button>
-              <Button onClick={handleCreateUser} disabled={creating}>
-                {creating ? '创建中...' : '创建'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving} size="sm">
+              取消
+            </Button>
+            <Button onClick={handleSaveUser} disabled={saving} size="sm">
+              {saving ? '保存中...' : '保存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {/* 编辑用户对话框 */}
-        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent className="bg-slate-900 text-white border-slate-700">
-            <DialogHeader>
-              <DialogTitle>编辑用户</DialogTitle>
-              <DialogDescription>修改用户信息</DialogDescription>
-            </DialogHeader>
-            {editingUser && (
-              <div className="space-y-4 py-4">
-                <div>
-                  <Label htmlFor="edit-email">邮箱 *</Label>
-                  <Input
-                    id="edit-email"
-                    type="email"
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    className="mt-1 bg-slate-800 border-slate-700"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-credits">积分</Label>
-                  <Input
-                    id="edit-credits"
-                    type="number"
-                    value={editCredits}
-                    onChange={(e) => setEditCredits(e.target.value)}
-                    min="0"
-                    className="mt-1 bg-slate-800 border-slate-700"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-billing-mode">计费模式</Label>
-                    <select
-                      id="edit-billing-mode"
-                      value={editBillingMode}
-                      onChange={(e) => setEditBillingMode(e.target.value as 'DRY_RUN' | 'REAL')}
-                      className="mt-1 w-full h-10 rounded-md border border-slate-700 bg-slate-800 px-3 text-sm"
-                    >
-                      <option value="DRY_RUN">DRY_RUN</option>
-                      <option value="REAL">REAL</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-model-mode">模型模式</Label>
-                    <select
-                      id="edit-model-mode"
-                      value={editModelMode}
-                      onChange={(e) => setEditModelMode(e.target.value as 'DRY_RUN' | 'REAL')}
-                      className="mt-1 w-full h-10 rounded-md border border-slate-700 bg-slate-800 px-3 text-sm"
-                    >
-                      <option value="DRY_RUN">DRY_RUN</option>
-                      <option value="REAL">REAL</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>
-                取消
-              </Button>
-              <Button onClick={handleSaveUser} disabled={saving}>
-                {saving ? '保存中...' : '保存'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* 删除确认对话框 */}
-        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <DialogContent className="bg-slate-900 text-white border-slate-700">
-            <DialogHeader>
-              <DialogTitle>确认删除</DialogTitle>
-              <DialogDescription>
-                确定要删除用户 <strong>{deletingUser?.email}</strong> 吗？此操作不可恢复。
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
-                取消
-              </Button>
-              <Button variant="destructive" onClick={confirmDeleteUser} disabled={deleting}>
-                {deleting ? '删除中...' : '删除'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+      {/* 删除确认对话框 */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="bg-white border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold text-gray-900">确认</DialogTitle>
+            <DialogDescription className="text-sm text-gray-600">
+              确定要删除用户 <strong>{deletingUser?.email}</strong> 吗？此操作不可恢复。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting} size="sm">
+              取消
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteUser} disabled={deleting} size="sm">
+              {deleting ? '删除中...' : '删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

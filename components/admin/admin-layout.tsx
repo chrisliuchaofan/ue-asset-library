@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { AdminRefreshProvider } from './admin-refresh-context';
 import { PROJECTS, PROJECT_PASSWORDS, PROJECT_DISPLAY_NAMES, getAllProjects, getProjectDisplayName, DEFAULT_DESCRIPTIONS, getAllDescriptions, saveDescriptions, type DescriptionKey } from '@/lib/constants';
 import { signOut } from 'next-auth/react';
+import { useIsAdmin } from '@/lib/auth/use-is-admin';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -663,6 +664,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
   const [assetsExpanded, setAssetsExpanded] = useState(true);
   const [materialsExpanded, setMaterialsExpanded] = useState(true); // 默认展开素材管理
   const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const { isAdmin } = useIsAdmin();
 
   // 将 children 转换为数组
   const childrenArray = Children.toArray(children);
@@ -804,21 +806,23 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
             )}
           </div>
 
-          {/* 用户管理 */}
-          <a
-            href="/admin/users"
-            onClick={(e) => {
-              e.preventDefault();
-              router.push('/admin/users');
-            }}
-            className={cn(
-              'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
-              'text-gray-700 hover:bg-gray-100'
-            )}
-          >
-            <Users className="h-5 w-5 shrink-0" />
-            {!sidebarCollapsed && <span className="flex-1 text-left">用户管理</span>}
-          </a>
+          {/* 用户管理 - 仅管理员可见 */}
+          {isAdmin && (
+            <a
+              href="/admin/users"
+              onClick={(e) => {
+                e.preventDefault();
+                router.push('/admin/users');
+              }}
+              className={cn(
+                'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
+                'text-gray-700 hover:bg-gray-100'
+              )}
+            >
+              <Users className="h-5 w-5 shrink-0" />
+              {!sidebarCollapsed && <span className="flex-1 text-left">用户管理</span>}
+            </a>
+          )}
 
           {/* 设置 */}
           <div>

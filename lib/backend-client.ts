@@ -1,6 +1,16 @@
 /**
  * 后端 API 客户端
  * 统一管理对 ECS 后端 API 的调用
+ * 
+ * ⚠️ 已废弃：ECS 后端已完全移除，所有功能已迁移到 Supabase
+ * 
+ * 此文件保留仅用于向后兼容，不应再使用。
+ * 所有新的代码应该使用 Supabase 相关函数：
+ * - 积分操作：使用 lib/credits.ts 中的函数
+ * - 用户信息：使用 lib/supabase/admin.ts 或 lib/supabase/server.ts
+ * - 数据操作：直接使用 Supabase client
+ * 
+ * @deprecated 此文件已废弃，不应再使用
  */
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:3002';

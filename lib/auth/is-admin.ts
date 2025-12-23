@@ -2,7 +2,7 @@
  * 检查用户是否是管理员（服务端函数）
  * 
  * 优先从 Supabase 数据库读取 is_admin 字段
- * 如果 Supabase 中没有 is_admin 字段，回退到 ADMIN_USERS 环境变量
+ * 如果 Supabase 查询失败或 is_admin 字段不存在，回退到 ADMIN_USERS 环境变量
  * 
  * 注意：这是服务端函数，客户端应该使用 useIsAdmin hook 或调用 /api/auth/check-admin API
  */
@@ -19,7 +19,7 @@ export async function isAdmin(email: string): Promise<boolean> {
     
     const { data: profile, error } = await supabaseAdmin
       .from('profiles')
-      .select('is_admin, role')
+      .select('is_admin')
       .eq('email', email)
       .single();
 
@@ -33,12 +33,6 @@ export async function isAdmin(email: string): Promise<boolean> {
         return true;
       }
       
-      // 如果数据库中有 role 字段，检查是否是 admin
-      if (profileData.role === 'admin' || profileData.role === 'ADMIN') {
-        console.log('[isAdmin] ✅ 从 Supabase 读取：用户角色是管理员', { email, role: profileData.role });
-        return true;
-      }
-      
       // 如果明确标记为非管理员
       if (profileData.is_admin === false) {
         console.log('[isAdmin] ❌ 从 Supabase 读取：用户不是管理员', { email });
@@ -46,8 +40,12 @@ export async function isAdmin(email: string): Promise<boolean> {
       }
     }
 
-    // 如果 Supabase 中没有 is_admin 或 role 字段，回退到环境变量
-    console.log('[isAdmin] Supabase 中没有管理员字段，回退到环境变量', { email, error: error?.message });
+    // 如果 Supabase 查询失败或无数据，回退到环境变量
+    console.log('[isAdmin] Supabase 查询失败或无数据，回退到环境变量', { 
+      email, 
+      error: error?.message,
+      hasProfile: !!profile 
+    });
   } catch (error) {
     console.warn('[isAdmin] 从 Supabase 读取失败，回退到环境变量:', error);
   }

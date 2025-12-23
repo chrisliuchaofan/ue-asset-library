@@ -1,6 +1,6 @@
 {
   "name": "ue-asset-library",
-  "version": "1.0.0",
+  "version": "0.8.0",
   "private": true,
   "scripts": {
     "dev": "NODE_OPTIONS='--no-deprecation' next dev",

@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { callBackendAPI } from '@/lib/backend-api-client';
 import { createStandardError, ErrorCode, handleApiRouteError } from '@/lib/errors/error-handler';
 
 /**
  * POST /api/projects/migrate
  * 将 localStorage 中的项目迁移到服务器端
+ * 
+ * ⚠️ TODO: 需要迁移到 Supabase
+ * - 移除对 ECS 后端的依赖
+ * - 使用 Supabase projects 表
+ * - 需要确认 projects 表的结构
  */
 export async function POST(request: Request) {
   try {
@@ -27,33 +31,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // 批量创建项目
-    const results = [];
-    for (const project of projects) {
-      try {
-        const result = await callBackendAPI<any>('/projects', {
-          method: 'POST',
-          body: JSON.stringify({
-            title: project.title,
-            originalIdea: project.originalIdea,
-            selectedConcept: project.selectedConcept,
-            storyboard: project.storyboard,
-            mergedVideoUrl: project.mergedVideoUrl,
-            completedAt: project.completedAt ? new Date(project.completedAt) : undefined,
-          }),
-        });
-        results.push({ success: true, id: result.id, originalId: project.id });
-      } catch (error) {
-        results.push({ success: false, originalId: project.id, error: String(error) });
-      }
-    }
-
-    return NextResponse.json({
-      total: projects.length,
-      success: results.filter(r => r.success).length,
-      failed: results.filter(r => !r.success).length,
-      results,
-    });
+    // ⚠️ TODO: 迁移到 Supabase
+    // 当前暂时返回错误
+    return NextResponse.json(
+      {
+        message: '项目管理功能待迁移到 Supabase，当前不支持项目迁移',
+        error: 'NOT_IMPLEMENTED',
+      },
+      { status: 501 } // Not Implemented
+    );
   } catch (error: any) {
     return await handleApiRouteError(error, '迁移项目失败');
   }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
 import { shouldCallRealAI, createDryRunMockResponse, getUserModeInfo } from '@/lib/ai/dry-run-check';
-import { callBackendAPI } from '@/lib/backend-api-client';
+import { consumeCredits } from '@/lib/credits';
 import { ErrorCode, createStandardError } from '@/lib/errors/error-handler';
 
 // 强制动态路由，确保 API 路由在 Vercel 上正确部署
@@ -558,9 +558,11 @@ export async function POST(request: Request) {
       return NextResponse.json(mockResult, { status: 200 });
     }
     
-    // ✅ M2: Real 模式 - 先调用后端计费接口
+    // ✅ Real 模式 - 先扣除积分
     // 估算费用（可以根据实际情况调整）
     const estimatedCost = 1; // 每次图像分析消耗 1 积分
+    
+    const userId = session.user.id || session.user.email!;
     
     try {
       // 检查余额是否充足
@@ -585,50 +587,24 @@ export async function POST(request: Request) {
         );
       }
       
-      // 调用后端计费接口
-      const consumeResult = await callBackendAPI<{
-        success: boolean;
-        balance: number;
-        transactionId: string;
-        isDryRun?: boolean;
-      }>('/credits/consume', {
-        method: 'POST',
-        body: JSON.stringify({
-          amount: estimatedCost,
-          action: 'ai_analyze_image',
-          refId: `analyze-${Date.now()}-${Math.random().toString(36).substring(7)}`, // 幂等性检查
-        }),
+      // 扣除积分（使用 Supabase）
+      const consumeResult = await consumeCredits(userId, {
+        amount: estimatedCost,
+        action: 'ai_analyze_image',
+        refId: `analyze-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        description: `AI 图像分析`,
       });
       
-      console.log('[AI Analyze Image] 计费成功:', {
+      console.log('[AI Analyze Image] 积分扣除成功:', {
         transactionId: consumeResult.transactionId,
         balance: consumeResult.balance,
-        isDryRun: consumeResult.isDryRun,
       });
-      
-      // 如果后端返回 isDryRun=true，说明后端也处于 Dry Run 模式，应该返回 mock 结果
-      if (consumeResult.isDryRun) {
-        console.log('[AI Analyze Image] 后端 Dry Run 模式：返回 mock 结果');
-        const mockResult = createDryRunMockResponse<AIAnalyzeResponse>(
-          'ai_analyze_image',
-          {
-            tags: skipTags ? [] : ['测试图片', '占位标签', 'Dry Run 模式'],
-            description: `这是 Dry Run 模式的模拟结果（后端计费也是 Dry Run）。实际 AI API 调用已禁用。`,
-          }
-        );
-        
-        if (skipTags) {
-          mockResult.tags = [];
-        }
-        
-        return NextResponse.json(mockResult, { status: 200 });
-      }
     } catch (billingError: any) {
       // 如果计费失败，不调用 AI API
-      console.error('[AI Analyze Image] 计费失败:', billingError);
+      console.error('[AI Analyze Image] 积分扣除失败:', billingError);
       
       // 如果是余额不足，返回明确错误
-      if (billingError.message?.includes('积分不足') || billingError.message?.includes('INSUFFICIENT_CREDITS')) {
+      if (billingError.message?.includes('积分不足')) {
         const standardError = createStandardError(
           ErrorCode.INSUFFICIENT_CREDITS,
           `积分不足：当前余额 ${userModeInfo.balance}`,
@@ -651,7 +627,7 @@ export async function POST(request: Request) {
       // 其他计费错误，返回错误信息
       const standardError = createStandardError(
         ErrorCode.BILLING_FAILED,
-        billingError.message || '无法完成计费，请稍后重试',
+        billingError.message || '无法完成积分扣除，请稍后重试',
         { originalError: billingError.message },
         500
       );

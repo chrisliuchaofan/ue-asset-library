@@ -3,7 +3,6 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { backendClient } from '@/lib/backend-client';
 import Link from 'next/link';
 import { Film, Package, Settings, LogOut, CreditCard, User, Shield, Clock } from 'lucide-react';
 import { signOut } from 'next-auth/react';

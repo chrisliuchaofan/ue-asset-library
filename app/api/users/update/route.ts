@@ -8,6 +8,7 @@ import { z } from 'zod';
 const UpdateUserSchema = z.object({
   targetUserId: z.string().uuid('用户ID格式不正确'),
   email: z.string().email('邮箱格式不正确').optional(),
+  name: z.string().optional(),
   credits: z.number().int().min(0).optional(),
   billingMode: z.enum(['DRY_RUN', 'REAL']).optional(),
   modelMode: z.enum(['DRY_RUN', 'REAL']).optional(),
@@ -47,9 +48,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const { targetUserId, email, credits, billingMode, modelMode } = parsed.data;
+    const { targetUserId, email, name, credits, billingMode, modelMode } = parsed.data;
 
-    console.log('[API /users/update] 更新用户:', { targetUserId, email, credits, billingMode, modelMode });
+    console.log('[API /users/update] 更新用户:', { targetUserId, email, name, credits, billingMode, modelMode });
 
     // 构建更新数据
     const updateData: any = {
@@ -58,6 +59,9 @@ export async function POST(request: Request) {
 
     if (email !== undefined) {
       updateData.email = email;
+    }
+    if (name !== undefined) {
+      updateData.name = name;
     }
     if (credits !== undefined) {
       updateData.credits = credits;
@@ -99,6 +103,21 @@ export async function POST(request: Request) {
       }
     }
 
+    // 如果更新了姓名，也需要更新 auth.users 表
+    if (name !== undefined) {
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(targetUserId, {
+        user_metadata: {
+          ...((profileData as any).user_metadata || {}),
+          name: name,
+        },
+      });
+
+      if (authError) {
+        console.warn('[API /users/update] 更新 Auth 用户姓名失败:', authError);
+        // 不抛出错误，因为 profile 已经更新成功
+      }
+    }
+
     console.log('[API /users/update] 用户更新成功:', { targetUserId });
 
     return NextResponse.json({
@@ -106,6 +125,7 @@ export async function POST(request: Request) {
       user: {
         id: targetUserId,
         email: (profileData as any).email,
+        name: (profileData as any).name || (profileData as any).email?.split('@')[0] || '',
         credits: (profileData as any).credits || 0,
         billingMode: (profileData as any).billing_mode || 'DRY_RUN',
         modelMode: (profileData as any).model_mode || 'DRY_RUN',

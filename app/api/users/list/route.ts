@@ -34,7 +34,7 @@ export async function GET() {
     // 注意：不查询 is_admin 字段，因为可能不存在，通过 isAdmin 函数判断
     const { data: profiles, error } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, credits, billing_mode, model_mode, created_at, updated_at')
+      .select('id, email, name, credits, billing_mode, model_mode, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -51,7 +51,7 @@ export async function GET() {
       return {
         id: profile.id,
         email: email,
-        name: email.split('@')[0] || '', // 从 email 提取用户名
+        name: profile.name || email.split('@')[0] || '', // 优先使用数据库中的name，否则从email提取
         credits: profile.credits || 0,
         billingMode: (profile.billing_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
         modelMode: (profile.model_mode || 'DRY_RUN') as 'DRY_RUN' | 'REAL',
