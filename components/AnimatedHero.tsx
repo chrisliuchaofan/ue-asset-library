@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Library, Box, BookOpen, ChevronDown, ChevronUp, Sparkles, Palette, Wand2, Crown } from 'lucide-react';
+import Image from 'next/image';
+import { Library, Box, Sparkles, Palette, Wand2, Crown } from 'lucide-react';
 import clsx from 'clsx';
-import { SearchBox } from '@/components/search-box';
-import { HomeProjectSelector } from '@/components/home-project-selector';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import {
   Dialog,
   DialogContent,
@@ -15,303 +14,290 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/components/toast-provider';
+import { getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
+import type { Asset } from '@/data/manifest.schema';
 
 /**
- * AnimatedHero - 首页 Hero 组件 (方案 B: 磨砂控制台风格 - 优化版)
- * - 点击"恒星"按钮触发，从下方划入
- * - 保留搜索框和两个按钮区域
- * - 去掉多余文字
- * - 性能优化：GPU加速、backdrop-blur优化、背景帧率控制
+ * AnimatedHero - 首页 Hero 组件 (hen-ry.com 风格)
+ * - 极简去容器化设计
+ * - 极细体标题，增加呼吸感
+ * - 胶囊按钮设计
+ * - 滚动视差效果
+ * - Bento Grid 布局
  */
 export function AnimatedHero({ onCardVisible }: { onCardVisible?: (visible: boolean) => void }) {
-  const [mounted, setMounted] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [isVisible, setIsVisible] = useState(true); // 默认显示卡片
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [showExpandButton, setShowExpandButton] = useState(false); // 显示展开按钮
-  const [viewportHeight, setViewportHeight] = useState(800);
   const [showDreamFactoryDialog, setShowDreamFactoryDialog] = useState(false);
+  const [latestAssets, setLatestAssets] = useState<Asset[]>([]);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(true);
   const { info } = useToast();
   
+  // 滚动视差
+  const { scrollY } = useScroll();
+  const titleY = useTransform(scrollY, [0, 300], [0, -20]);
+  const titleOpacity = useTransform(scrollY, [0, 300], [1, 0]);
+
+  // 获取最新资产用于"最新探索"区域
   useEffect(() => {
-    setMounted(true);
-    // 获取视口高度用于收缩动画
-    setViewportHeight(window.innerHeight);
-    
-    // 性能优化：使用防抖处理 resize 事件，避免频繁触发
-    let timeoutId: NodeJS.Timeout | null = null;
-    const handleResize = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      timeoutId = setTimeout(() => {
-        setViewportHeight(window.innerHeight);
-      }, 150); // 150ms 防抖延迟
-    };
-    
-    window.addEventListener('resize', handleResize, { passive: true });
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+    const fetchLatestAssets = async () => {
+      try {
+        setIsLoadingAssets(true);
+        const response = await fetch('/api/assets/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            limit: 5,
+          }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setLatestAssets(data.assets || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch latest assets:', error);
+      } finally {
+        setIsLoadingAssets(false);
       }
     };
+    
+    fetchLatestAssets();
   }, []);
 
-  // 通知父组件卡片可见性变化（用于控制背景帧率）
+  // 通知父组件可见性变化（用于控制背景帧率）
   useEffect(() => {
-    onCardVisible?.(isVisible && !isCollapsed);
-  }, [isVisible, isCollapsed, onCardVisible]);
+    onCardVisible?.(true);
+  }, [onCardVisible]);
 
-  const handleCollapse = () => {
-    setIsCollapsed(true);
-    // 收缩后延迟隐藏，让动画完成，然后显示展开按钮
-    setTimeout(() => {
-      setIsVisible(false);
-      setShowExpandButton(true); // 显示展开按钮
-    }, 400);
-  };
-
-  const handleExpand = () => {
-    setShowExpandButton(false); // 立即隐藏展开按钮
-    setIsCollapsed(false);
-    setIsVisible(true); // 显示卡片
-  };
-
-  // 确保卡片和按钮互斥：卡片显示时，按钮必须隐藏
-  useEffect(() => {
-    if (isVisible) {
-      setShowExpandButton(false);
+  // 获取资产预览图URL
+  const getAssetPreviewUrl = (asset: Asset): string => {
+    const thumbnailUrl = asset.thumbnail ? getClientAssetUrl(asset.thumbnail) : '';
+    if (thumbnailUrl) {
+      return getOptimizedImageUrl(thumbnailUrl, 800);
     }
-  }, [isVisible]);
-
-  // 卡片动画：从下方划入 / 收缩到底部
-  const slideUpVariants = {
-    hidden: { 
-      opacity: 0, 
-      y: 100,
-      scale: 0.95
-    },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      scale: 1,
-      transition: { 
-        duration: 0.6,
-        ease: "easeOut" as const
-      }
-    },
-    collapsed: {
-      opacity: 0,
-      y: viewportHeight, // 收缩到页面底部
-      scale: 0.8,
-      transition: { 
-        duration: 0.4,
-        ease: "easeIn" as const
-      }
-    },
-    exit: {
-      opacity: 0,
-      y: 100,
-      scale: 0.95,
-      transition: { duration: 0.3, ease: "easeIn" as const }
-    }
+    return '';
   };
 
+  // Bento Grid布局配置（3-5个不同尺寸的卡片）
+  const getBentoGridClasses = (index: number, total: number): string => {
+    // 移动端：单列布局，所有卡片相同尺寸
+    // 桌面端：不同尺寸的卡片
+    const mobileLayout = 'col-span-1 row-span-1';
+    const desktopLayouts = [
+      'md:col-span-2 md:row-span-2', // 大卡片
+      'md:col-span-1 md:row-span-1', // 小卡片
+      'md:col-span-1 md:row-span-2', // 高卡片
+      'md:col-span-2 md:row-span-1', // 宽卡片
+      'md:col-span-1 md:row-span-1', // 小卡片
+    ];
+    return `${mobileLayout} ${desktopLayouts[index % desktopLayouts.length] || 'md:col-span-1 md:row-span-1'}`;
+  };
 
   return (
     <section 
-      className="relative z-10 flex min-h-[100svh] w-full flex-col items-center justify-center px-4"
+      className="relative z-10 flex min-h-[100svh] w-full flex-col"
       style={{ 
         pointerEvents: 'none'
       }}
     >
-      {/* 主卡片 - 默认显示 */}
-      <AnimatePresence mode="wait">
-        {isVisible && (
+      {/* Hero Section - 首屏内容 */}
+      <div className="flex flex-col items-center justify-center min-h-[100vh] px-4 py-12 sm:py-16 md:py-20">
+        {/* 标题区 - 双层玻璃材质效果 */}
+        <motion.div
+          style={{ 
+            y: titleY,
+            opacity: titleOpacity,
+            pointerEvents: 'auto'
+          }}
+          initial={{ filter: 'blur(15px)', y: 20, opacity: 0 }}
+          animate={{ filter: 'blur(0px)', y: 0, opacity: 1 }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          className="text-center mb-16 md:mb-20 lg:mb-24"
+        >
+          <h1 className="hero-title-glass text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl relative inline-block">
+            {/* 底层：模糊白雾 */}
+            <span className="hero-title-glass-blur absolute inset-0">
+              <span className="block md:inline">恒星</span>
+              <span className="block md:inline md:ml-3 lg:ml-4">资产库</span>
+            </span>
+            {/* 顶层：半透明文字 */}
+            <span className="hero-title-glass-sharp relative">
+              <span className="block md:inline">恒星</span>
+              <span className="block md:inline md:ml-3 lg:ml-4">资产库</span>
+            </span>
+          </h1>
+        </motion.div>
+
+        {/* 胶囊按钮区 */}
+        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 sm:gap-5 md:gap-6">
+          {/* 资产库入口 */}
           <motion.div
-            initial="hidden"
-            animate={isCollapsed ? "collapsed" : "visible"}
-            exit="exit"
-            variants={slideUpVariants}
-            style={{ 
-              pointerEvents: 'auto',
-              willChange: 'transform, opacity',
-              transform: 'translate3d(0, 0, 0)' // GPU加速
-            }}
-            data-hero-card
-            className={clsx(
-              "relative w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10",
-              // 性能优化：降低 backdrop-blur 强度（从 xl 改为 md）
-              "bg-black/40 backdrop-blur-md shadow-2xl shadow-black/50",
-              "p-5 sm:p-6 md:p-8"
-            )}
+            initial={{ filter: 'blur(10px)', y: 20, opacity: 0 }}
+            animate={{ filter: 'blur(0px)', y: 0, opacity: 1 }}
+            transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
+            style={{ pointerEvents: 'auto' }}
           >
-            {/* 收缩按钮 - 顶部下箭头 */}
-            <button
-              onClick={handleCollapse}
-              className={clsx(
-                "absolute top-3 right-3 z-20",
-                "flex items-center justify-center",
-                "w-8 h-8 rounded-full",
-                "bg-white/10 hover:bg-white/20 border border-white/20",
-                "text-white/70 hover:text-white",
-                "transition-all duration-200",
-                "focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-              )}
-              aria-label="收缩卡片"
+            <Link
+              href="/assets"
+              prefetch
+              className="inline-flex items-center rounded-xl border transition-all duration-500 ease-out text-white/70 hover:text-white/85 text-sm sm:text-base md:text-lg font-light tracking-wider"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                paddingTop: '0.5rem',
+                paddingBottom: '0.5rem',
+                paddingLeft: '1.25rem', // 0.5rem * 2.5 = 1.25rem
+                paddingRight: '1.25rem', // 0.5rem * 2.5 = 1.25rem
+              }}
             >
-              <ChevronDown className="w-4 h-4" />
-            </button>
-
-            {/* 顶部光晕装饰 */}
-            <div className="absolute -top-16 -left-16 h-32 w-32 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-16 -right-16 h-32 w-32 rounded-full bg-blue-500/20 blur-3xl pointer-events-none" />
-
-            <div className="relative z-10 flex flex-col items-center text-center">
-              
-              {/* 标题区 - 简化版 */}
-              <div className="mb-6 md:mb-8">
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white drop-shadow-sm">
-                  <span className="block md:inline">恒星</span>
-                  <span className="bg-gradient-to-r from-blue-200 via-white to-blue-200 bg-clip-text text-transparent bg-[length:200%_auto] animate-shine">
-                    资产库
-                  </span>
-                </h1>
-              </div>
-
-              {/* 聚合搜索区 */}
-              <div className="w-full max-w-xl mb-6 md:mb-8">
-                <div className="group relative flex flex-col sm:flex-row items-stretch gap-2 p-2 rounded-xl bg-white/5 border border-white/10 transition-all hover:bg-white/10 hover:border-white/20 focus-within:ring-2 focus-within:ring-blue-500/50 focus-within:border-blue-500/50">
-                  
-                  {/* 项目选择器集成 */}
-                  <div className="flex-shrink-0 sm:border-r border-white/10 sm:pr-2">
-                    <HomeProjectSelector 
-                      value={selectedProject} 
-                      onChange={setSelectedProject}
-                      className="h-10 sm:h-12 w-full sm:w-auto bg-transparent border-0 hover:bg-white/5 text-white shadow-none focus-visible:ring-0 focus-visible:bg-white/10"
-                    />
-                  </div>
-
-                  {/* 搜索框集成 */}
-                  <div className="flex-1 min-w-0 relative">
-                    <SearchBox 
-                      project={selectedProject}
-                      className="h-10 sm:h-12"
-                      iconClassName="text-white/50"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 卡片式入口区 */}
-              <div className="grid w-full grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 max-w-4xl">
-                
-                {/* 资产入口卡片 */}
-                <Link
-                  href="/assets"
-                  prefetch
-                  className="group relative flex flex-col items-start overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-xl hover:shadow-blue-500/10"
-                >
-                  <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20 text-blue-300 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                    <Library className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-1 group-hover:text-blue-200 transition-colors">资产库</h3>
-                  <p className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                    浏览角色、场景、道具等 3D 资源模型
-                  </p>
-                  {/* 装饰性箭头 */}
-                  <div className="absolute right-3 top-3 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/50"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                  </div>
-                </Link>
-
-                {/* 素材入口卡片 */}
-                <Link
-                  href="/materials"
-                  prefetch
-                  className="group relative flex flex-col items-start overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-xl hover:shadow-purple-500/10"
-                >
-                  <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300 group-hover:bg-purple-500 group-hover:text-white transition-colors">
-                    <Box className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-1 group-hover:text-purple-200 transition-colors">素材库</h3>
-                  <p className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                    探索纹理、材质球、特效与环境资产
-                  </p>
-                  {/* 装饰性箭头 */}
-                  <div className="absolute right-3 top-3 opacity-0 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-x-0">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/50"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                  </div>
-                </Link>
-
-                {/* 梦工厂入口卡片 */}
-                <button
-                  onClick={() => setShowDreamFactoryDialog(true)}
-                  className="group relative flex flex-col items-start overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-4 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-xl hover:shadow-amber-500/10 text-left w-full"
-                >
-                  <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300 group-hover:bg-amber-500/30 transition-colors">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white mb-1 group-hover:text-amber-200 transition-colors">梦工厂</h3>
-                  <p className="text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                    AI 驱动的创意视频生成工具
-                  </p>
-                  {/* 开发中标签 */}
-                  <span className="absolute right-3 top-3 text-xs text-amber-400 font-medium">开发中</span>
-                </button>
-
-              </div>
-
-              {/* 底部链接 */}
-              <div className="mt-6 md:mt-8">
-                <Link
-                  href="/docs"
-                  target="_blank"
-                  className="inline-flex items-center gap-2 text-xs sm:text-sm text-zinc-500 transition-colors hover:text-zinc-300"
-                >
-                  <BookOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span>查看使用手册</span>
-                </Link>
-              </div>
-
-            </div>
+              资产库
+            </Link>
           </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* 展开按钮 - 卡片收缩后显示在底部，与卡片互斥 */}
-      <AnimatePresence>
-        {showExpandButton && !isVisible && (
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            onClick={handleExpand}
-            style={{ 
-              pointerEvents: 'auto',
-              position: 'fixed',
-              bottom: '2rem',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 30
-            }}
-            className={clsx(
-              "flex items-center justify-center",
-              "w-10 h-10 rounded-full",
-              "bg-black/40 backdrop-blur-md border border-white/20",
-              "text-white/80 hover:text-white",
-              "hover:bg-black/60 hover:border-white/30",
-              "shadow-lg shadow-black/50",
-              "transition-all duration-200",
-              "focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-            )}
-            aria-label="展开卡片"
+          {/* 素材库入口 */}
+          <motion.div
+            initial={{ filter: 'blur(10px)', y: 20, opacity: 0 }}
+            animate={{ filter: 'blur(0px)', y: 0, opacity: 1 }}
+            transition={{ duration: 1, delay: 0.3, ease: "easeOut" }}
+            style={{ pointerEvents: 'auto' }}
           >
-            <ChevronUp className="w-5 h-5" />
-          </motion.button>
+            <Link
+              href="/materials"
+              prefetch
+              className="inline-flex items-center rounded-xl border transition-all duration-500 ease-out text-white/70 hover:text-white/85 text-sm sm:text-base md:text-lg font-light tracking-wider"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                paddingTop: '0.5rem',
+                paddingBottom: '0.5rem',
+                paddingLeft: '1.25rem', // 0.5rem * 2.5 = 1.25rem
+                paddingRight: '1.25rem', // 0.5rem * 2.5 = 1.25rem
+              }}
+            >
+              素材库
+            </Link>
+          </motion.div>
+
+          {/* 梦工厂入口 */}
+          <motion.div
+            initial={{ filter: 'blur(10px)', y: 20, opacity: 0 }}
+            animate={{ filter: 'blur(0px)', y: 0, opacity: 1 }}
+            transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
+            style={{ pointerEvents: 'auto' }}
+          >
+            <button
+              onClick={() => setShowDreamFactoryDialog(true)}
+              className="inline-flex items-center rounded-xl border transition-all duration-500 ease-out text-white/70 hover:text-white/85 text-sm sm:text-base md:text-lg font-light tracking-wider relative"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                paddingTop: '0.5rem',
+                paddingBottom: '0.5rem',
+                paddingLeft: '1.25rem', // 0.5rem * 2.5 = 1.25rem
+                paddingRight: '1.25rem', // 0.5rem * 2.5 = 1.25rem
+              }}
+            >
+              梦工厂
+              <span className="absolute -top-1 -right-1 text-[9px] sm:text-[10px] text-amber-400/70">开发中</span>
+            </button>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Content Section - 最新探索区域（在100vh之后） */}
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
+        className="w-full max-w-7xl mx-auto px-4 pb-32"
+        style={{ pointerEvents: 'auto', minHeight: '100vh', paddingTop: '100vh' }}
+      >
+        <div className="mb-8 md:mb-12 lg:mb-16">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-light tracking-[0.15em] text-white/70 text-center">
+            最新探索
+          </h2>
+        </div>
+
+        {/* Bento Grid 布局 - 极简风格 */}
+        {isLoadingAssets ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 auto-rows-[200px] md:auto-rows-[200px]">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="rounded-2xl border border-white/10 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : latestAssets.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 auto-rows-[200px] md:auto-rows-[200px]">
+            {latestAssets.slice(0, 5).map((asset, index) => {
+              const previewUrl = getAssetPreviewUrl(asset);
+              const gridClasses = getBentoGridClasses(index, latestAssets.length);
+              
+              return (
+                <motion.div
+                  key={asset.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  className={clsx(
+                    "group relative overflow-hidden rounded-2xl",
+                    "border border-white/10",
+                    "hover:border-white/20 transition-all duration-300",
+                    "cursor-pointer",
+                    gridClasses
+                  )}
+                >
+                  <Link
+                    href={`/assets/${asset.id}`}
+                    prefetch
+                    className="absolute inset-0 z-10"
+                  >
+                    {previewUrl ? (
+                      <>
+                        <div className="absolute inset-0">
+                          <Image
+                            src={previewUrl}
+                            alt={asset.name}
+                            fill
+                            className="object-cover transition-transform duration-500 group-hover:scale-110"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 33vw, 25vw"
+                          />
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-black/0 pointer-events-none" />
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center bg-transparent">
+                        <Library className="h-12 w-12 text-white/10" />
+                      </div>
+                    )}
+                    {/* 左下角极简文字标签 */}
+                    <div className="absolute bottom-0 left-0 p-3 z-20 pointer-events-none">
+                      <h3 className="text-white/90 font-light text-xs md:text-sm truncate drop-shadow-md">
+                        {asset.name}
+                      </h3>
+                      {asset.type && (
+                        <p className="text-white/50 text-[10px] md:text-xs mt-1 truncate font-light">
+                          {asset.type}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-white/50 font-light">
+            暂无资产
+          </div>
         )}
-      </AnimatePresence>
+      </motion.div>
+
 
       {/* 梦工厂选项对话框 */}
       <Dialog open={showDreamFactoryDialog} onOpenChange={setShowDreamFactoryDialog}>

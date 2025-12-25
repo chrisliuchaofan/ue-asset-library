@@ -151,6 +151,38 @@
     background: transparent;
   }
 
+  /* 标题文字样式 - 双层玻璃材质效果 */
+  .hero-title-glass {
+    position: relative;
+    font-family: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.3em;
+  }
+
+  /* 底层：模糊白雾 */
+  .hero-title-glass-blur {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    color: rgba(255, 255, 255, 0.8);
+    filter: blur(20px);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* 顶层：半透明文字 */
+  .hero-title-glass-sharp {
+    position: relative;
+    z-index: 1;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.4));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
   /* 骨架屏加载动画 */
   @keyframes shimmer {
     0% {

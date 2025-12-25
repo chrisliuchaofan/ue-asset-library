@@ -15,7 +15,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
-import { LayoutPanelTop, Film, Grid3x3, ChevronDown, ChevronUp, ArrowUpDown, Clock, Star } from 'lucide-react';
+import { LayoutPanelTop, Film, Grid3x3, ArrowUpDown, Clock, Star, ChevronUp, ChevronDown } from 'lucide-react';
 import { getAssetsIndex } from '@/lib/asset-index';
 import { getDescription } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -52,12 +52,12 @@ function ThumbSizeSelector({ thumbSize, onThumbSizeChange }: { thumbSize: ThumbS
   }, [onThumbSizeChange, thumbSize]);
 
   return (
-    <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
+    <div className="flex items-center gap-1">
       <Button
         type="button"
         variant={thumbSize === 'small' ? 'default' : 'ghost'}
         size="sm"
-        className="h-7 px-2 text-xs"
+        className="h-8 px-2 text-xs"
         onClick={(e) => handleClick('small', e)}
       >
         小
@@ -66,7 +66,7 @@ function ThumbSizeSelector({ thumbSize, onThumbSizeChange }: { thumbSize: ThumbS
         type="button"
         variant={thumbSize === 'medium' ? 'default' : 'ghost'}
         size="sm"
-        className="h-7 px-2 text-xs"
+        className="h-8 px-2 text-xs"
         onClick={(e) => handleClick('medium', e)}
       >
         中
@@ -75,7 +75,7 @@ function ThumbSizeSelector({ thumbSize, onThumbSizeChange }: { thumbSize: ThumbS
         type="button"
         variant={thumbSize === 'large' ? 'default' : 'ghost'}
         size="sm"
-        className="h-7 px-2 text-xs"
+        className="h-8 px-2 text-xs"
         onClick={(e) => handleClick('large', e)}
       >
         大
@@ -122,7 +122,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   const [displayAssets, setDisplayAssets] = useState<Asset[]>(assets);
   const [filterDurationMs, setFilterDurationMs] = useState<number | null>(null);
   const [isFetching, setIsFetching] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
   // 使用默认值 'medium' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
   const [thumbSize, setThumbSize] = useState<ThumbSize>('medium');
@@ -308,7 +307,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     setViewMode(mode);
-    setIsDropdownOpen(false); // 选择后自动关闭下拉菜单
+    setIsSortDropdownOpen(false); // 选择后自动关闭下拉菜单
   }, []);
 
   const keyword = searchParams.get('q') ?? '';
@@ -608,8 +607,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     { value: 'grid', label: '宫格图预览', icon: <Grid3x3 className="h-4 w-4" /> },
   ];
 
-  const currentViewOption = viewModeOptions.find((option) => option.value === viewMode) ?? viewModeOptions[0];
-
   return (
     <div className="flex h-full flex-col">
       <div className="px-2 pt-2 sm:px-5 sm:pt-5 lg:px-6">
@@ -623,37 +620,21 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
             }, [sortedDisplayAssets.length])}
           </div>
           <div className="flex items-center gap-2">
-            <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-              <DropdownMenuTrigger asChild>
+            <div className="flex items-center gap-1">
+              {viewModeOptions.map((option) => (
                 <Button
+                  key={option.value}
                   type="button"
-                  variant="ghost"
+                  variant={viewMode === option.value ? 'default' : 'ghost'}
                   size="sm"
-                  className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground transition hover:bg-transparent"
+                  className="h-8 w-8 p-0"
+                  onClick={() => handleViewModeChange(option.value)}
+                  title={option.label}
                 >
-                  {currentViewOption.icon}
-                  <span className="hidden md:inline">{currentViewOption.label}</span>
-                  {isDropdownOpen ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
+                  {option.icon}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-44">
-                <DropdownMenuRadioGroup
-                  value={viewMode}
-                  onValueChange={(value) => handleViewModeChange(value as ViewMode)}
-                >
-                  {viewModeOptions.map((option) => (
-                    <DropdownMenuRadioItem key={option.value} value={option.value} className="flex items-center gap-2 text-sm">
-                      {option.icon}
-                      <span className="text-sm">{option.label}</span>
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              ))}
+            </div>
             {/* 缩略图尺寸切换 - 仅在缩略图模式下显示 */}
             {viewMode === 'thumbnail' && (
               <ThumbSizeSelector

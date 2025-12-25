@@ -5,6 +5,7 @@ import React, { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Settings } from 'lucide-react';
 import { AnimatedHero } from '@/components/AnimatedHero';
+import { BottomNavigation } from '@/components/BottomNavigation';
 
 // 动态导入星系组件，禁用 SSR
 const GalaxyBackground = dynamic(
@@ -47,9 +48,9 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col relative overflow-hidden">
-      {/* 星系背景 - 确保在底层，z-index 为 0 */}
-      <div className="absolute inset-0 z-0">
+    <div className="flex min-h-screen flex-col relative">
+      {/* 星系背景 - fixed定位，确保在底层，z-index 为 0 */}
+      <div className="fixed inset-0 z-0">
         <GalaxyBackground
           focal={[0.5, 0.5]}
           rotation={[1.0, 0.0]}
@@ -75,6 +76,9 @@ export default function HomePage() {
       <Suspense fallback={<div className="flex-1" />}>
         <AnimatedHero onCardVisible={setCardVisible} />
       </Suspense>
+
+      {/* 底部导航 */}
+      <BottomNavigation />
 
       {/* 右下角管理按钮 - 只在客户端挂载后渲染，避免 hydration 错误 */}
       {mounted && (
