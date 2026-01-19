@@ -204,13 +204,7 @@ export function MaterialsPageShell({ materials, summary }: MaterialsPageShellPro
             marginLeft: isMobile ? '0px' : `${effectiveSidebarWidth}px`,
           }}
         >
-          {/* 移动端遮罩层 */}
-          {isSidebarOpen && (
-            <div
-              className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm sm:hidden"
-              onClick={() => setIsSidebarOpen(false)}
-            />
-          )}
+          {/* 移动端遮罩层 - 已移除 */}
           <div className="p-2 sm:p-4 lg:p-6 overflow-x-hidden">
             <Suspense fallback={<div>加载中...</div>}>
               <MaterialsListWithHeader

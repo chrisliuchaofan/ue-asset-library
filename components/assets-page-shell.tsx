@@ -220,13 +220,7 @@ export function AssetsPageShell({
             marginLeft: isMobile ? '0px' : `${effectiveSidebarWidth}px`,
           }}
         >
-          {/* 移动端遮罩层 */}
-          {isSidebarOpen && (
-            <div
-              className="fixed inset-0 z-20 bg-black/50 backdrop-blur-sm sm:hidden"
-              onClick={() => setIsSidebarOpen(false)}
-            />
-          )}
+          {/* 移动端遮罩层 - 已移除 */}
           <div className="flex h-full flex-col overflow-y-auto">
             <Suspense fallback={<AssetsListSkeleton />}>
               <AssetsListWithSelection assets={assets} optimisticFilters={optimisticFilters ?? undefined} />

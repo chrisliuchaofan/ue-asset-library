@@ -1,47 +1,21 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { callBackendAPI } from '@/lib/backend-api-client';
-import { createStandardError, ErrorCode, handleApiRouteError } from '@/lib/errors/error-handler';
-import { isAdmin } from '@/lib/auth/is-admin';
 
 /**
  * GET /api/credits/admin/redeem-codes/statistics
  * 获取兑换码统计信息（管理员）
+ * 
+ * ⚠️ 注意：积分兑换码功能暂时不考虑，此接口已禁用
+ * 如需使用，需要先实现 Supabase 中的兑换码表和相关逻辑
  */
 export async function GET(request: Request) {
-  try {
-    const session = await getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        createStandardError(ErrorCode.AUTH_REQUIRED, '未登录，请先登录'),
-        { status: 401 }
-      );
-    }
-
-    // 检查管理员权限（从 Supabase 数据库读取）
-    const adminCheck = await isAdmin(session.user.email);
-    if (!adminCheck) {
-      return NextResponse.json(
-        createStandardError(ErrorCode.FORBIDDEN, '权限不足，需要管理员权限'),
-        { status: 403 }
-      );
-    }
-
-    const result = await callBackendAPI<{
-      total: number;
-      used: number;
-      unused: number;
-      disabled: number;
-      totalAmount: number;
-      usedAmount: number;
-    }>('/credits/redeem-codes/admin/statistics', {
-      method: 'GET',
-    });
-
-    return NextResponse.json(result);
-  } catch (error: any) {
-    return await handleApiRouteError(error, '获取统计信息失败');
-  }
+  // ⚠️ 积分兑换码功能暂时不考虑
+  return NextResponse.json(
+    {
+      message: '积分兑换码功能暂时不考虑，此接口已禁用',
+      error: 'NOT_IMPLEMENTED',
+    },
+    { status: 501 } // Not Implemented
+  );
 }
 
 

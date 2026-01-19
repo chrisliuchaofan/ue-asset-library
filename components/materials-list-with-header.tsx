@@ -451,12 +451,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
           thumbSize={thumbSize}
           scrollContainerRef={scrollContainerRef}
         />
-        {isFetching && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-background/70 backdrop-blur-sm">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">筛选中，请稍候…</p>
-          </div>
-        )}
+        {/* 筛选遮罩层 - 已移除 */}
       </div>
       {portal && createPortal(
         <HeaderActions

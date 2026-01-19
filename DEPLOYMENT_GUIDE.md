@@ -7,24 +7,31 @@
 │      Vercel (Next.js 前端)       │
 │  - 用户界面                      │
 │  - NextAuth 认证                │
-│  - 调用后端 API                  │
+│  - Supabase 客户端               │
+│  - OSS 文件上传                  │
 └──────────────┬──────────────────┘
                │ HTTPS
                ↓
 ┌─────────────────────────────────┐
-│      ECS (后端 API)              │
-│  - 用户积分管理                  │
-│  - 调用日志                      │
-│  - 计费系统                      │
+│      Supabase                   │
+│  - PostgreSQL 数据库             │
+│  - 用户认证（NextAuth）          │
+│  - 积分系统                      │
+│  - 资产元数据管理                │
 └──────────────┬──────────────────┘
                │
                ↓
 ┌─────────────────────────────────┐
 │      阿里云 OSS                  │
-│  - 用户文件存储                  │
-│  - 路径: /users/{userId}/...     │
+│  - 清单数据（manifest.json）     │
+│  - 预览图、缩略图                │
+│  - 展示必需资源                  │
 └─────────────────────────────────┘
 ```
+
+**注意**：项目已完全迁移到 Supabase，不再需要单独的 ECS 后端服务器。
+
+---
 
 ## 🚀 部署步骤
 
@@ -41,7 +48,7 @@
 3. 导入 Git 仓库
 4. 配置项目：
    - **Framework Preset**: Next.js
-   - **Root Directory**: `web`（如果项目在子目录）
+   - **Root Directory**: `.`（项目根目录）
    - **Build Command**: `npm run build`
    - **Output Directory**: `.next`
 
@@ -50,166 +57,90 @@
 在 Vercel Dashboard → Settings → Environment Variables 添加：
 
 ```env
-# NextAuth
+# ============================================
+# NextAuth 配置（必需）
+# ============================================
 NEXTAUTH_SECRET=your-secret-key-here
 NEXTAUTH_URL=https://your-domain.vercel.app
 
-# 后端 API
-BACKEND_API_URL=https://api.your-domain.com
+# 管理员账号配置（格式：用户名:密码，多个用户用逗号分隔）
+ADMIN_USERS=admin:admin123
 
-# 用户白名单（可选）
-USER_WHITELIST=user1@example.com:password1,user2@example.com:password2
+# ============================================
+# Supabase 配置（必需）
+# ============================================
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# OSS（已有）
+# ============================================
+# 存储模式配置
+# ============================================
+STORAGE_MODE=oss
+NEXT_PUBLIC_STORAGE_MODE=oss
+
+# ============================================
+# 阿里云 OSS 配置（生产环境必需）
+# ============================================
 OSS_BUCKET=your-bucket
 OSS_REGION=oss-cn-hangzhou
 OSS_ACCESS_KEY_ID=your-key-id
 OSS_ACCESS_KEY_SECRET=your-key-secret
+NEXT_PUBLIC_OSS_BUCKET=your-bucket
+NEXT_PUBLIC_OSS_REGION=oss-cn-hangzhou
 NEXT_PUBLIC_CDN_BASE=https://your-cdn-domain.com
 
-# AI（已有）
+# ============================================
+# AI 服务配置（可选）
+# ============================================
 AI_IMAGE_API_KEY=your-api-key
-JIMENG_REQ_KEY=jimeng_i2v_first_v30
+AI_IMAGE_API_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+AI_IMAGE_API_MODEL=qwen-vl-plus-latest
+JIMENG_ACCESS_KEY=your-jimeng-key
+JIMENG_SECRET_KEY=your-jimeng-secret
+JIMENG_API_ENDPOINT=https://visual.volcengineapi.com
+JIMENG_REGION=cn-north-1
 ```
 
 #### 1.4 部署
 
 点击 **Deploy**，等待部署完成
 
-### 二、ECS 部署（后端 API）
+---
 
-#### 2.1 准备服务器
+### 二、Supabase 配置
 
-```bash
-# SSH 连接到 ECS
-ssh user@your-ecs-ip
+#### 2.1 创建 Supabase 项目
 
-# 更新系统
-sudo apt update && sudo apt upgrade -y
+1. 登录 [Supabase Dashboard](https://supabase.com/dashboard)
+2. 创建新项目
+3. 记录项目 URL 和 API Key：
+   - **Project URL**: `https://your-project.supabase.co`
+   - **Anon Key**: 在 Settings → API 中查看
+   - **Service Role Key**: 在 Settings → API 中查看（⚠️ 保密，仅在服务端使用）
 
-# 安装 Node.js（如果未安装）
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
+#### 2.2 数据库表结构
 
-# 验证安装
-node --version
-npm --version
-```
+项目使用以下 Supabase 表：
 
-#### 2.2 上传代码
+- **profiles**: 用户信息表（包括积分）
+- **assets**: 资产元数据表
+- **credit_transactions**: 积分交易记录表
+- **generations**: AI 生成记录表（可选）
+- **projects**: 项目表（可选，用于即梦工厂）
 
-```bash
-# 在本地构建
-cd backend-api
-npm install
-npm run build
+详细的数据库表结构请参考 `docs/SUPABASE_ADMIN_SETUP.md`。
 
-# 上传到 ECS（使用 scp）
-scp -r dist/ user@your-ecs-ip:/opt/ue-assets-backend/
-scp package.json user@your-ecs-ip:/opt/ue-assets-backend/
-scp tsconfig.json user@your-ecs-ip:/opt/ue-assets-backend/
-```
+#### 2.3 RPC 函数
 
-#### 2.3 在 ECS 上安装依赖
+项目使用以下 Supabase RPC 函数：
 
-```bash
-# SSH 到 ECS
-ssh user@your-ecs-ip
+- `deduct_credits`: 扣除积分
+- `add_credits`: 增加积分
 
-# 创建项目目录
-sudo mkdir -p /opt/ue-assets-backend
-sudo chown $USER:$USER /opt/ue-assets-backend
-cd /opt/ue-assets-backend
+RPC 函数定义请参考 `scripts/sql/` 目录中的 SQL 文件。
 
-# 安装依赖
-npm install --production
-```
-
-#### 2.4 配置环境变量
-
-```bash
-# 创建 .env 文件
-nano /opt/ue-assets-backend/.env
-```
-
-内容：
-```env
-PORT=3001
-NODE_ENV=production
-FRONTEND_URL=https://your-domain.vercel.app
-JWT_SECRET=your-jwt-secret-key
-USER_WHITELIST=user1@example.com:password1,user2@example.com:password2
-INITIAL_CREDITS=100
-```
-
-#### 2.5 使用 PM2 运行
-
-```bash
-# 安装 PM2
-sudo npm install -g pm2
-
-# 启动服务
-cd /opt/ue-assets-backend
-pm2 start dist/main.js --name ue-assets-backend
-
-# 设置开机自启
-pm2 startup
-pm2 save
-
-# 查看状态
-pm2 status
-pm2 logs ue-assets-backend
-```
-
-#### 2.6 配置 Nginx（可选，推荐）
-
-```bash
-# 安装 Nginx
-sudo apt install nginx
-
-# 创建配置文件
-sudo nano /etc/nginx/sites-available/ue-assets-backend
-```
-
-内容：
-```nginx
-server {
-    listen 80;
-    server_name api.your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-```bash
-# 启用配置
-sudo ln -s /etc/nginx/sites-available/ue-assets-backend /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-#### 2.7 配置 SSL（可选，推荐）
-
-```bash
-# 安装 Certbot
-sudo apt install certbot python3-certbot-nginx
-
-# 申请证书
-sudo certbot --nginx -d api.your-domain.com
-
-# 自动续期
-sudo certbot renew --dry-run
-```
+---
 
 ### 三、域名配置
 
@@ -219,85 +150,98 @@ sudo certbot renew --dry-run
 2. 添加域名：`your-domain.com`
 3. 按照提示配置 DNS 记录
 
-#### 3.2 后端域名（ECS）
+#### 3.2 更新环境变量
 
-1. 在 DNS 服务商添加 A 记录：
-   - 主机：`api`
-   - 值：ECS 公网 IP
-   - TTL：600
+添加域名后，更新 `NEXTAUTH_URL` 环境变量：
 
-2. 或使用 CNAME 指向负载均衡器
+```env
+NEXTAUTH_URL=https://your-domain.com
+```
+
+---
 
 ### 四、测试部署
 
-#### 4.1 测试后端健康检查
-
-```bash
-curl https://api.your-domain.com/health
-```
-
-#### 4.2 测试前端连接
+#### 4.1 测试前端连接
 
 1. 访问 `https://your-domain.vercel.app`
-2. 尝试访问 `/dream-factory`，应该跳转到登录页
-3. 使用白名单账号登录
+2. 尝试访问 `/auth/login`，应该显示登录页
+3. 使用管理员账号登录
 4. 测试积分扣除功能
+5. 测试资产管理功能
+
+#### 4.2 测试 Supabase 连接
+
+1. 在浏览器控制台执行：
+```javascript
+fetch('/api/check-supabase')
+  .then(r => r.json())
+  .then(console.log);
+```
+
+应该返回 Supabase 连接状态。
+
+---
 
 ## 🔧 维护命令
 
-### 后端服务管理
-
-```bash
-# 查看状态
-pm2 status
-
-# 查看日志
-pm2 logs ue-assets-backend
-
-# 重启服务
-pm2 restart ue-assets-backend
-
-# 停止服务
-pm2 stop ue-assets-backend
-
-# 更新代码
-cd /opt/ue-assets-backend
-# 上传新代码后
-npm install --production
-pm2 restart ue-assets-backend
-```
-
 ### 查看日志
 
-```bash
-# PM2 日志
-pm2 logs ue-assets-backend
+在 Vercel Dashboard → Deployments → 选择部署 → View Function Logs
 
-# Nginx 日志
-sudo tail -f /var/log/nginx/access.log
-sudo tail -f /var/log/nginx/error.log
-```
+### 环境变量更新
+
+1. 在 Vercel Dashboard → Settings → Environment Variables
+2. 更新环境变量
+3. 重新部署（Vercel 会自动触发重新部署，或手动点击 Redeploy）
+
+---
 
 ## ⚠️ 注意事项
 
-1. **环境变量同步**：确保 Vercel 和 ECS 的 JWT_SECRET 一致
-2. **CORS 配置**：后端必须允许前端域名访问
-3. **HTTPS**：生产环境必须使用 HTTPS
-4. **密钥安全**：不要将密钥提交到 Git
-5. **备份**：定期备份数据库（如果使用）
+1. **环境变量同步**：确保所有环境变量已正确配置
+2. **Supabase 密钥安全**：
+   - `SUPABASE_SERVICE_ROLE_KEY` 仅在服务端使用，不要暴露到客户端
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` 可以暴露到客户端
+3. **存储模式**：
+   - 生产环境必须使用 `oss` 模式
+   - `local` 模式仅用于本地开发调试
+4. **HTTPS**：生产环境必须使用 HTTPS
+5. **密钥安全**：不要将密钥提交到 Git
+
+---
 
 ## 📊 监控建议
 
-1. **PM2 监控**：`pm2 monit`
-2. **服务器监控**：使用云服务商的监控服务
-3. **日志收集**：使用 ELK 或类似工具
-4. **错误追踪**：集成 Sentry 或类似服务
+1. **Vercel 监控**：在 Vercel Dashboard 查看部署状态和函数日志
+2. **Supabase 监控**：在 Supabase Dashboard 查看数据库使用情况和 API 调用
+3. **错误追踪**：集成 Sentry 或类似服务
+4. **日志收集**：使用 Vercel Logs 或类似工具
 
+---
 
+## 🔄 从旧架构迁移
 
+如果你之前使用的是 ECS 后端架构，迁移步骤：
 
+1. ✅ **数据迁移**：将所有数据迁移到 Supabase
+   - 用户数据 → `profiles` 表
+   - 资产元数据 → `assets` 表
+   - 积分交易记录 → `credit_transactions` 表
 
+2. ✅ **环境变量更新**：移除 ECS 相关配置，添加 Supabase 配置
 
+3. ✅ **代码清理**：移除对后端 API 的依赖（已自动完成）
 
+4. ✅ **重新部署**：在 Vercel 重新部署项目
 
+详细的迁移指南请参考 `docs/ECS_BACKEND_MIGRATION.md`。
 
+---
+
+## 📚 相关文档
+
+- `docs/ENV_VARIABLES.md` - 环境变量完整说明
+- `docs/SUPABASE_ADMIN_SETUP.md` - Supabase 配置指南
+- `docs/ECS_BACKEND_MIGRATION.md` - 从 ECS 后端迁移指南
+- `docs/PROJECT_CONTEXT.md` - 项目架构说明

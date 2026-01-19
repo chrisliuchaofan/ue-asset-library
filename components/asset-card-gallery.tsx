@@ -250,15 +250,50 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   const lastVideoUrlRef = useRef<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   
+  // 判断单个 URL 是否为视频（需要在 galleryUrls 之前定义，因为会被使用）
+  const isVideoUrl = useCallback((url: string): boolean => {
+    if (!url) return false;
+    const lowerUrl = url.toLowerCase();
+    return (
+      lowerUrl.includes('.mp4') ||
+      lowerUrl.includes('.webm') ||
+      lowerUrl.includes('.mov') ||
+      lowerUrl.includes('.avi') ||
+      lowerUrl.includes('.mkv')
+    );
+  }, []);
+  
   // 获取所有预览图/视频 URL
   // 优先使用 gallery，如果没有则使用 thumbnail 和 src
-  // 注意：如果 thumbnail 和 src 相同，只使用一个
+  // 注意：如果 thumbnail 是图片（不是视频），且 gallery 中只有视频，则将 thumbnail 添加到前面作为缩略图
   // 使用 useMemo 缓存计算结果，避免每次渲染都重新计算
   const galleryUrls = useMemo(() => {
     const rawGallery = asset.gallery && asset.gallery.length > 0 ? asset.gallery.filter(Boolean) : [];
     const fallbackImages = [asset.thumbnail, asset.src].filter(Boolean);
-    return rawGallery.length > 0 ? rawGallery : fallbackImages;
-  }, [asset.gallery, asset.thumbnail, asset.src]);
+    
+    // 如果 gallery 存在，使用 gallery
+    if (rawGallery.length > 0) {
+      // 如果 thumbnail 是图片（不是视频），且 gallery 中只有视频，则将 thumbnail 添加到前面
+      const hasThumbnailImage = asset.thumbnail && !isVideoUrl(asset.thumbnail);
+      const galleryHasOnlyVideos = rawGallery.length > 0 && rawGallery.every(url => isVideoUrl(url));
+      
+      if (hasThumbnailImage && galleryHasOnlyVideos) {
+        // 将 thumbnail 添加到前面，作为视频的缩略图
+        return [asset.thumbnail, ...rawGallery];
+      }
+      
+      // 如果 gallery 中只有视频，且 thumbnail 存在（即使是视频），也添加到前面
+      // 这样至少能显示一个预览（视频首帧）
+      if (galleryHasOnlyVideos && asset.thumbnail) {
+        return [asset.thumbnail, ...rawGallery];
+      }
+      
+      return rawGallery;
+    }
+    
+    // 如果没有 gallery，使用 thumbnail 和 src 作为后备
+    return fallbackImages;
+  }, [asset.gallery, asset.thumbnail, asset.src, isVideoUrl]);
 
   const gallerySignature = useMemo(
     () => galleryUrls.join('|'),
@@ -274,18 +309,6 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
     prevGallerySignatureRef.current = gallerySignature;
   }
   
-  // 判断单个 URL 是否为视频（需要在 firstVideoIndexForDisplay 之前定义）
-  const isVideoUrl = useCallback((url: string): boolean => {
-    if (!url) return false;
-    const lowerUrl = url.toLowerCase();
-    return (
-      lowerUrl.includes('.mp4') ||
-      lowerUrl.includes('.webm') ||
-      lowerUrl.includes('.mov') ||
-      lowerUrl.includes('.avi') ||
-      lowerUrl.includes('.mkv')
-    );
-  }, []);
   
   // 使用 useMemo 缓存索引计算，需要在 useEffect 之前定义
   const firstVideoIndexForDisplay = useMemo(
@@ -1318,6 +1341,15 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                                 className="object-cover"
                                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                 loading="lazy"
+                                onError={(e) => {
+                                  // 图片加载失败时，显示占位符
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const placeholder = document.createElement('div');
+                                  placeholder.className = 'absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs';
+                                  placeholder.textContent = '加载失败';
+                                  target.parentElement?.appendChild(placeholder);
+                                }}
                               />
                               {/* 悬停预览弹出框 - 视频提取的帧也支持悬停放大 */}
                               {hoveredThumbnailPreview?.index === idx && (
@@ -1340,6 +1372,15 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                   loading="lazy"
                                   unoptimized={getOptimizedImageUrl(thumbnailUrl, 320).includes('x-oss-process=image')}
+                                  onError={(e) => {
+                                    // 图片加载失败时，显示占位符
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                    const placeholder = document.createElement('div');
+                                    placeholder.className = 'absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs';
+                                    placeholder.textContent = '加载失败';
+                                    target.parentElement?.appendChild(placeholder);
+                                  }}
                                 />
                               {/* 悬停预览弹出框 - 智能定位，朝向画面中心 */}
                               {hoveredThumbnailPreview?.index === idx && (
@@ -1354,7 +1395,12 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                             </>
                           )}
                         </>
-                      ) : null}
+                      ) : (
+                        // 如果没有缩略图 URL，显示占位符
+                        <div className="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs">
+                          无预览
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1881,6 +1927,15 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                                 className="object-cover"
                                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                                 loading="lazy"
+                                onError={(e) => {
+                                  // 图片加载失败时，显示占位符
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const placeholder = document.createElement('div');
+                                  placeholder.className = 'absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs';
+                                  placeholder.textContent = '加载失败';
+                                  target.parentElement?.appendChild(placeholder);
+                                }}
                               />
                             </>
                           ) : (
@@ -1892,10 +1947,24 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                               loading="lazy"
                               unoptimized={thumbnailUrl.startsWith('http') || thumbnailUrl.startsWith('/assets/')}
+                              onError={(e) => {
+                                // 图片加载失败时，显示占位符
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const placeholder = document.createElement('div');
+                                placeholder.className = 'absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs';
+                                placeholder.textContent = '加载失败';
+                                target.parentElement?.appendChild(placeholder);
+                              }}
                             />
                           )}
                         </>
-                      ) : null}
+                      ) : (
+                        // 如果没有缩略图 URL，显示占位符
+                        <div className="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs">
+                          无预览
+                        </div>
+                      )}
                     </div>
                   );
                 })}

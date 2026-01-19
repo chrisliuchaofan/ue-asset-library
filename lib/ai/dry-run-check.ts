@@ -3,9 +3,9 @@
  * 
  * 用于统一检查用户是否处于 Dry Run 模式
  * 所有 AI 调用都应该先检查 Dry Run 模式，避免产生意外费用
+ * 
+ * ⚠️ 已迁移到 Supabase，使用 /api/me 接口获取用户信息
  */
-
-import { getCurrentUserInfo } from '@/lib/backend-api-client';
 
 export type BillingMode = 'DRY_RUN' | 'REAL';
 export type ModelMode = 'DRY_RUN' | 'REAL';
@@ -21,24 +21,30 @@ export interface UserModeInfo {
 /**
  * 获取用户模式信息（包括 Dry Run 状态）
  * 
- * 注意：使用 getCurrentUserInfo()，它会自动处理 /me 接口不可用的情况
- * 如果 /me 接口不可用（404），会自动尝试使用 /credits/balance 作为替代
+ * 使用 /api/me 接口从 Supabase 获取用户信息
  * 
  * @param overrideMode 可选：覆盖模式（从前端传递，优先级最高）
- * @returns 用户模式信息，如果后端不可用，返回默认值（DRY_RUN 模式）
+ * @returns 用户模式信息，如果接口不可用，返回默认值（DRY_RUN 模式）
  */
 export async function getUserModeInfo(overrideMode?: { billingMode?: BillingMode; modelMode?: ModelMode }): Promise<UserModeInfo> {
   try {
-    const userInfo = await getCurrentUserInfo();
+    // 使用 /api/me 接口从 Supabase 获取用户信息
+    const response = await fetch('/api/me');
+    
+    if (!response.ok) {
+      throw new Error(`获取用户信息失败: ${response.status} ${response.statusText}`);
+    }
+    
+    const userInfo = await response.json();
     return {
-      billingMode: overrideMode?.billingMode || userInfo.billingMode,
-      modelMode: overrideMode?.modelMode || userInfo.modelMode,
-      balance: userInfo.balance,
-      userId: userInfo.userId,
-      email: userInfo.email,
+      billingMode: overrideMode?.billingMode || (userInfo.billingMode || 'DRY_RUN'),
+      modelMode: overrideMode?.modelMode || (userInfo.modelMode || 'DRY_RUN'),
+      balance: userInfo.balance || 0,
+      userId: userInfo.userId || '',
+      email: userInfo.email || '',
     };
   } catch (error) {
-    // 如果后端不可用，使用覆盖模式或返回默认值（安全模式：DRY_RUN）
+    // 如果接口不可用，使用覆盖模式或返回默认值（安全模式：DRY_RUN）
     console.warn('[DryRunCheck] 无法获取用户模式信息，使用覆盖模式或默认值（DRY_RUN）:', error);
     return {
       billingMode: overrideMode?.billingMode || 'DRY_RUN',

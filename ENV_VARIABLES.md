@@ -2,106 +2,72 @@
 
 ## 📋 完整环境变量配置
 
+**注意**：项目已完全迁移到 Supabase，不再需要单独的 ECS 后端服务器。
+
+---
+
 ### Vercel (Next.js 前端)
 
 在 Vercel Dashboard → Settings → Environment Variables 配置：
 
 ```env
 # ============================================
-# NextAuth 认证配置
+# NextAuth 认证配置（必需）
 # ============================================
 NEXTAUTH_SECRET=your-secret-key-change-in-production
 NEXTAUTH_URL=https://your-domain.vercel.app
 
-# ============================================
-# 后端 API 配置
-# ============================================
-BACKEND_API_URL=https://api.your-domain.com
-# 或使用 IP（测试环境）
-# BACKEND_API_URL=http://your-ecs-ip:3001
+# 管理员账号配置（格式：用户名:密码，多个用户用逗号分隔）
+ADMIN_USERS=admin:admin123
 
 # ============================================
-# 用户白名单（可选，用于快速测试）
-# 格式：邮箱:密码,邮箱:密码
+# Supabase 配置（必需）
 # ============================================
-USER_WHITELIST=user1@example.com:password1,user2@example.com:password2
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # ============================================
-# OSS 配置
+# 存储模式配置
+# ============================================
+# local: 使用本地文件系统（data/manifest.json）- 仅用于本地开发调试
+# oss: 使用阿里云 OSS - 生产环境必须使用此模式
+STORAGE_MODE=oss
+NEXT_PUBLIC_STORAGE_MODE=oss
+
+# ============================================
+# 阿里云 OSS 配置（生产环境必需）
 # ============================================
 OSS_BUCKET=your-bucket-name
 OSS_REGION=oss-cn-hangzhou
 OSS_ACCESS_KEY_ID=your-access-key-id
 OSS_ACCESS_KEY_SECRET=your-access-key-secret
-OSS_ENDPOINT=  # 可选
+OSS_ENDPOINT=  # 可选，如果不填会自动根据 region 生成
 NEXT_PUBLIC_OSS_BUCKET=your-bucket-name
 NEXT_PUBLIC_OSS_REGION=oss-cn-hangzhou
 NEXT_PUBLIC_CDN_BASE=https://your-cdn-domain.com
 
 # ============================================
-# AI 服务配置
+# AI 服务配置（可选）
 # ============================================
+# 通义千问配置
+AI_IMAGE_API_PROVIDER=aliyun
+AI_IMAGE_API_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
 AI_IMAGE_API_KEY=your-qwen-api-key
-AI_IMAGE_API_ENDPOINT=https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation
-AI_IMAGE_API_MODEL=qwen-plus-latest
-AI_VISION_MODEL=qwen-vl-plus-latest
-AI_MULTIMODAL_MODEL=qwen3-omni-flash
+AI_IMAGE_API_MODEL=qwen-vl-plus-latest
+AI_IMAGE_API_TIMEOUT=30000
+AI_IMAGE_API_STRICT=false
 
-# 即梦视频生成配置
-JIMENG_REQ_KEY=jimeng_i2v_first_v30
-# 可选值：
-# - jimeng_i2v_first_v30 (720P，更经济)
-# - jimeng_ti2v_v30_pro (1080P Pro，更高质量)
-
-# ============================================
-# 存储模式
-# ============================================
-STORAGE_MODE=oss
-NEXT_PUBLIC_STORAGE_MODE=oss
+# 即梦工厂配置（火山引擎）
+JIMENG_ACCESS_KEY=your-jimeng-access-key
+JIMENG_SECRET_KEY=your-jimeng-secret-key
+JIMENG_API_ENDPOINT=https://visual.volcengineapi.com
+JIMENG_REGION=cn-north-1
+WANX_API_ENDPOINT=https://dashscope.aliyuncs.com/api/v1/services/aigc/image-generation/generation
+WANX_MODEL=wan2.6-image
 ```
 
-### ECS (后端 API)
-
-在 ECS 服务器上创建 `/opt/ue-assets-backend/.env` 文件：
-
-```env
-# ============================================
-# 服务器配置
-# ============================================
-PORT=3001
-NODE_ENV=production
-
-# ============================================
-# 前端地址（CORS）
-# ============================================
-FRONTEND_URL=https://your-domain.vercel.app
-
-# ============================================
-# JWT 密钥（必须与 NextAuth 一致）
-# ============================================
-JWT_SECRET=your-jwt-secret-key
-# 或者使用与 NextAuth 相同的密钥
-NEXTAUTH_SECRET=your-secret-key-change-in-production
-
-# ============================================
-# 用户白名单（可选，用于快速测试）
-# 格式：邮箱:密码,邮箱:密码
-# ============================================
-USER_WHITELIST=user1@example.com:password1,user2@example.com:password2
-
-# ============================================
-# 积分系统配置
-# ============================================
-INITIAL_CREDITS=100
-
-# ============================================
-# 数据库配置（可选，如果使用数据库）
-# ============================================
-# MongoDB
-# DATABASE_URL=mongodb://localhost:27017/ue-assets
-# 或 PostgreSQL
-# DATABASE_URL=postgresql://user:password@localhost:5432/ue-assets
-```
+---
 
 ## 🔑 密钥生成
 
@@ -115,52 +81,62 @@ openssl rand -base64 32
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-### 生成 JWT_SECRET
-
-```bash
-# 与 NEXTAUTH_SECRET 使用相同的值，或生成新的
-openssl rand -base64 32
-```
+---
 
 ## ✅ 配置检查清单
 
 ### Vercel 配置检查
 
-- [ ] `NEXTAUTH_SECRET` 已配置（强随机密钥）
+#### 必需配置
+- [ ] `NEXTAUTH_SECRET` 已配置（强随机密钥，至少 32 字符）
 - [ ] `NEXTAUTH_URL` 已配置（与 Vercel 域名一致）
-- [ ] `BACKEND_API_URL` 已配置（后端 API 地址）
-- [ ] `USER_WHITELIST` 已配置（至少一个测试账号）
-- [ ] OSS 相关变量已配置
-- [ ] AI 相关变量已配置
+- [ ] `NEXT_PUBLIC_SUPABASE_URL` 已配置（Supabase 项目 URL）
+- [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY` 已配置（Supabase Anon Key）
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` 已配置（Supabase Service Role Key，⚠️ 仅在服务端使用）
 
-### ECS 配置检查
+#### 生产环境必需
+- [ ] `STORAGE_MODE` 已配置为 `oss`（生产环境必须）
+- [ ] `NEXT_PUBLIC_STORAGE_MODE` 已配置为 `oss`（生产环境必须）
+- [ ] `OSS_BUCKET` 已配置
+- [ ] `OSS_REGION` 已配置
+- [ ] `OSS_ACCESS_KEY_ID` 已配置
+- [ ] `OSS_ACCESS_KEY_SECRET` 已配置
+- [ ] `NEXT_PUBLIC_CDN_BASE` 已配置（CDN 域名）
 
-- [ ] `PORT` 已配置（默认 3001）
-- [ ] `FRONTEND_URL` 已配置（Vercel 域名）
-- [ ] `JWT_SECRET` 已配置（与 NextAuth 一致）
-- [ ] `USER_WHITELIST` 已配置（与 Vercel 一致）
-- [ ] `INITIAL_CREDITS` 已配置
+#### 可选配置
+- [ ] `ADMIN_USERS` 已配置（管理员账号）
+- [ ] `AI_IMAGE_API_KEY` 已配置（如需使用 AI 功能）
+- [ ] `JIMENG_ACCESS_KEY` 和 `JIMENG_SECRET_KEY` 已配置（如需使用即梦工厂功能）
+
+---
 
 ## 🔒 安全建议
 
 1. **使用强随机密钥**：至少 32 字符
 2. **定期更换密钥**：建议每 3-6 个月更换
-3. **不要提交到 Git**：确保 `.env` 在 `.gitignore` 中
+3. **不要提交到 Git**：确保 `.env.local` 在 `.gitignore` 中
 4. **使用 HTTPS**：生产环境必须使用 HTTPS
-5. **限制访问**：后端 API 只允许前端域名访问（CORS）
+5. **保护 Service Role Key**：
+   - `SUPABASE_SERVICE_ROLE_KEY` 仅在服务端使用，不要暴露到客户端
+   - 不要在客户端代码中使用此密钥
+   - 如果密钥泄露，立即在 Supabase Dashboard 中重新生成
+
+---
 
 ## 🧪 测试环境变量
 
-### 测试后端连接
+### 测试 Supabase 连接
 
 ```bash
 # 在浏览器控制台
-fetch('https://api.your-domain.com/health')
+fetch('/api/check-supabase')
   .then(r => r.json())
   .then(console.log);
 ```
 
-### 测试前端配置
+应该返回 Supabase 连接状态。
+
+### 测试 NextAuth 配置
 
 ```bash
 # 在浏览器控制台
@@ -169,11 +145,27 @@ fetch('/api/auth/session')
   .then(console.log);
 ```
 
+应该返回当前登录用户信息（如果已登录）或 `null`（如果未登录）。
 
+---
 
+## 📚 相关文档
 
+- `DEPLOYMENT_GUIDE.md` - 完整部署指南
+- `docs/SUPABASE_ADMIN_SETUP.md` - Supabase 配置指南
+- `docs/ECS_BACKEND_MIGRATION.md` - 从 ECS 后端迁移指南
 
+---
 
+## ⚠️ 废弃的环境变量
 
+以下环境变量已废弃，不应再使用：
 
+- ❌ `BACKEND_API_URL` - 已移除，不再需要单独的 ECS 后端服务器
+- ❌ `NEXT_PUBLIC_BACKEND_API_URL` - 已移除，不再需要单独的 ECS 后端服务器
+- ❌ `JWT_SECRET` - 已移除，使用 `NEXTAUTH_SECRET` 代替
+- ❌ `FRONTEND_URL` - 已移除，不需要后端服务器 CORS 配置
+- ❌ `USER_WHITELIST` - 已移除，用户管理已迁移到 Supabase
+- ❌ `INITIAL_CREDITS` - 已移除，积分系统已迁移到 Supabase
 
+如果您的代码或文档中仍在使用这些变量，请更新为新的 Supabase 配置。
