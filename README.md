@@ -26,6 +26,15 @@
 - **数据验证**: Zod
 - **认证**: NextAuth v5
 
+## 设计系统
+
+项目使用统一的设计系统，确保 UI/UX 一致性：
+
+- 📐 [设计系统规范](./docs/DESIGN_SYSTEM.md)
+- 🎨 [UI/UX 最佳实践指南](./docs/UI_UX_GUIDELINES.md)
+- 💻 [UI 代码编写规范](./docs/UI_CODE_STANDARDS.md)
+- ⚡ [UI 快速参考指南](./docs/UI_QUICK_REFERENCE.md)
+
 ## 项目结构
 
 ```
@@ -138,6 +147,8 @@ NEXT_PUBLIC_STORAGE_MODE=local
 如果资产文件托管在 CDN 上，可以设置 `NEXT_PUBLIC_CDN_BASE` 为 CDN 基础 URL。
 当部署到 OSS 或 NAS 后，只需切换 `STORAGE_MODE` / `NEXT_PUBLIC_STORAGE_MODE` 为 `oss`，并在 `lib/storage.ts` 中补充远程实现即可。
 
+**爆款工坊入口（部署通用）**：底部导航「爆款工坊」的跳转地址由**本仓库（资产库 web）**的环境变量决定。部署到 Vercel/其他平台时，在**资产库 web 项目**里配置 `NEXT_PUBLIC_BAOKUAN_URL` 为爆款工坊（super-insight）的线上地址即可，例如 `https://xxx.railway.app`。不配置时本地开发默认跳转 `http://localhost:3000`。详见 `.env.local.example`。
+
 ### 5. 启动开发服务器
 
 ```bash
@@ -152,6 +163,13 @@ npm run dev
 npm run build
 npm start
 ```
+
+### 7. 部署到线上（Vercel）
+
+1. 在 [Vercel](https://vercel.com) 导入本仓库；若仓库根目录不是本目录，在项目设置里将 **Root Directory** 设为 `资产库web`。
+2. 在项目 **Environment Variables** 中配置（与 `.env.local.example` 一致），并**务必设置**：
+   - `NEXT_PUBLIC_BAOKUAN_URL` = 爆款工坊线上地址（如 `https://xxx.railway.app`），这样首页「爆款工坊」点击会跳转到该地址。
+3. 推送代码后自动构建部署；部署完成后在资产库首页即可通过「爆款工坊」进入线上爆款工坊。
 
 ## 主要文件说明
 
