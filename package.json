@@ -90,5 +90,8 @@
     "tsx": "^4.7.1",
     "typescript": "^5.3.3",
     "vitest": "^4.0.18"
+  },
+  "optionalDependencies": {
+    "@swc/helpers": "0.5.19"
   }
 }
