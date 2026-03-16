@@ -50,7 +50,12 @@ NEXT_PUBLIC_CDN_BASE=https://your-cdn-domain.com
 # ============================================
 # AI 服务配置（可选）
 # ============================================
-# 通义千问配置
+# DeepSeek 配置（推荐用于文本生成，如周报总结）
+DEEPSEEK_API_KEY=sk-380afb81905748098f61428ab470c026
+DEEPSEEK_API_ENDPOINT=https://api.deepseek.com/v1/chat/completions
+DEEPSEEK_API_MODEL=deepseek-chat
+
+# 通义千问配置（备用）
 AI_IMAGE_API_PROVIDER=aliyun
 AI_IMAGE_API_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
 AI_IMAGE_API_KEY=your-qwen-api-key

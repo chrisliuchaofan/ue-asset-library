@@ -20,9 +20,9 @@ export function AdminTabs({ children }: AdminTabsProps) {
             variant="ghost"
             onClick={() => setActiveTab('assets')}
             className={cn(
-              'flex-1 rounded-xl px-4 py-2 text-sm font-medium transition hover:bg-white/10 hover:text-white',
+              'flex-1 rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-200 hover:bg-muted hover:text-foreground',
               activeTab === 'assets'
-                ? 'bg-white text-[#05070f] shadow-[0_8px_20px_rgba(15,23,42,0.35)]'
+                ? 'bg-white text-foreground shadow-[0_8px_20px_rgba(15,23,42,0.35)]'
                 : 'text-slate-300'
             )}
           >
@@ -33,9 +33,9 @@ export function AdminTabs({ children }: AdminTabsProps) {
             variant="ghost"
             onClick={() => setActiveTab('materials')}
             className={cn(
-              'flex-1 rounded-xl px-4 py-2 text-sm font-medium transition hover:bg-white/10 hover:text-white',
+              'flex-1 rounded-xl px-4 py-2 text-sm font-medium transition-colors duration-200 hover:bg-muted hover:text-foreground',
               activeTab === 'materials'
-                ? 'bg-white text-[#05070f] shadow-[0_8px_20px_rgba(15,23,42,0.35)]'
+                ? 'bg-white text-foreground shadow-[0_8px_20px_rgba(15,23,42,0.35)]'
                 : 'text-slate-300'
             )}
           >

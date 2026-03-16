@@ -87,7 +87,7 @@ interface FormState {
   width: string;
   height: string;
   duration: string;
-  filesize: string;
+  fileSize: string;
 }
 
 const initialFormState: FormState = {
@@ -107,7 +107,7 @@ const initialFormState: FormState = {
   width: '',
   height: '',
   duration: '',
-  filesize: '',
+  fileSize: '',
 };
 
 export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyList, refreshKey }: AdminDashboardProps) {
@@ -348,7 +348,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
         gallery: galleryUrls.join(','),
         width: firstFile.width ? String(firstFile.width) : prev.width,
         height: firstFile.height ? String(firstFile.height) : prev.height,
-        filesize: firstFile.size ? String(firstFile.size) : prev.filesize,
+        fileSize: firstFile.size ? String(firstFile.size) : prev.fileSize,
       };
     });
   }, [storageMode, normalizedCdnBase]);
@@ -1067,7 +1067,6 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
         // 添加 hash 和 fileSize 字段，用于重复检测
         hash: mainFileHash || undefined,
         fileSize: mainFileSize || undefined,
-        filesize: mainFileSize || undefined, // 保留兼容性
       };
 
       const response = await fetch('/api/assets', {
@@ -1177,7 +1176,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       width: asset.width ? String(asset.width) : '',
       height: asset.height ? String(asset.height) : '',
       duration: asset.duration ? String(asset.duration) : '',
-      filesize: asset.filesize ? String(asset.filesize) : '',
+      fileSize: asset.fileSize ? String(asset.fileSize) : '',
     });
     
     // ✅ 收集资产的所有媒体文件，用于"已上传文件"列表
@@ -1313,7 +1312,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       form.width !== (originalAsset.width ? String(originalAsset.width) : '') ||
       form.height !== (originalAsset.height ? String(originalAsset.height) : '') ||
       form.duration !== (originalAsset.duration ? String(originalAsset.duration) : '') ||
-      form.filesize !== (originalAsset.filesize ? String(originalAsset.filesize) : '')
+      form.fileSize !== (originalAsset.fileSize ? String(originalAsset.fileSize) : '')
     );
   }, [form, editingAssetId, originalAsset]);
 
@@ -1656,7 +1655,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               gallery: galleryUrls.join(','),
               width: firstFile.width ? String(firstFile.width) : prevForm.width,
               height: firstFile.height ? String(firstFile.height) : prevForm.height,
-              filesize: firstFile.size ? String(firstFile.size) : prevForm.filesize,
+              fileSize: firstFile.size ? String(firstFile.size) : prevForm.fileSize,
             };
           });
         } else {
@@ -2167,7 +2166,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                               }}
                             >
                               {currentPreviewUrl ? (
-                <div className="relative h-[48px] w-[48px] overflow-hidden border border-gray-300 bg-gray-100 cursor-pointer">
+                <div className="relative h-[48px] w-[48px] overflow-hidden border border-gray-300 bg-muted cursor-pointer">
                                   {isVideoUrl(currentThumbnail) ? (
                     <video src={currentPreviewUrl} className="h-full w-full object-cover" muted playsInline />
                                   ) : (
@@ -2200,7 +2199,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end" className="w-48">
-                        <div className="px-2 py-1.5 text-xs font-medium text-gray-700">选择预览图</div>
+                        <div className="px-2 py-1.5 text-xs font-medium text-foreground">选择预览图</div>
                                         <DropdownMenuSeparator />
                                         {allMediaFiles.map((file, index) => {
                                           const filePreviewUrl = getPreviewUrl(file.url);
@@ -2211,7 +2210,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                                               onClick={() => handleSelectThumbnail(file.url)}
                               className="flex items-center gap-2"
                                             >
-                              <div className="h-8 w-8 overflow-hidden rounded bg-gray-100">
+                              <div className="h-8 w-8 overflow-hidden rounded bg-muted">
                                                 {file.type === 'video' ? (
                                   <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
                                                 ) : (
@@ -2240,7 +2239,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                                 </div>
                               ) : (
                 <div className="relative group">
-                  <div className="flex h-[48px] w-[48px] items-center justify-center border border-dashed border-gray-300 bg-gray-50 text-[10px] text-gray-500">
+                  <div className="flex h-[48px] w-[48px] items-center justify-center border border-dashed border-gray-300 bg-muted/50 text-[10px] text-muted-foreground">
                                     无预览
                                   </div>
                                   {allMediaFiles.length > 0 && (
@@ -2255,7 +2254,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end" className="w-48">
-                        <div className="px-2 py-1.5 text-xs font-medium text-gray-700">选择预览图</div>
+                        <div className="px-2 py-1.5 text-xs font-medium text-foreground">选择预览图</div>
                                         <DropdownMenuSeparator />
                                         {allMediaFiles.map((file, index) => {
                                           const filePreviewUrl = getPreviewUrl(file.url);
@@ -2265,7 +2264,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                                               onClick={() => handleSelectThumbnail(file.url)}
                               className="flex items-center gap-2"
                                             >
-                              <div className="h-8 w-8 overflow-hidden rounded bg-gray-100">
+                              <div className="h-8 w-8 overflow-hidden rounded bg-muted">
                                                 {file.type === 'video' ? (
                                   <video src={filePreviewUrl} className="h-full w-full object-cover" muted playsInline />
                                                 ) : (
@@ -2294,13 +2293,13 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       }
       case 'name':
         return (
-          <div className="flex h-[56px] items-center text-xs text-gray-700 overflow-hidden" title={asset.name}>
+          <div className="flex h-[56px] items-center text-xs text-foreground overflow-hidden" title={asset.name}>
             <span className="truncate block w-full">{asset.name}</span>
           </div>
         );
       case 'type':
         return (
-          <div className="flex h-[56px] items-center whitespace-nowrap text-xs text-gray-700">
+          <div className="flex h-[56px] items-center whitespace-nowrap text-xs text-foreground">
                         {asset.type}
           </div>
         );
@@ -2316,7 +2315,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
         return (
           <div className="flex h-[56px] flex-wrap items-center gap-1">
             {tagsArray.map((tag: string) => (
-              <span key={tag} className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">
+              <span key={tag} className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground">
                                 {tag}
                               </span>
             ))}
@@ -2331,7 +2330,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
         
         return (
           <div className="flex h-[56px] items-center">
-            <div className="space-y-0.5 w-full break-all text-[10px] leading-relaxed text-gray-600">
+            <div className="space-y-0.5 w-full break-all text-[10px] leading-relaxed text-muted-foreground">
               {asset.guangzhouNas && (
                 <div className="flex items-center gap-1 group">
                   <span className="flex-1">广州NAS：{asset.guangzhouNas}</span>
@@ -2339,7 +2338,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                     size="icon"
                     variant="ghost"
                     className={cn(
-                      "h-5 w-5 transition-opacity text-gray-500 hover:text-gray-900",
+                      "h-5 w-5 transition-opacity text-muted-foreground hover:text-foreground",
                       isGuangzhouCopied ? "opacity-100 text-green-600" : "opacity-0 group-hover:opacity-100"
                     )}
                     onClick={(e) => {
@@ -2365,7 +2364,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                     size="icon"
                     variant="ghost"
                     className={cn(
-                      "h-5 w-5 transition-opacity text-gray-500 hover:text-gray-900",
+                      "h-5 w-5 transition-opacity text-muted-foreground hover:text-foreground",
                       isShenzhenCopied ? "opacity-100 text-green-600" : "opacity-0 group-hover:opacity-100"
                     )}
                     onClick={(e) => {
@@ -2385,7 +2384,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 </div>
               )}
               {!asset.guangzhouNas && !asset.shenzhenNas && (
-                <div className="text-gray-400">暂无NAS路径</div>
+                <div className="text-muted-foreground">暂无NAS路径</div>
               )}
             </div>
           </div>
@@ -2402,7 +2401,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                               minute: '2-digit',
             })
           : '-';
-        return <div className="flex h-[56px] items-center text-[10px] text-gray-600 whitespace-nowrap">{display}</div>;
+        return <div className="flex h-[56px] items-center text-[10px] text-muted-foreground whitespace-nowrap">{display}</div>;
       }
       case 'actions':
         return (
@@ -2415,7 +2414,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 "h-7 w-7 transition-colors",
                 asset.recommended 
                   ? "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" 
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
               onClick={async (e) => {
                 e.stopPropagation();
@@ -2456,7 +2455,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingAssetInDialog(asset);
@@ -2504,7 +2503,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                           <Button
               size="icon"
                             variant="ghost"
-              className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
               onClick={(e) => {
                 e.stopPropagation();
                 setAssetToDelete(asset);
@@ -2739,10 +2738,10 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
 
   return (
     <div className="space-y-4 h-full flex flex-col">
-      <div className="border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+      <div className="border border-border bg-white">
+        <div className="border-b border-border bg-muted/50 px-4 py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">资产列表</h3>
+            <h3 className="text-sm font-semibold text-foreground">资产列表</h3>
             <div className="flex flex-wrap items-center gap-2">
               {selectedAssetIds.size > 0 && (
                 <Button
@@ -2784,16 +2783,16 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="搜索资产名称或标签..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="pl-10 border-gray-300 bg-white text-gray-900"
+                  className="pl-10 border-gray-300 bg-white text-foreground"
                 />
               </div>
               <select
-                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
+                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
                 value={filterProject || ''}
                 onChange={(e) => setFilterProject(e.target.value || null)}
               >
@@ -2805,7 +2804,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 ))}
               </select>
               <select
-                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
+                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
               >
@@ -2817,7 +2816,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 ))}
               </select>
               <select
-                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
+                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
                 value={filterTag}
                 onChange={(e) => setFilterTag(e.target.value)}
               >
@@ -2835,7 +2834,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   "h-9 rounded border px-3 text-sm transition",
                   filterRecommended === true
                     ? 'border-yellow-500 bg-yellow-50 text-yellow-700'
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    : 'border-gray-300 text-foreground hover:bg-muted/50'
                 )}
               >
                 <div className="flex items-center gap-1.5">
@@ -2845,7 +2844,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               </button>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-muted-foreground">
                 共找到 {filteredAssets.length} 个资产
                 {filteredAssets.length !== assets.length && `（共 ${assets.length} 个）`}
               </p>
@@ -2856,7 +2855,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   className={`h-7 rounded border px-3 text-xs transition ${
                     showPaths
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      : 'border-gray-300 text-foreground hover:bg-muted/50'
                   }`}
                 >
                   {showPaths ? '隐藏路径' : '显示路径'}
@@ -2865,7 +2864,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden border border-gray-200 bg-white">
+          <div className="flex-1 overflow-hidden border border-border bg-white">
             <div 
               ref={tableContainerRef}
               className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)] relative"
@@ -2890,7 +2889,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                     <col key={column.id} style={{ width: `${columnWidths[column.id]}px` }} />
                   ))}
                 </colgroup>
-                <thead className="bg-gray-50 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">
+                <thead className="bg-muted/50 text-left text-sm font-semibold text-foreground border-b border-border">
                   <tr>
                     <th className="px-2 py-2">
                       <div className="flex h-[32px] items-center justify-center">
@@ -2920,18 +2919,18 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                       return (
                         <th 
                           key={column.id} 
-                          className="relative px-2 py-2 text-sm font-semibold text-gray-700"
+                          className="relative px-2 py-2 text-sm font-semibold text-foreground"
                         >
                           <div 
                             className={cn(
                               "flex items-center gap-1",
-                              isSortable && "cursor-pointer hover:text-gray-900 select-none"
+                              isSortable && "cursor-pointer hover:text-foreground select-none"
                             )}
                             onClick={() => isSortable && handleColumnSort(column.id)}
                           >
                             <span>{column.label}</span>
                             {isSortable && (
-                              <span className="text-[8px] text-gray-400">
+                              <span className="text-[8px] text-muted-foreground">
                                 {isSorted ? (sortDirection === 'asc' ? '↑' : '↓') : '⇅'}
                               </span>
                             )}
@@ -2962,7 +2961,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                           if (el) rowRefsRef.current.set(asset.id, el);
                           else rowRefsRef.current.delete(asset.id);
                         }}
-                        className={`align-middle transition-colors cursor-pointer select-none ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50'}`}
+                        className={`align-middle transition-colors cursor-pointer select-none ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-muted/50'}`}
                         onMouseDown={(e) => {
                           // 如果正在框选，不处理行点击
                           if (isSelecting) {
@@ -3095,7 +3094,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   return pages.map((page, index) => {
                     if (page === '...') {
                       return (
-                        <span key={`ellipsis-${index}`} className="px-2 text-gray-500">
+                        <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">
                           ...
                         </span>
                       );
@@ -3126,7 +3125,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 下一页
                 <ChevronRight className="h-4 w-4" />
                 </Button>
-              <span className="text-sm text-gray-600 ml-2">
+              <span className="text-sm text-muted-foreground ml-2">
                 第 {currentPage} / {totalPages} 页，共 {filteredAssets.length} 条
               </span>
             </div>
@@ -3135,14 +3134,14 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
       </div>
 
       {!showOnlyList && (
-      <div id="asset-form-card" className="border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
-          <h3 className="text-sm font-semibold text-gray-900">{editingAssetId ? '编辑资产' : '新增资产'}</h3>
+      <div id="asset-form-card" className="border border-border bg-white">
+        <div className="border-b border-border bg-muted/50 px-4 py-3">
+          <h3 className="text-sm font-semibold text-foreground">{editingAssetId ? '编辑资产' : '新增资产'}</h3>
         </div>
         <div className="space-y-5 px-4 py-4">
           {/* 文件上传区域 */}
           <div
-            className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center transition-colors hover:border-primary/50"
+            className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center transition-colors hover:bg-white/[0.03]"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
           >
@@ -3160,13 +3159,13 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               htmlFor="file-upload"
               className="cursor-pointer flex flex-col items-center gap-2"
             >
-              <Upload className="h-8 w-8 text-gray-400" />
-              <div className="text-sm text-gray-700 w-full">
+              <Upload className="h-8 w-8 text-muted-foreground" />
+              <div className="text-sm text-foreground w-full">
                 {uploading ? (
                   <div className="space-y-2 w-full">
                     <div className="text-center">{uploadProgress || '上传中...'}</div>
                     {uploadProgressPercent > 0 && (
-                      <div className="w-full rounded-full h-2 bg-gray-200">
+                      <div className="w-full rounded-full h-2 bg-muted">
                         <div
                           className="bg-primary h-2 rounded-full transition-all duration-300"
                           style={{ width: `${uploadProgressPercent}%` }}
@@ -3187,7 +3186,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
 
           {/* 预览区域 */}
           {previewUrls.length > 0 && (
-            <div className="relative border border-gray-300 rounded-lg p-4 bg-gray-50">
+            <div className="relative border border-gray-300 rounded-lg p-4 bg-muted/50">
               <div className="flex items-start justify-between mb-2">
                 <span className="text-sm font-medium">
                   预览 ({currentPreviewIndex + 1}/{previewUrls.length})
@@ -3204,7 +3203,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-gray-100">
+              <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-muted">
                 {previewUrls[currentPreviewIndex] && (
                   <>
                     {(() => {
@@ -3262,7 +3261,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               {/* 视频抽帧缩略图列表 */}
               {uploadedFiles.some(f => f.type === 'video') && previewUrls.length > 1 && (
                 <div className="mt-2">
-                  <p className="text-xs text-gray-600 mb-2">点击选择预览图（用于 AI 分析和资产预览图）：</p>
+                  <p className="text-xs text-muted-foreground mb-2">点击选择预览图（用于 AI 分析和资产预览图）：</p>
                   <div className="flex gap-2 overflow-x-auto pb-2">
                     {previewUrls.map((url, index) => {
                       const isSelected = index === currentPreviewIndex;
@@ -3322,7 +3321,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   return (
                     <div
                       key={index}
-                      className="relative group border border-gray-300 rounded-lg overflow-hidden bg-gray-50"
+                      className="relative group border border-gray-300 rounded-lg overflow-hidden bg-muted/50"
                     >
                       <div className="aspect-video relative">
                         {file.type === 'image' ? (
@@ -3391,7 +3390,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">类型（可新增）<span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">类型（可新增）<span className="text-destructive">*</span></label>
               <div className="space-y-1">
                 <Input
                   placeholder="选择或输入新类型"
@@ -3437,7 +3436,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
             </div>
             <div className="space-y-2 md:col-span-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-destructive">*</span></label>
                 <Button
                   type="button"
                   variant="outline"
@@ -3463,7 +3462,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               )}
               {aiRecommendedTags.length > 0 && (
                 <div className="space-y-2 pt-2">
-                  <p className="text-sm font-medium text-gray-700">AI 推荐标签</p>
+                  <p className="text-sm font-medium text-foreground">AI 推荐标签</p>
                   <div className="flex flex-wrap gap-2">
                     {aiRecommendedTags.map((tag) => {
                       const isSelected = isRecommendedTagSelected(tag);
@@ -3495,7 +3494,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">来源（可新增）<span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">来源（可新增）<span className="text-destructive">*</span></label>
               <div className="space-y-1">
                 <Input
                   placeholder="内部"
@@ -3513,7 +3512,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">版本（可新增）<span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">版本（可新增）<span className="text-destructive">*</span></label>
               <div className="space-y-1">
                 <Input
                   placeholder="UE5.5"
@@ -3531,7 +3530,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">广州NAS路径 <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">广州NAS路径 <span className="text-destructive">*</span></label>
               <Input
                 placeholder="例如：/nas/guangzhou/assets/xxx.jpg"
                 value={form.guangzhouNas}
@@ -3540,14 +3539,14 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">深圳NAS路径 <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">深圳NAS路径 <span className="text-destructive">*</span></label>
               <Input
                 placeholder="例如：/nas/shenzhen/assets/xxx.jpg"
                 value={form.shenzhenNas}
                 onChange={handleInputChange('shenzhenNas')}
                 disabled={loading}
               />
-              <p className="text-xs text-gray-600">注意：广州NAS和深圳NAS至少需要填写一个</p>
+              <p className="text-xs text-muted-foreground">注意：广州NAS和深圳NAS至少需要填写一个</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">封面路径</label>
@@ -3589,7 +3588,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                     </Button>
                   </>
                 )}
-                {message && <span className="text-sm text-gray-700">{message}</span>}
+                {message && <span className="text-sm text-foreground">{message}</span>}
               </div>
         </div>
       </div>
@@ -3643,7 +3642,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
             <div className="space-y-4 py-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">名称 <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">名称 <span className="text-destructive">*</span></label>
                   <Input
                     placeholder="资产名称"
                     value={editingAssetInDialog.name}
@@ -3652,7 +3651,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">类型（可新增）<span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">类型（可新增）<span className="text-destructive">*</span></label>
                   <div className="space-y-1">
                     <Input
                       placeholder="选择或输入新类型"
@@ -3678,7 +3677,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">项目<span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">项目<span className="text-destructive">*</span></label>
                   <div className="space-y-1">
                     <Input
                       placeholder="请选择项目"
@@ -3714,7 +3713,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+                    <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-destructive">*</span></label>
                     <Button
                       type="button"
                       variant="outline"
@@ -3739,7 +3738,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   )}
                   {editDialogAiRecommendedTags.length > 0 && (
                     <div className="space-y-2 pt-2">
-                      <p className="text-sm font-medium text-gray-700">AI 推荐标签</p>
+                      <p className="text-sm font-medium text-foreground">AI 推荐标签</p>
                       <div className="flex flex-wrap gap-2">
                         {editDialogAiRecommendedTags.map((tag) => {
                           const isSelected = isEditDialogRecommendedTagSelected(tag);
@@ -3771,7 +3770,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">来源（可新增）<span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">来源（可新增）<span className="text-destructive">*</span></label>
                   <div className="space-y-1">
                     <Input
                       placeholder="内部"
@@ -3789,7 +3788,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">版本（可新增）<span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">版本（可新增）<span className="text-destructive">*</span></label>
                   <div className="space-y-1">
                     <Input
                       placeholder="UE5.5"
@@ -3807,7 +3806,7 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">广州NAS路径 <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">广州NAS路径 <span className="text-destructive">*</span></label>
                   <Input
                     placeholder="例如：/nas/guangzhou/assets/xxx.jpg"
                     value={editingAssetInDialog.guangzhouNas || ''}
@@ -3816,14 +3815,14 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">深圳NAS路径 <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">深圳NAS路径 <span className="text-destructive">*</span></label>
                   <Input
                     placeholder="例如：/nas/shenzhen/assets/xxx.jpg"
                     value={editingAssetInDialog.shenzhenNas || ''}
                     onChange={(e) => setEditingAssetInDialog({ ...editingAssetInDialog, shenzhenNas: e.target.value })}
                     disabled={loading}
                   />
-                  <p className="text-xs text-gray-600">注意：广州NAS和深圳NAS至少需要填写一个</p>
+                  <p className="text-xs text-muted-foreground">注意：广州NAS和深圳NAS至少需要填写一个</p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">封面路径</label>
@@ -4143,10 +4142,10 @@ export function AdminDashboard({ initialAssets, storageMode, cdnBase, showOnlyLi
             <DialogTitle>确认删除</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-foreground">
               确定要删除资产 <span className="font-semibold">"{assetToDelete?.name}"</span> 吗？
             </p>
-            <p className="text-xs text-gray-500 mt-2">此操作不可恢复。</p>
+            <p className="text-xs text-muted-foreground mt-2">此操作不可恢复。</p>
           </div>
           <DialogFooter>
             <Button

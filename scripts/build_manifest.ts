@@ -18,7 +18,7 @@ interface AssetInfo {
   tags: string[];
   thumbnail: string;
   src: string;
-  filesize?: number;
+  fileSize?: number;
   width?: number;
   height?: number;
   duration?: number;
@@ -87,7 +87,7 @@ async function scanDirectory(dir: string): Promise<AssetInfo[]> {
 
         if (assetType) {
           index++;
-          const filesize = await getFileSize(filePath);
+          const fileSize = await getFileSize(filePath);
           const tags = extractTagsFromFilename(entry.name);
           const name = basename(entry.name, ext);
 
@@ -98,7 +98,7 @@ async function scanDirectory(dir: string): Promise<AssetInfo[]> {
             tags: tags.length > 0 ? tags : ['未分类'],
             thumbnail: relativePath, // 对于视频，可以后续生成缩略图
             src: relativePath,
-            filesize,
+            fileSize,
           };
 
           if (assetType === 'image') {

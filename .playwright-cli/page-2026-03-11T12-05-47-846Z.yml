@@ -1,0 +1,252 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - generic [ref=e12]: 爆款工坊
+      - button "admin 的团队 所有者" [ref=e15] [cursor=pointer]:
+        - img [ref=e17]
+        - generic [ref=e22]:
+          - paragraph [ref=e23]: admin 的团队
+          - paragraph [ref=e24]: 所有者
+        - img [ref=e25]
+      - generic [ref=e27]:
+        - navigation [ref=e28]:
+          - heading "工作流" [level=3] [ref=e29]
+          - list [ref=e30]:
+            - listitem [ref=e31]:
+              - link "灵感收集" [ref=e32] [cursor=pointer]:
+                - /url: /inspirations
+                - generic [ref=e33]:
+                  - img [ref=e34]
+                  - generic [ref=e36]: 灵感收集
+            - listitem [ref=e37]:
+              - link "爆款模版" [ref=e38] [cursor=pointer]:
+                - /url: /templates
+                - generic [ref=e39]:
+                  - img [ref=e40]
+                  - generic [ref=e44]: 爆款模版
+            - listitem [ref=e45]:
+              - link "AI 创作" [ref=e46] [cursor=pointer]:
+                - /url: /studio
+                - generic [ref=e47]:
+                  - img [ref=e48]
+                  - generic [ref=e51]: AI 创作
+            - listitem [ref=e52]:
+              - link "智能审核" [ref=e53] [cursor=pointer]:
+                - /url: /review
+                - generic [ref=e54]:
+                  - img [ref=e55]
+                  - generic [ref=e58]: 智能审核
+            - listitem [ref=e59]:
+              - link "投放素材" [ref=e60] [cursor=pointer]:
+                - /url: /materials
+                - generic [ref=e61]:
+                  - img [ref=e62]
+                  - generic [ref=e64]: 投放素材
+            - listitem [ref=e65]:
+              - link "爆款分析" [ref=e66] [cursor=pointer]:
+                - /url: /analysis
+                - generic [ref=e67]:
+                  - img [ref=e68]
+                  - generic [ref=e71]: 爆款分析
+        - navigation [ref=e72]:
+          - heading "数据与资源" [level=3] [ref=e73]
+          - list [ref=e74]:
+            - listitem [ref=e75]:
+              - link "知识库" [ref=e76] [cursor=pointer]:
+                - /url: /knowledge
+                - generic [ref=e77]:
+                  - img [ref=e78]
+                  - generic [ref=e80]: 知识库
+            - listitem [ref=e81]:
+              - link "UE 资产" [ref=e82] [cursor=pointer]:
+                - /url: /assets
+                - generic [ref=e83]:
+                  - img [ref=e84]
+                  - generic [ref=e88]: UE 资产
+            - listitem [ref=e89]:
+              - link "数据洞察" [ref=e90] [cursor=pointer]:
+                - /url: /weekly-reports
+                - generic [ref=e91]:
+                  - img [ref=e92]
+                  - generic [ref=e93]: 数据洞察
+            - listitem [ref=e94]:
+              - link "设置" [ref=e95] [cursor=pointer]:
+                - /url: /settings
+                - generic [ref=e96]:
+                  - img [ref=e97]
+                  - generic [ref=e100]: 设置
+      - generic [ref=e102]:
+        - generic [ref=e103]:
+          - generic [ref=e105]: A
+          - generic [ref=e106]: admin@admin.local
+        - generic [ref=e107]:
+          - generic [ref=e108]:
+            - button "中" [ref=e109] [cursor=pointer]
+            - button "EN" [ref=e110] [cursor=pointer]
+          - button "深色模式" [ref=e111] [cursor=pointer]:
+            - img [ref=e112]
+            - generic [ref=e114]: 深色模式
+          - button "退出" [ref=e115] [cursor=pointer]:
+            - img [ref=e116]
+    - main [ref=e118]:
+      - generic [ref=e160]:
+        - generic [ref=e162]:
+          - heading "设置" [level=1] [ref=e163]
+          - generic [ref=e165]: 个人信息、积分和交易记录
+        - generic [ref=e167]:
+          - link "团队管理 成员管理、邀请码、角色权限" [ref=e168] [cursor=pointer]:
+            - /url: /settings/team
+            - generic [ref=e171]:
+              - img [ref=e172]
+              - generic [ref=e177]:
+                - heading "团队管理" [level=3] [ref=e178]
+                - paragraph [ref=e179]: 成员管理、邀请码、角色权限
+          - generic [ref=e180]:
+            - generic [ref=e181]:
+              - generic [ref=e182]:
+                - img [ref=e183]
+                - heading "基础版" [level=3] [ref=e185]
+                - generic [ref=e186]: 活跃
+              - generic [ref=e187]: 免费
+            - list [ref=e188]:
+              - listitem [ref=e189]:
+                - img [ref=e190]
+                - text: 每月 100 AI 积分
+              - listitem [ref=e192]:
+                - img [ref=e193]
+                - text: 最多 3 名团队成员
+              - listitem [ref=e195]:
+                - img [ref=e196]
+                - text: 5GB 存储空间
+            - button "升级到专业版" [ref=e199] [cursor=pointer]:
+              - img [ref=e200]
+              - text: 升级到专业版
+          - generic [ref=e202]:
+            - generic [ref=e203]:
+              - heading "个人信息" [level=3] [ref=e205]:
+                - img [ref=e206]
+                - text: 个人信息
+              - generic [ref=e209]:
+                - generic [ref=e210]:
+                  - paragraph [ref=e211]: 邮箱
+                  - paragraph [ref=e212]: admin@admin.local
+                - generic [ref=e213]:
+                  - paragraph [ref=e214]: 用户 ID
+                  - paragraph [ref=e215]: admin@admin.local
+            - generic [ref=e216]:
+              - heading "积分信息" [level=3] [ref=e218]:
+                - img [ref=e219]
+                - text: 积分信息
+              - generic [ref=e221]:
+                - generic [ref=e222]:
+                  - paragraph [ref=e223]: 当前余额
+                  - paragraph [ref=e224]: "0"
+                - generic [ref=e225]:
+                  - generic [ref=e226]:
+                    - paragraph [ref=e227]: 计费模式
+                    - paragraph [ref=e228]: 模拟模式
+                  - generic [ref=e229]:
+                    - paragraph [ref=e230]: 模型模式
+                    - paragraph [ref=e231]: 模拟模式
+            - generic [ref=e234]:
+              - generic [ref=e235]:
+                - img [ref=e236]
+                - heading "兑换码充值" [level=3] [ref=e240]
+              - generic [ref=e241]:
+                - generic [ref=e242]:
+                  - text: 兑换码
+                  - generic [ref=e243]:
+                    - textbox "兑换码" [ref=e244]:
+                      - /placeholder: 输入兑换码（如：ABC12345）
+                    - button "验证" [disabled]
+                - button "兑换" [disabled]
+          - generic [ref=e245]:
+            - generic [ref=e247]:
+              - heading "交易记录" [level=3] [ref=e248]:
+                - img [ref=e249]
+                - text: 交易记录
+              - button "刷新" [ref=e252] [cursor=pointer]:
+                - img [ref=e253]
+                - text: 刷新
+            - table [ref=e260]:
+              - rowgroup [ref=e261]:
+                - row "时间 操作 金额 余额 描述" [ref=e262]:
+                  - columnheader "时间" [ref=e263]
+                  - columnheader "操作" [ref=e264]
+                  - columnheader "金额" [ref=e265]
+                  - columnheader "余额" [ref=e266]
+                  - columnheader "描述" [ref=e267]
+              - rowgroup [ref=e268]:
+                - 'row "2025/12/19 19:01:31 -10 AI 生成： 基于以下概念创建一个 4 个场景的视频分镜脚本： 标题: 河马快递..." [ref=e269]':
+                  - cell "2025/12/19 19:01:31" [ref=e270]
+                  - cell [ref=e271]
+                  - cell "-10" [ref=e272]
+                  - cell [ref=e273]
+                  - 'cell "AI 生成： 基于以下概念创建一个 4 个场景的视频分镜脚本： 标题: 河马快递..." [ref=e274]'
+                - row "2025/12/19 19:00:24 -10 AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"河马在城市里奔跑\"。 ..." [ref=e275]:
+                  - cell "2025/12/19 19:00:24" [ref=e276]
+                  - cell [ref=e277]
+                  - cell "-10" [ref=e278]
+                  - cell [ref=e279]
+                  - cell "AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"河马在城市里奔跑\"。 ..." [ref=e280]
+                - 'row "2025/12/19 18:52:03 -10 AI 生成： 基于以下概念创建一个 4 个场景的视频分镜脚本： 标题: 河马悖论..." [ref=e281]':
+                  - cell "2025/12/19 18:52:03" [ref=e282]
+                  - cell [ref=e283]
+                  - cell "-10" [ref=e284]
+                  - cell [ref=e285]
+                  - 'cell "AI 生成： 基于以下概念创建一个 4 个场景的视频分镜脚本： 标题: 河马悖论..." [ref=e286]'
+                - row "2025/12/19 18:51:13 -10 AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"河马\"。 请..." [ref=e287]:
+                  - cell "2025/12/19 18:51:13" [ref=e288]
+                  - cell [ref=e289]
+                  - cell "-10" [ref=e290]
+                  - cell [ref=e291]
+                  - cell "AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"河马\"。 请..." [ref=e292]
+                - 'row "2025/12/19 18:45:26 -10 AI 生成： 基于以下概念创建一个 4 个场景的视频分镜脚本： 标题: 河马银行..." [ref=e293]':
+                  - cell "2025/12/19 18:45:26" [ref=e294]
+                  - cell [ref=e295]
+                  - cell "-10" [ref=e296]
+                  - cell [ref=e297]
+                  - 'cell "AI 生成： 基于以下概念创建一个 4 个场景的视频分镜脚本： 标题: 河马银行..." [ref=e298]'
+                - row "2025/12/19 18:45:09 -10 AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"河马\"。 请..." [ref=e299]:
+                  - cell "2025/12/19 18:45:09" [ref=e300]
+                  - cell [ref=e301]
+                  - cell "-10" [ref=e302]
+                  - cell [ref=e303]
+                  - cell "AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"河马\"。 请..." [ref=e304]
+                - row "2025/12/19 18:44:46 -10 AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"河马\"。 请..." [ref=e305]:
+                  - cell "2025/12/19 18:44:46" [ref=e306]
+                  - cell [ref=e307]
+                  - cell "-10" [ref=e308]
+                  - cell [ref=e309]
+                  - cell "AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"河马\"。 请..." [ref=e310]
+                - 'row "2025/12/19 18:30:47 -10 AI 生成： 基于以下概念创建一个 4 个场景的视频分镜脚本： 标题: 混凝土摇..." [ref=e311]':
+                  - cell "2025/12/19 18:30:47" [ref=e312]
+                  - cell [ref=e313]
+                  - cell "-10" [ref=e314]
+                  - cell [ref=e315]
+                  - 'cell "AI 生成： 基于以下概念创建一个 4 个场景的视频分镜脚本： 标题: 混凝土摇..." [ref=e316]'
+                - row "2025/12/19 18:30:23 -10 AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"一只河马在城市里横冲直撞\"。..." [ref=e317]:
+                  - cell "2025/12/19 18:30:23" [ref=e318]
+                  - cell [ref=e319]
+                  - cell "-10" [ref=e320]
+                  - cell [ref=e321]
+                  - cell "AI 生成： 你是一位专业的电影创意总监。用户提出了这个视频想法：\"一只河马在城市里横冲直撞\"。..." [ref=e322]
+  - button "Open Next.js Dev Tools" [ref=e128] [cursor=pointer]:
+    - img [ref=e129]
+  - alert [ref=e132]
+  - generic [ref=e135]:
+    - generic [ref=e141]:
+      - img [ref=e143]
+      - heading "欢迎来到爆款工坊" [level=2] [ref=e148]
+      - paragraph [ref=e149]: 游戏广告素材 AI 工作台
+      - paragraph [ref=e150]: 从创意灵感到数据洞察，AI 驱动你的广告素材全生命周期管理。 无论是脚本生成、素材审核还是爆款分析，我们都能帮你搞定。
+      - generic [ref=e151]:
+        - img [ref=e152]
+        - generic [ref=e154]: 首帧定生死，爆款有工坊
+    - generic [ref=e155]:
+      - button "跳过引导" [ref=e156] [cursor=pointer]
+      - button "下一步" [ref=e157] [cursor=pointer]:
+        - text: 下一步
+        - img [ref=e158]

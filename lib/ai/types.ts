@@ -2,7 +2,7 @@
  * AI 服务统一类型定义
  */
 
-export type AIProviderType = 'qwen' | 'jimeng' | 'kling' | 'custom';
+export type AIProviderType = 'qwen' | 'jimeng' | 'kling' | 'deepseek' | 'tuyoo' | 'custom';
 
 export interface AIGenerateTextRequest {
   prompt: string;
@@ -11,6 +11,8 @@ export interface AIGenerateTextRequest {
   temperature?: number;
   responseFormat?: 'text' | 'json';
   systemPrompt?: string;
+  /** 多轮对话消息（优先级高于 prompt + systemPrompt） */
+  messages?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
 }
 
 export interface AIGenerateTextResponse {
@@ -21,7 +23,7 @@ export interface AIGenerateTextResponse {
 export interface AIGenerateImageRequest {
   prompt: string;
   referenceImageUrl?: string; // 从资产库OSS获取的参考图
-  aspectRatio?: '16:9' | '1:1' | '4:3';
+  aspectRatio?: '16:9' | '1:1' | '4:3' | '9:16';
   size?: '1K' | '2K' | '4K';
   style?: string;
 }
@@ -37,6 +39,7 @@ export interface AIGenerateVideoRequest {
   prompt: string;
   duration?: number; // 秒
   resolution?: '720p' | '1080p' | '4K';
+  aspectRatio?: '16:9' | '9:16' | '1:1';
   provider?: 'jimeng' | 'kling'; // 视频生成提供商
 }
 
@@ -66,19 +69,19 @@ export interface AIGenerateVoiceResponse {
 export interface AIProvider {
   name: string;
   type: AIProviderType;
-  
+
   // 文本生成
   generateText?(request: AIGenerateTextRequest): Promise<AIGenerateTextResponse>;
-  
+
   // 图像生成
   generateImage?(request: AIGenerateImageRequest): Promise<AIGenerateImageResponse>;
-  
+
   // 视频生成（可选，某些提供商不支持）
   generateVideo?(request: AIGenerateVideoRequest): Promise<AIGenerateVideoResponse>;
-  
+
   // 语音生成（可选）
   generateVoice?(request: AIGenerateVoiceRequest): Promise<AIGenerateVoiceResponse>;
-  
+
   // 健康检查
   healthCheck?(): Promise<boolean>;
 }

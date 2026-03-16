@@ -56,7 +56,7 @@ export function ToastComponent({ toast, onRemove }: ToastProps) {
   return (
     <div
       className={cn(
-        'relative flex w-full items-start gap-3 rounded-lg border p-4 shadow-lg transition-all duration-300',
+        'relative flex w-full items-start gap-3 rounded-lg border p-4 shadow-lg transition-all duration-200',
         toastStyles[toast.type],
         isExiting ? 'opacity-0 translate-x-full' : 'opacity-100 translate-x-0'
       )}

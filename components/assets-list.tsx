@@ -5,11 +5,11 @@ import type { RefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { AssetCardGallery } from '@/components/asset-card-gallery';
 import { AssetCardSkeleton } from '@/components/asset-card-skeleton';
-import { EmptyState } from '@/components/empty-state';
+import { ModuleEmptyState } from '@/components/empty-states/ModuleEmptyState';
 import { type Asset } from '@/data/manifest.schema';
 import { PAGINATION } from '@/lib/constants';
 import { type OfficeLocation } from '@/lib/nas-utils';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Box } from 'lucide-react';
 
 type ThumbSize = 'small' | 'medium' | 'large';
 
@@ -650,7 +650,17 @@ function AssetsListContent({
 
   // 在所有 hooks 之后检查空状态
   if (isEmpty) {
-    return <EmptyState />;
+    return (
+      <ModuleEmptyState
+        icon={Box}
+        iconColor="text-pink-400/60"
+        title="还没有资产"
+        description="浏览和管理 UE 场景资产、3D 模型与材质资源"
+        actions={[
+          { label: '浏览素材库', href: '/materials', variant: 'secondary' },
+        ]}
+      />
+    );
   }
 
   if (!shouldRenderVirtual) {

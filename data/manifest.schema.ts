@@ -36,8 +36,7 @@ export const AssetSchema = z.object({
   thumbnail: z.string(),
   src: z.string(),
   gallery: z.array(z.string()).optional(), // 多图/视频画廊
-  filesize: z.number().optional(), // 文件大小（字节数）- 保留兼容性
-  fileSize: z.number().optional(), // 文件大小（字节数）- 新字段，统一命名
+  fileSize: z.number().optional(), // 文件大小（字节数）
   hash: z.string().optional(), // 文件内容的 SHA256 哈希值，用于重复检测
   width: z.number().optional(),
   height: z.number().optional(),
@@ -67,7 +66,6 @@ export const AssetCreateSchema = z.object({
   thumbnail: z.string().optional(),
   src: z.string().optional(),
   gallery: z.array(z.string()).optional(),
-  filesize: z.number().optional(), // 保留兼容性
   fileSize: z.number().optional(), // 文件大小（字节数）
   hash: z.string().optional(), // 文件内容的 SHA256 哈希值
   width: z.number().optional(),
@@ -98,7 +96,6 @@ export const AssetUpdateSchema = z.object({
   thumbnail: z.string().optional(),
   src: z.string().optional(),
   gallery: z.array(z.string()).optional(),
-  filesize: z.number().optional(), // 保留兼容性
   fileSize: z.number().optional(), // 文件大小（字节数）
   hash: z.string().optional(), // 文件内容的 SHA256 哈希值
   width: z.number().optional(),

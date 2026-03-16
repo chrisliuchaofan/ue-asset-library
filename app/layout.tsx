@@ -2,26 +2,30 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import { getStorageMode } from '@/lib/storage';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
+
+export { viewport } from './viewport';
 
 export const metadata: Metadata = {
   title: {
-    default: '恒星UE资产库',
-    template: '%s | 恒星UE资产库',
+    default: '爆款工坊',
+    template: '%s | 爆款工坊',
   },
-  description: 'Unreal Engine 资产展示库 - 浏览和管理 UE 资产资源',
-  keywords: ['Unreal Engine', 'UE', '资产库', '游戏开发', '3D资源'],
-  authors: [{ name: '恒星UE资产库' }],
+  description: 'AI 辅助素材制作工具 - 提升游戏广告素材质量与效率',
+  keywords: ['爆款工坊', '素材制作', 'AI审核', '游戏广告', '素材管理'],
+  authors: [{ name: '爆款工坊' }],
   openGraph: {
-    title: '恒星UE资产库',
-    description: 'Unreal Engine 资产展示库 - 浏览和管理 UE 资产资源',
+    title: '爆款工坊',
+    description: 'AI 辅助素材制作工具 - 提升游戏广告素材质量与效率',
     type: 'website',
     locale: 'zh_CN',
-    siteName: '恒星UE资产库',
+    siteName: '爆款工坊',
   },
   twitter: {
     card: 'summary_large_image',
-    title: '恒星UE资产库',
-    description: 'Unreal Engine 资产展示库 - 浏览和管理 UE 资产资源',
+    title: '爆款工坊',
+    description: 'AI 辅助素材制作工具 - 提升游戏广告素材质量与效率',
   },
   robots: {
     index: true,
@@ -41,11 +45,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
   // ✅ 获取 CDN base（优先使用客户端可访问的变量）
   const cdnBase = process.env.NEXT_PUBLIC_CDN_BASE || '/';
   // 使用统一的存储模式推断函数，确保与 storage.ts 逻辑一致
@@ -84,7 +90,7 @@ export default function RootLayout({
   }
   
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         {/* Google Fonts - Space Grotesk 和 Inter */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -118,12 +124,15 @@ export default function RootLayout({
                 bucket: ${JSON.stringify(ossBucket || serverOssBucket)},
                 region: ${JSON.stringify(ossRegion || serverOssRegion)}
               };` : ''}
+              (function(){var t=localStorage.getItem('theme');var d=document.documentElement;if(t==='light'){d.classList.add('light')}else if(t==='system'){if(window.matchMedia('(prefers-color-scheme:dark)').matches){d.classList.add('dark')}else{d.classList.add('light')}}else{d.classList.add('dark')}})();
             `,
           }}
         />
       </head>
-      <body className="antialiased">
-        <Providers>{children}</Providers>
+      <body className="antialiased" suppressHydrationWarning>
+        <NextIntlClientProvider messages={messages}>
+          <Providers>{children}</Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

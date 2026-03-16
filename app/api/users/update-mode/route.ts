@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     const { data: updatedProfile, error } = await ((supabaseAdmin
       .from('profiles') as any)
       .update(updateData)
-      .eq('id', targetUserId)
+      .eq('email', targetUserId)
       .select()
       .single() as any);
 

@@ -3,7 +3,7 @@
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sparkles, CreditCard, Gift, Settings, Shield } from 'lucide-react';
+import { CreditCard, Gift, Settings, Shield, Video, Clapperboard } from 'lucide-react';
 import { useIsAdmin } from '@/lib/auth/use-is-admin';
 import { cn } from '@/lib/utils';
 
@@ -23,7 +23,8 @@ export function UserNavigation({ className }: UserNavigationProps) {
   // 如果还在加载权限，显示普通用户导航（避免闪烁）
   if (isLoading) {
     const userNavItems: Array<{ href: string; label: string; icon: any; hash?: string }> = [
-      { href: '/dream-factory', label: '梦工厂', icon: Sparkles },
+      { href: '/studio', label: 'AI 创作', icon: Clapperboard },
+      { href: '/analysis', label: '爆款分析', icon: Video },
       { href: '/settings', label: '我的积分', icon: CreditCard },
       { href: '/settings', label: '兑换码兑换', icon: Gift, hash: '#redeem' },
     ];
@@ -39,8 +40,8 @@ export function UserNavigation({ className }: UserNavigationProps) {
               className={cn(
                 'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                  : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                  ? 'bg-primary/10 text-primary border border-primary/20'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )}
             >
               <Icon className="w-4 h-4" />
@@ -54,7 +55,8 @@ export function UserNavigation({ className }: UserNavigationProps) {
 
   // 普通用户导航
   const userNavItems: Array<{ href: string; label: string; icon: any; hash?: string }> = [
-    { href: '/dream-factory', label: '梦工厂', icon: Sparkles },
+    { href: '/studio', label: 'AI 创作', icon: Clapperboard },
+    { href: '/analysis', label: '爆款分析', icon: Video },
     { href: '/settings', label: '我的积分', icon: CreditCard },
     { href: '/settings', label: '兑换码兑换', icon: Gift, hash: '#redeem' },
   ];
@@ -73,7 +75,7 @@ export function UserNavigation({ className }: UserNavigationProps) {
         const Icon = item.icon;
         // 简化 active 判断，只检查 pathname
         const isActive = pathname === item.href;
-        
+
         return (
           <Link
             key={item.href + (item.hash || '')}
@@ -81,8 +83,8 @@ export function UserNavigation({ className }: UserNavigationProps) {
             className={cn(
               'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
               isActive
-                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                ? 'bg-primary/10 text-primary border border-primary/20'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground'
             )}
           >
             <Icon className="w-4 h-4" />

@@ -57,7 +57,6 @@ function mapSupabaseRowToAsset(row: any): Asset {
     thumbnail: row.thumbnail ?? row.thumbnail_url ?? row.imgUrl ?? row.thumb ?? row.cover ?? row.cover_url ?? '',
     src: row.src ?? row.file_url ?? row.url ?? row.source_url ?? '',
     gallery,
-    filesize: row.filesize ?? row.file_size ?? row.fileSize ?? undefined,
     fileSize: row.fileSize ?? row.file_size ?? row.filesize ?? undefined,
     hash: row.hash ?? row.file_hash ?? undefined,
     width: row.width ?? undefined,

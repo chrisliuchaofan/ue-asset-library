@@ -1,0 +1,143 @@
+[     661ms] [ERROR] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <Primitive.div tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} style={{outline:"none"}} ...>
+      <Primitive.div.Slot tabIndex={-1} data-orientation="horizontal" style={{outline:"none"}} ...>
+        <Primitive.div.SlotClone tabIndex={-1} data-orientation="horizontal" style={{outline:"none"}} ...>
+          <Primitive.div role="tablist" aria-orientation="horizontal" className="inline-fle..." ref={function} ...>
+            <div role="tablist" aria-orientation="horizontal" className="inline-fle..." tabIndex={-1} ...>
+              <_c2 value="all">
+                <TabsTrigger ref={null} className="inline-fle..." value="all">
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={true}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_6..." focusable={true} active={true}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={true} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={true}
++                                   aria-controls="radix-_R_t5esneditmlb_-content-all"
+-                                   aria-controls="radix-_R_3klritpmitmlb_-content-all"
+                                    data-state="active"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_t5esneditmlb_-trigger-all"
+-                                   id="radix-_R_3klritpmitmlb_-trigger-all"
+                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px..."
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   全部
+              <_c2 value="passed">
+                <TabsTrigger ref={null} className="inline-fle..." value="passed">
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={false}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_a..." focusable={true} active={false}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={false}
++                                   aria-controls="radix-_R_t5esneditmlb_-content-passed"
+-                                   aria-controls="radix-_R_3klritpmitmlb_-content-passed"
+                                    data-state="inactive"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_t5esneditmlb_-trigger-passed"
+-                                   id="radix-_R_3klritpmitmlb_-trigger-passed"
+                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px..."
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   已通过
+              <_c2 value="failed">
+                <TabsTrigger ref={null} className="inline-fle..." value="failed">
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={false}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_e..." focusable={true} active={false}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={false}
++                                   aria-controls="radix-_R_t5esneditmlb_-content-failed"
+-                                   aria-controls="radix-_R_3klritpmitmlb_-content-failed"
+                                    data-state="inactive"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_t5esneditmlb_-trigger-failed"
+-                                   id="radix-_R_3klritpmitmlb_-trigger-failed"
+                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px..."
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   已拦截
+              <_c2 value="pending">
+                <TabsTrigger ref={null} className="inline-fle..." value="pending">
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={false}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_i..." focusable={true} active={false}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={false}
++                                   aria-controls="radix-_R_t5esneditmlb_-content-pending"
+-                                   aria-controls="radix-_R_3klritpmitmlb_-content-pending"
+                                    data-state="inactive"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_t5esneditmlb_-trigger-pending"
+-                                   id="radix-_R_3klritpmitmlb_-trigger-pending"
+                                    className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px..."
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   未审核
+ @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3117

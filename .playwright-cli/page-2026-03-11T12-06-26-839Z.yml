@@ -1,0 +1,105 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - generic [ref=e12]: 爆款工坊
+      - generic [ref=e14]:
+        - navigation [ref=e15]:
+          - heading "工作流" [level=3] [ref=e16]
+          - list [ref=e17]:
+            - listitem [ref=e18]:
+              - link "灵感收集" [ref=e19] [cursor=pointer]:
+                - /url: /inspirations
+                - generic [ref=e20]:
+                  - img [ref=e21]
+                  - generic [ref=e23]: 灵感收集
+            - listitem [ref=e24]:
+              - link "爆款模版" [ref=e25] [cursor=pointer]:
+                - /url: /templates
+                - generic [ref=e26]:
+                  - img [ref=e27]
+                  - generic [ref=e31]: 爆款模版
+            - listitem [ref=e32]:
+              - link "AI 创作" [ref=e33] [cursor=pointer]:
+                - /url: /studio
+                - generic [ref=e34]:
+                  - img [ref=e35]
+                  - generic [ref=e38]: AI 创作
+            - listitem [ref=e39]:
+              - link "智能审核" [ref=e40] [cursor=pointer]:
+                - /url: /review
+                - generic [ref=e41]:
+                  - img [ref=e42]
+                  - generic [ref=e45]: 智能审核
+            - listitem [ref=e46]:
+              - link "投放素材" [ref=e47] [cursor=pointer]:
+                - /url: /materials
+                - generic [ref=e48]:
+                  - img [ref=e49]
+                  - generic [ref=e51]: 投放素材
+            - listitem [ref=e52]:
+              - link "爆款分析" [ref=e53] [cursor=pointer]:
+                - /url: /analysis
+                - generic [ref=e54]:
+                  - img [ref=e55]
+                  - generic [ref=e58]: 爆款分析
+        - navigation [ref=e59]:
+          - heading "数据与资源" [level=3] [ref=e60]
+          - list [ref=e61]:
+            - listitem [ref=e62]:
+              - link "知识库" [ref=e63] [cursor=pointer]:
+                - /url: /knowledge
+                - generic [ref=e64]:
+                  - img [ref=e65]
+                  - generic [ref=e67]: 知识库
+            - listitem [ref=e68]:
+              - link "UE 资产" [ref=e69] [cursor=pointer]:
+                - /url: /assets
+                - generic [ref=e70]:
+                  - img [ref=e71]
+                  - generic [ref=e75]: UE 资产
+            - listitem [ref=e76]:
+              - link "数据洞察" [ref=e77] [cursor=pointer]:
+                - /url: /weekly-reports
+                - generic [ref=e78]:
+                  - img [ref=e79]
+                  - generic [ref=e80]: 数据洞察
+            - listitem [ref=e81]:
+              - link "设置" [ref=e82] [cursor=pointer]:
+                - /url: /settings
+                - generic [ref=e83]:
+                  - img [ref=e84]
+                  - generic [ref=e87]: 设置
+      - generic [ref=e89]: 未登录会话
+    - main [ref=e90]:
+      - generic [ref=e91]:
+        - generic [ref=e93]:
+          - heading "审核中心" [level=1] [ref=e94]
+          - generic [ref=e95]: P4
+          - generic [ref=e97]: 知识驱动 AI 智能审核
+        - main [ref=e98]:
+          - generic [ref=e99]:
+            - heading "动态维度审核" [level=2] [ref=e100]
+            - paragraph [ref=e101]: 审核维度由知识库定义，支持动态配置。AI 结合 RAG 上下文进行智能审核，支持人工修正与反馈闭环。
+            - tablist [ref=e104]:
+              - tab "全部" [selected] [ref=e105] [cursor=pointer]
+              - tab "已通过" [ref=e106] [cursor=pointer]
+              - tab "已拦截" [ref=e107] [cursor=pointer]
+              - tab "未审核" [ref=e108] [cursor=pointer]
+            - table [ref=e110]:
+              - rowgroup [ref=e111]:
+                - row "素材名 / ID 来源 机审状态 操作" [ref=e112]:
+                  - columnheader "素材名 / ID" [ref=e113]
+                  - columnheader "来源" [ref=e114]
+                  - columnheader "机审状态" [ref=e115]
+                  - columnheader "操作" [ref=e116]
+              - rowgroup [ref=e117]:
+                - row "加载中..." [ref=e118]:
+                  - cell "加载中..." [ref=e119]:
+                    - generic [ref=e120]:
+                      - img [ref=e121]
+                      - text: 加载中...
+  - button "Open Next.js Dev Tools" [ref=e128] [cursor=pointer]:
+    - img [ref=e129]
+  - alert [ref=e132]

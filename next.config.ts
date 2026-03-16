@@ -1,5 +1,7 @@
 import type { NextConfig } from 'next';
 import { join } from 'path';
+import { withSentryConfig } from '@sentry/nextjs';
+import createNextIntlPlugin from 'next-intl/plugin';
 
 const nextConfig: NextConfig = {
   // 启用压缩
@@ -197,5 +199,28 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// next-intl 插件（自动发现 ./i18n/request.ts）
+const withNextIntl = createNextIntlPlugin();
+
+// Sentry 集成（仅在配置了 DSN 时启用 source map 上传）
+export default withSentryConfig(withNextIntl(nextConfig), {
+  // 静默模式 — 不在构建时输出 Sentry 日志
+  silent: true,
+
+  // 仅在生产构建且有 auth token 时上传 source maps
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Source maps 配置：未配置 SENTRY_AUTH_TOKEN 时禁用上传，构建后自动删除
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+    deleteSourcemapsAfterUpload: true,
+  },
+
+  // Webpack 构建选项
+  webpack: {
+    // 不自动植入 Sentry 到 API 路由（通过配置文件手动控制）
+    autoInstrumentServerFunctions: false,
+  },
+});
 

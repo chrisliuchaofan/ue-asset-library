@@ -278,25 +278,25 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-white">
-      <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-        <h1 className="text-xl font-semibold text-gray-900">设置</h1>
-        <p className="mt-1 text-sm text-gray-500">管理系统配置、项目设置和 AI 提示词</p>
+      <div className="border-b border-border bg-muted/50 px-6 py-4">
+        <h1 className="text-xl font-semibold text-foreground">设置</h1>
+        <p className="mt-1 text-sm text-muted-foreground">管理系统配置、项目设置和 AI 提示词</p>
       </div>
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-6">
           {/* 现有项目设置 */}
           <div className="space-y-4 p-4 border rounded-lg bg-white">
-            <div className="text-sm font-semibold text-gray-900">项目设置</div>
+            <div className="text-sm font-semibold text-foreground">项目设置</div>
             {getAllProjects().map((project) => {
               const displayName = projectDisplayNames[project] || getProjectDisplayName(project);
               const isDefaultProject = PROJECTS.includes(project as any);
               return (
-                <div key={project} className="space-y-3 p-4 border rounded-lg bg-gray-50">
+                <div key={project} className="space-y-3 p-4 border rounded-lg bg-muted/50">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm text-gray-900 font-semibold">
+                    <Label className="text-sm text-foreground font-semibold">
                       {displayName}
                       {!isDefaultProject && (
-                        <span className="ml-2 text-sm text-gray-500 font-normal">({project})</span>
+                        <span className="ml-2 text-sm text-muted-foreground font-normal">({project})</span>
                       )}
                     </Label>
                     {!isDefaultProject && (
@@ -304,7 +304,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteProject(project)}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive/80"
                         title="删除项目"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -313,8 +313,8 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor={`display-${project}`} className="text-sm text-gray-700 mb-1 block">
-                        显示名称 <span className="text-red-500">*</span>
+                      <Label htmlFor={`display-${project}`} className="text-sm text-foreground mb-1 block">
+                        显示名称 <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id={`display-${project}`}
@@ -327,8 +327,8 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`password-${project}`} className="text-sm text-gray-700 mb-1 block">
-                        密码 <span className="text-red-500">*</span>
+                      <Label htmlFor={`password-${project}`} className="text-sm text-foreground mb-1 block">
+                        密码 <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id={`password-${project}`}
@@ -348,11 +348,11 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
 
           {/* 新增项目 */}
           <div className="space-y-4 p-4 border rounded-lg bg-white">
-            <div className="text-sm font-semibold text-gray-900">新增项目</div>
+            <div className="text-sm font-semibold text-foreground">新增项目</div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label className="text-sm text-gray-700 mb-1 block">
-                  显示名称 <span className="text-red-500">*</span>
+                <Label className="text-sm text-foreground mb-1 block">
+                  显示名称 <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="text"
@@ -364,8 +364,8 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                 />
               </div>
               <div>
-                <Label className="text-sm text-gray-700 mb-1 block">
-                  项目ID <span className="text-gray-400 text-xs">(自动生成)</span>
+                <Label className="text-sm text-foreground mb-1 block">
+                  项目ID <span className="text-muted-foreground text-xs">(自动生成)</span>
                 </Label>
                 <Input
                   type="text"
@@ -376,8 +376,8 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                 />
               </div>
               <div>
-                <Label className="text-sm text-gray-700 mb-1 block">
-                  密码 <span className="text-red-500">*</span>
+                <Label className="text-sm text-foreground mb-1 block">
+                  密码 <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="text"
@@ -402,17 +402,17 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
 
           {/* 描述文字设置 */}
           <div className="space-y-4 p-4 border rounded-lg bg-white">
-            <div className="text-sm font-semibold text-gray-900">描述文字设置</div>
-            <div className="text-sm text-gray-600 mb-4">
+            <div className="text-sm font-semibold text-foreground">描述文字设置</div>
+            <div className="text-sm text-muted-foreground mb-4">
               自定义前端显示的文字内容。使用 {'{project}'} 作为项目名称占位符。
             </div>
             <div className="space-y-4">
               {/* 项目密码验证对话框 */}
-              <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
-                <div className="text-sm font-semibold text-gray-900">项目密码验证对话框</div>
+              <div className="space-y-3 p-4 border rounded-lg bg-muted/50">
+                <div className="text-sm font-semibold text-foreground">项目密码验证对话框</div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-sm text-gray-700 mb-1 block">对话框标题</Label>
+                    <Label className="text-sm text-foreground mb-1 block">对话框标题</Label>
                     <Input
                       type="text"
                       value={descriptions.projectPasswordDialogTitle}
@@ -422,7 +422,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm text-gray-700 mb-1 block">输入框占位符</Label>
+                    <Label className="text-sm text-foreground mb-1 block">输入框占位符</Label>
                     <Input
                       type="text"
                       value={descriptions.projectPasswordInputPlaceholder}
@@ -433,7 +433,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-sm text-gray-700 mb-1 block">对话框描述</Label>
+                  <Label className="text-sm text-foreground mb-1 block">对话框描述</Label>
                   <Input
                     type="text"
                     value={descriptions.projectPasswordDialogDescription}
@@ -444,7 +444,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-sm text-gray-700 mb-1 block">取消按钮</Label>
+                    <Label className="text-sm text-foreground mb-1 block">取消按钮</Label>
                     <Input
                       type="text"
                       value={descriptions.projectPasswordDialogCancel}
@@ -454,7 +454,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm text-gray-700 mb-1 block">确认按钮</Label>
+                    <Label className="text-sm text-foreground mb-1 block">确认按钮</Label>
                     <Input
                       type="text"
                       value={descriptions.projectPasswordDialogConfirm}
@@ -467,11 +467,11 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
               </div>
 
               {/* 空状态 */}
-              <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
-                <div className="text-sm font-semibold text-gray-900">空状态显示</div>
+              <div className="space-y-3 p-4 border rounded-lg bg-muted/50">
+                <div className="text-sm font-semibold text-foreground">空状态显示</div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-sm text-gray-700 mb-1 block">标题</Label>
+                    <Label className="text-sm text-foreground mb-1 block">标题</Label>
                     <Input
                       type="text"
                       value={descriptions.emptyStateTitle}
@@ -481,7 +481,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm text-gray-700 mb-1 block">描述</Label>
+                    <Label className="text-sm text-foreground mb-1 block">描述</Label>
                     <Input
                       type="text"
                       value={descriptions.emptyStateDescription}
@@ -494,11 +494,11 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
               </div>
 
               {/* 资产计数 */}
-              <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
-                <div className="text-sm font-semibold text-gray-900">资产计数显示</div>
+              <div className="space-y-3 p-4 border rounded-lg bg-muted/50">
+                <div className="text-sm font-semibold text-foreground">资产计数显示</div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <Label className="text-sm text-gray-700 mb-1 block">前缀</Label>
+                    <Label className="text-sm text-foreground mb-1 block">前缀</Label>
                     <Input
                       type="text"
                       value={descriptions.assetsCountPrefix}
@@ -508,7 +508,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm text-gray-700 mb-1 block">后缀</Label>
+                    <Label className="text-sm text-foreground mb-1 block">后缀</Label>
                     <Input
                       type="text"
                       value={descriptions.assetsCountSuffix}
@@ -518,7 +518,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
                     />
                   </div>
                   <div>
-                    <Label className="text-sm text-gray-700 mb-1 block">0个资产</Label>
+                    <Label className="text-sm text-foreground mb-1 block">0个资产</Label>
                     <Input
                       type="text"
                       value={descriptions.assetsCountZero}
@@ -543,14 +543,14 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
 
           {/* AI 提示词设置（用于上传资产时的标签生成） */}
           <div className="space-y-4 p-4 border rounded-lg bg-white">
-            <div className="text-sm font-semibold text-gray-900">AI 提示词设置（上传资产时）</div>
+            <div className="text-sm font-semibold text-foreground">AI 提示词设置（上传资产时）</div>
             <div className="space-y-3">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted-foreground">
                 <p>自定义上传资产时 AI 生成标签的提示词。留空则使用默认提示词。</p>
-                <p className="mt-1 text-sm text-gray-500">提示：提示词应要求 AI 返回 JSON 格式，包含 tags 数组和 description 字符串</p>
+                <p className="mt-1 text-sm text-muted-foreground">提示：提示词应要求 AI 返回 JSON 格式，包含 tags 数组和 description 字符串</p>
               </div>
               <div>
-                <Label className="text-sm text-gray-700 mb-2 block">AI 标签生成提示词</Label>
+                <Label className="text-sm text-foreground mb-2 block">AI 标签生成提示词</Label>
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
@@ -574,14 +574,14 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
 
           {/* AI 分析提示词设置（用于资产详情页的AI分析） */}
           <div className="space-y-4 p-4 border rounded-lg bg-white">
-            <div className="text-sm font-semibold text-gray-900">AI 分析提示词设置（资产详情页）</div>
+            <div className="text-sm font-semibold text-foreground">AI 分析提示词设置（资产详情页）</div>
             <div className="space-y-3">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted-foreground">
                 <p>自定义资产详情页 AI 分析的提示词。留空则使用默认提示词。</p>
-                <p className="mt-1 text-sm text-gray-500">提示：提示词应要求 AI 仅返回描述（description），不需要标签（tags）。建议使用 JSON 格式：{`{"description":""}`}。此提示词与上传时的提示词分开管理。</p>
+                <p className="mt-1 text-sm text-muted-foreground">提示：提示词应要求 AI 仅返回描述（description），不需要标签（tags）。建议使用 JSON 格式：{`{"description":""}`}。此提示词与上传时的提示词分开管理。</p>
               </div>
               <div>
-                <Label className="text-sm text-gray-700 mb-2 block">AI 分析提示词</Label>
+                <Label className="text-sm text-foreground mb-2 block">AI 分析提示词</Label>
                 <textarea
                   value={aiAnalyzePrompt}
                   onChange={(e) => setAiAnalyzePrompt(e.target.value)}
@@ -605,14 +605,14 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
 
           {/* AI 分析提示词设置（用于素材详情页的AI分析） */}
           <div className="space-y-4 p-4 border rounded-lg bg-white">
-            <div className="text-sm font-semibold text-gray-900">AI 分析提示词设置（素材详情页）</div>
+            <div className="text-sm font-semibold text-foreground">AI 分析提示词设置（素材详情页）</div>
             <div className="space-y-3">
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-muted-foreground">
                 <p>自定义素材详情页 AI 分析的提示词。留空则使用默认提示词。</p>
-                <p className="mt-1 text-sm text-gray-500">提示：提示词应要求 AI 仅返回描述（description），不需要标签（tags）。建议使用 JSON 格式：{`{"description":""}`}。此提示词与资产详情页的提示词分开管理。</p>
+                <p className="mt-1 text-sm text-muted-foreground">提示：提示词应要求 AI 仅返回描述（description），不需要标签（tags）。建议使用 JSON 格式：{`{"description":""}`}。此提示词与资产详情页的提示词分开管理。</p>
               </div>
               <div>
-                <Label className="text-sm text-gray-700 mb-2 block">AI 分析提示词</Label>
+                <Label className="text-sm text-foreground mb-2 block">AI 分析提示词</Label>
                 <textarea
                   value={aiMaterialAnalyzePrompt}
                   onChange={(e) => setAiMaterialAnalyzePrompt(e.target.value)}
@@ -646,7 +646,7 @@ function SettingsSection({ sidebarCollapsed }: SettingsSectionProps) {
               {saving ? '保存中...' : '保存设置'}
             </Button>
             {message && (
-              <div className={`text-sm ${message.includes('失败') || message.includes('不能') ? 'text-red-500' : 'text-green-500'}`}>
+              <div className={`text-sm ${message.includes('失败') || message.includes('不能') ? 'text-destructive' : 'text-success'}`}>
                 {message}
               </div>
             )}
@@ -675,19 +675,19 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
       {/* 左侧导航栏 */}
       <aside
         className={cn(
-          'flex flex-col border-r border-gray-200 bg-gray-50 transition-all duration-300',
+          'flex flex-col border-r border-border bg-muted/50 transition-all duration-300',
           sidebarCollapsed ? 'w-16' : 'w-64'
         )}
       >
         {/* 侧边栏头部 */}
-        <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
+        <div className="flex h-16 items-center justify-between border-b border-border px-4">
           {!sidebarCollapsed && (
-            <h2 className="text-sm font-semibold text-gray-900">后台管理</h2>
+            <h2 className="text-sm font-semibold text-foreground">后台管理</h2>
           )}
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           >
             {sidebarCollapsed ? (
@@ -708,7 +708,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
                 'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
                 (activeTab === 'assets-new' || activeTab === 'assets-manage')
                   ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-100'
+                  : 'text-foreground hover:bg-muted'
               )}
             >
               <FolderOpen className="h-5 w-5 shrink-0" />
@@ -731,7 +731,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
                     'flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs font-medium transition-colors',
                     activeTab === 'assets-new'
                       ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      : 'text-muted-foreground hover:bg-muted'
                   )}
                 >
                   <Plus className="h-4 w-4" />
@@ -743,7 +743,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
                     'flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs font-medium transition-colors',
                     activeTab === 'assets-manage'
                       ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      : 'text-muted-foreground hover:bg-muted'
                   )}
                 >
                   <List className="h-4 w-4" />
@@ -761,7 +761,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
                 'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
                 (activeTab === 'materials-new' || activeTab === 'materials-manage')
                   ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-100'
+                  : 'text-foreground hover:bg-muted'
               )}
             >
               <Video className="h-5 w-5 shrink-0" />
@@ -784,7 +784,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
                     'flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs font-medium transition-colors',
                     activeTab === 'materials-new'
                       ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      : 'text-muted-foreground hover:bg-muted'
                   )}
                 >
                   <Plus className="h-4 w-4" />
@@ -796,7 +796,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
                     'flex w-full items-center gap-2 rounded px-3 py-1.5 text-xs font-medium transition-colors',
                     activeTab === 'materials-manage'
                       ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      : 'text-muted-foreground hover:bg-muted'
                   )}
                 >
                   <List className="h-4 w-4" />
@@ -816,7 +816,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
               }}
               className={cn(
                 'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
-                'text-gray-700 hover:bg-gray-100'
+                'text-foreground hover:bg-muted'
               )}
             >
               <Users className="h-5 w-5 shrink-0" />
@@ -837,7 +837,7 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
                 'flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
                 activeTab === 'settings'
                   ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-100'
+                  : 'text-foreground hover:bg-muted'
               )}
             >
               <Settings className="h-5 w-5 shrink-0" />
@@ -856,11 +856,11 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
         </nav>
 
         {/* 底部登出按钮 */}
-        <div className="border-t border-gray-200 p-2">
+        <div className="border-t border-border p-2">
           <Button
             variant="ghost"
             className={cn(
-              'w-full justify-start text-gray-700 hover:bg-gray-100 hover:text-gray-900',
+              'w-full justify-start text-foreground hover:bg-muted hover:text-foreground',
               sidebarCollapsed && 'justify-center px-2'
             )}
             onClick={() => {
@@ -877,11 +877,11 @@ export function AdminLayout({ children, storageMode, cdnBase }: AdminLayoutProps
       {/* 右侧内容区域 */}
       <div className="flex flex-1 flex-col overflow-hidden bg-white">
         {/* 顶部存储状态栏 */}
-        <div className="border-b border-gray-200 bg-gray-50 px-4 py-1.5">
-          <div className="text-xs text-gray-600">
-            存储模式: <span className="font-medium text-gray-900">{storageMode}</span>
+        <div className="border-b border-border bg-muted/50 px-4 py-1.5">
+          <div className="text-xs text-muted-foreground">
+            存储模式: <span className="font-medium text-foreground">{storageMode}</span>
             {' | '}
-            CDN路径: <span className="font-medium text-gray-900">{cdnBase || '/'}</span>
+            CDN路径: <span className="font-medium text-foreground">{cdnBase || '/'}</span>
           </div>
         </div>
         {/* 内容区域 - 最大化显示空间 */}

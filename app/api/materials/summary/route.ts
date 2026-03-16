@@ -10,9 +10,7 @@ export async function GET() {
   try {
     const totalCount = await getMaterialsCount();
     const duration = Date.now() - start;
-    
-    console.log(`[MaterialsSummary] totalCount=${totalCount}, durationMs=${duration}, fastPath=${totalCount === 0 ? 'empty' : 'hasData'}`);
-    
+
     const response = NextResponse.json({ totalCount });
     response.headers.set('X-Materials-Summary-Duration', duration.toString());
     response.headers.set('X-Materials-Summary-FastPath', totalCount === 0 ? 'empty' : 'hasData');

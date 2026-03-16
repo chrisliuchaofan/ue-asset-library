@@ -1,0 +1,553 @@
+- generic:
+  - generic:
+    - complementary:
+      - generic:
+        - generic:
+          - generic:
+            - img
+          - generic: 爆款工坊
+      - generic:
+        - generic:
+          - button:
+            - generic:
+              - img
+            - generic:
+              - paragraph: admin 的团队
+              - paragraph: 所有者
+            - img
+      - generic:
+        - navigation:
+          - heading [level=3]: 工作流
+          - list:
+            - listitem:
+              - link:
+                - /url: /inspirations
+                - generic:
+                  - img
+                  - generic: 灵感收集
+            - listitem:
+              - link:
+                - /url: /templates
+                - generic:
+                  - img
+                  - generic: 爆款模版
+            - listitem:
+              - link:
+                - /url: /studio
+                - generic:
+                  - img
+                  - generic: AI 创作
+            - listitem:
+              - link:
+                - /url: /review
+                - generic:
+                  - img
+                  - generic: 智能审核
+            - listitem:
+              - link:
+                - /url: /materials
+                - generic:
+                  - img
+                  - generic: 投放素材
+            - listitem:
+              - link:
+                - /url: /analysis
+                - generic:
+                  - img
+                  - generic: 爆款分析
+        - navigation:
+          - heading [level=3]: 数据与资源
+          - list:
+            - listitem:
+              - link:
+                - /url: /knowledge
+                - generic:
+                  - img
+                  - generic: 知识库
+            - listitem:
+              - link:
+                - /url: /assets
+                - generic:
+                  - img
+                  - generic: UE 资产
+            - listitem:
+              - link:
+                - /url: /weekly-reports
+                - generic:
+                  - img
+                  - generic: 数据洞察
+            - listitem:
+              - link:
+                - /url: /settings
+                - generic:
+                  - img
+                  - generic: 设置
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic: A
+            - generic: admin@admin.local
+          - generic:
+            - generic:
+              - button: 中
+              - button: EN
+            - button:
+              - img
+              - generic: 深色模式
+            - button:
+              - img
+    - main:
+      - generic:
+        - generic:
+          - generic:
+            - heading [level=1]: 投放素材
+          - generic:
+            - generic:
+              - generic:
+                - img
+                - searchbox
+              - button:
+                - generic: 三冰
+                - img
+              - button:
+                - img
+                - text: 上传素材
+        - generic:
+          - generic [ref=e135]:
+            - button [ref=e685] [cursor=pointer]:
+              - img [ref=e137]
+              - generic [ref=e138]: 筛选
+            - button [ref=e686] [cursor=pointer]:
+              - img [ref=e141]
+              - generic [ref=e147]: 风格
+            - button [ref=e687] [cursor=pointer]:
+              - img [ref=e149]
+              - generic [ref=e151]: 类型
+            - button [ref=e688] [cursor=pointer]:
+              - img [ref=e153]
+              - generic [ref=e156]: 标签
+            - button [ref=e689] [cursor=pointer]:
+              - img [ref=e158]
+              - generic [ref=e161]: 来源
+            - button [ref=e690] [cursor=pointer]:
+              - img [ref=e163]
+              - generic [ref=e165]: 品质
+          - main:
+            - generic:
+              - generic:
+                - generic:
+                  - button: 内部素材38
+                  - button: 竞品素材
+              - generic:
+                - button: 全部
+                - button: 草稿38
+                - button: 审核中0
+                - button: 已通过0
+                - button: 已投放0
+              - generic:
+                - generic:
+                  - generic: 找到 38 个素材
+                  - generic: (0 ms)
+                - generic:
+                  - button:
+                    - img
+                    - generic: 按最新排序
+                    - img
+                  - button:
+                    - img
+                    - generic: 批量
+                  - generic:
+                    - button:
+                      - img
+                    - button:
+                      - img
+                    - button:
+                      - img
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - button [ref=e691] [cursor=pointer]:
+                              - img [ref=e216]
+                              - generic [ref=e219]: 查看详情
+                            - link:
+                              - /url: /materials/1b5d7cda-6e2e-476b-a570-f4b8b1d2c8d4
+                          - generic:
+                            - link:
+                              - /url: /materials/1b5d7cda-6e2e-476b-a570-f4b8b1d2c8d4
+                              - heading [level=3]: "#250722_2晓_3晓_4AE_6小游戏_9H8516木场54_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e692] [cursor=pointer]:
+                              - img [ref=e233]
+                              - generic [ref=e236]: 查看详情
+                            - link:
+                              - /url: /materials/0d34d642-c2a3-4a97-889e-c778884e84d8
+                          - generic:
+                            - link:
+                              - /url: /materials/0d34d642-c2a3-4a97-889e-c778884e84d8
+                              - heading [level=3]: "#251011_1Z_2晓李鹏_3晓_4AE_6Z混剪_8C_917252RCB大猩猩偷围栏镜像_aB_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e693] [cursor=pointer]:
+                              - img [ref=e250]
+                              - generic [ref=e253]: 查看详情
+                            - link:
+                              - /url: /materials/1f6f6ca6-7fef-4937-8a0f-c4b9ef4671bf
+                          - generic:
+                            - link:
+                              - /url: /materials/1f6f6ca6-7fef-4937-8a0f-c4b9ef4671bf
+                              - heading [level=3]: "#250317_2鹏_3鹏_4UE_6玩法_9467大葱剧情_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e694] [cursor=pointer]:
+                              - img [ref=e267]
+                              - generic [ref=e270]: 查看详情
+                            - link:
+                              - /url: /materials/45e6cf72-98e0-4ed8-98f5-acf6eb77c1a3
+                          - generic:
+                            - link:
+                              - /url: /materials/45e6cf72-98e0-4ed8-98f5-acf6eb77c1a3
+                              - heading [level=3]: "#250319_2铭_3铭_4UE_6玩法_9475煎鱼_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - button [ref=e695] [cursor=pointer]:
+                              - img [ref=e286]
+                              - generic [ref=e289]: 查看详情
+                            - link:
+                              - /url: /materials/76623a03-184b-4cca-9c59-0f66bc416057
+                          - generic:
+                            - link:
+                              - /url: /materials/76623a03-184b-4cca-9c59-0f66bc416057
+                              - heading [level=3]: "#250729_2鹏_3鹏_4UE_6fake_9639木场烧木头_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e696] [cursor=pointer]:
+                              - img [ref=e303]
+                              - generic [ref=e306]: 查看详情
+                            - link:
+                              - /url: /materials/7945b942-db21-4499-83db-33b710b0728b
+                          - generic:
+                            - link:
+                              - /url: /materials/7945b942-db21-4499-83db-33b710b0728b
+                              - heading [level=3]: "#250627_1W808_2鑫_3鑫_4UE_6玩法_9W1133推树反击_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e697] [cursor=pointer]:
+                              - img [ref=e320]
+                              - generic [ref=e323]: 查看详情
+                            - link:
+                              - /url: /materials/a44c73d6-153c-4229-9a22-4266606b0e97
+                          - generic:
+                            - link:
+                              - /url: /materials/a44c73d6-153c-4229-9a22-4266606b0e97
+                              - heading [level=3]: "#250703_1W808_2焕_3焕_4UE_6fake_9W1142转刀割草UI_aA_b三冰_c横"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e698] [cursor=pointer]:
+                              - img [ref=e337]
+                              - generic [ref=e340]: 查看详情
+                            - link:
+                              - /url: /materials/8ce64831-5aa7-42c6-ba5f-311302da85b2
+                          - generic:
+                            - link:
+                              - /url: /materials/8ce64831-5aa7-42c6-ba5f-311302da85b2
+                              - heading [level=3]: "#250708_1W瑞博恩_2焕_3焕_4UE_6fake_9W1164砍木处理_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - button [ref=e699] [cursor=pointer]:
+                              - img [ref=e356]
+                              - generic [ref=e359]: 查看详情
+                            - link:
+                              - /url: /materials/05da0007-e6fd-4b94-9dd5-d852f65df3ca
+                          - generic:
+                            - link:
+                              - /url: /materials/05da0007-e6fd-4b94-9dd5-d852f65df3ca
+                              - heading [level=3]: "#250830_1W游易视_2昕_3昕_4UE_5W玩法_8A_912349KSB防御建造_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e700] [cursor=pointer]:
+                              - img [ref=e373]
+                              - generic [ref=e376]: 查看详情
+                            - link:
+                              - /url: /materials/355bf492-3c5c-4902-a41f-2701be622a8e
+                          - generic:
+                            - link:
+                              - /url: /materials/355bf492-3c5c-4902-a41f-2701be622a8e
+                              - heading [level=3]: "#250905_1W808_2昕_3昕_4UE_5W玩法_8A_912955KS开雾塔防_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 爆款
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e701] [cursor=pointer]:
+                              - img [ref=e390]
+                              - generic [ref=e393]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/4225f90f-b101-49e1-af84-c97df27ddb69
+                          - generic:
+                            - link:
+                              - /url: /materials/4225f90f-b101-49e1-af84-c97df27ddb69
+                              - heading [level=3]: "#241223_2珍_3珍_4AE_6小游戏_9H615红蓝对抗38_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 达标
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e702] [cursor=pointer]:
+                              - img [ref=e418]
+                              - generic [ref=e421]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/e5043c83-75d3-4056-b24d-d1042cb15979
+                          - generic:
+                            - link:
+                              - /url: /materials/e5043c83-75d3-4056-b24d-d1042cb15979
+                              - heading [level=3]: "#251229_1WZ_2贺鑫_3贺_4AE_5W玩法_6Z解说_8D_925541RCB女神瀑布改灰_aB_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 达标
+                              - generic: 常规
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - button [ref=e703] [cursor=pointer]:
+                              - img [ref=e448]
+                              - generic [ref=e451]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/e8997e74-a38f-47cb-8c33-3891166b5ce0
+                          - generic:
+                            - link:
+                              - /url: /materials/e8997e74-a38f-47cb-8c33-3891166b5ce0
+                              - heading [level=3]: "#251106_1Z_2晓_3晓_4AE_6Z小游戏_8H_919708木场54解说_aB_b三冰_c竖.mp4"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 达标
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e704] [cursor=pointer]:
+                              - img [ref=e476]
+                              - generic [ref=e479]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/b815286c-b5a5-429a-b3a7-7ce924f3402c
+                          - generic:
+                            - link:
+                              - /url: /materials/b815286c-b5a5-429a-b3a7-7ce924f3402c
+                              - heading [level=3]: "#251031_1W808_2慧_3慧_4UE_5Wfake_8A_919048潜入红蓝对抗_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 达标
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e705] [cursor=pointer]:
+                              - img [ref=e504]
+                              - generic [ref=e507]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/c16220b0-54eb-4278-840b-85e1b1d061c9
+                          - generic:
+                            - link:
+                              - /url: /materials/c16220b0-54eb-4278-840b-85e1b1d061c9
+                              - heading [level=3]: "#250806_2W轩晓李_3晓_4AE_6混剪解说_910092RCB金鳄鱼补牙片头2_aB_b三冰_c竖.mp4"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 达标
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e706] [cursor=pointer]:
+                              - img [ref=e532]
+                              - generic [ref=e535]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/203bbff4-1b15-40ae-8505-803136b491ba
+                          - generic:
+                            - link:
+                              - /url: /materials/203bbff4-1b15-40ae-8505-803136b491ba
+                              - heading [level=3]: "#250722_2晓_3晓_4AE_6小游戏_9H8516木场54_aA_b三冰_c竖.mp4"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 达标
+                              - generic: 常规
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - button [ref=e707] [cursor=pointer]:
+                              - img [ref=e562]
+                              - generic [ref=e565]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/0740d04d-2f48-4456-b214-37a9873e9356
+                          - generic:
+                            - link:
+                              - /url: /materials/0740d04d-2f48-4456-b214-37a9873e9356
+                              - heading [level=3]: "#241223_2珍_3珍_4AE_6小游戏_9H830红蓝对抗81_aA_b三冰_c竖"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 达标
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e708] [cursor=pointer]:
+                              - img [ref=e590]
+                              - generic [ref=e593]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/56a6883f-3fe4-4b14-9334-6483cc0243d6
+                          - generic:
+                            - link:
+                              - /url: /materials/56a6883f-3fe4-4b14-9334-6483cc0243d6
+                              - heading [level=3]: "#250422_2晓_3晓_4AE_6小游戏_9H6186红蓝对抗15_aA_b三冰_c竖"
+                            - generic:
+                              - generic: AE视频
+                              - generic: 达标
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e709] [cursor=pointer]:
+                              - img [ref=e618]
+                              - generic [ref=e621]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/53123501-e588-45b5-bcd8-8df327acf0d0
+                          - generic:
+                            - link:
+                              - /url: /materials/53123501-e588-45b5-bcd8-8df327acf0d0
+                              - heading [level=3]: "#250814_2W慧卢_3卢_4AE_6混剪解说_910852AI读评论1RCB怪物围栏_aB_b三冰_c竖.mp4"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 达标
+                              - generic: 常规
+                        - generic:
+                          - generic:
+                            - button [ref=e710] [cursor=pointer]:
+                              - img [ref=e646]
+                              - generic [ref=e649]: 查看详情
+                            - generic:
+                              - button:
+                                - img
+                            - generic:
+                              - button:
+                                - img
+                            - link:
+                              - /url: /materials/65adc584-ef6a-4860-a31c-7335bc6cab5e
+                          - generic:
+                            - link:
+                              - /url: /materials/65adc584-ef6a-4860-a31c-7335bc6cab5e
+                              - heading [level=3]: "#250729_2鹏_3鹏_4UE_6fake_9639木场烧木头_aA_b三冰_c竖.mp4"
+                            - generic:
+                              - generic: UE视频
+                              - generic: 达标
+                              - generic: 常规
+  - button "Open Next.js Dev Tools" [ref=e675] [cursor=pointer]:
+    - img [ref=e676]
+  - alert
+  - dialog "上传素材" [ref=e712]:
+    - generic [ref=e713]:
+      - heading "上传素材" [level=2] [ref=e714]
+      - paragraph [ref=e715]: 选择视频或图片文件上传到素材库
+    - generic [ref=e716] [cursor=pointer]:
+      - img [ref=e717]
+      - paragraph [ref=e720]: 拖拽文件到此处，或点击选择
+      - paragraph [ref=e721]: 支持 MP4、MOV、WebM、JPG、PNG、WebP、GIF，最大 2GB
+    - button "Close" [active] [ref=e722] [cursor=pointer]:
+      - img [ref=e723]
+      - generic [ref=e726]: Close

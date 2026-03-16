@@ -676,7 +676,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
   );
   
   const previewBackgroundClass = useMemo(
-    () => viewMode === 'thumbnail' ? 'bg-black' : 'bg-muted',
+    () => viewMode === 'thumbnail' ? 'bg-overlay' : 'bg-muted',
     [viewMode]
   );
   
@@ -1220,7 +1220,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
       >
         <Card
           className={cn(
-            "group relative flex flex-col rounded-xl border border-white/10 bg-white/[0.03] shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02] dark:border-white/[0.08] dark:bg-white/[0.04]",
+            "group relative flex flex-col rounded-xl border border-border bg-card shadow-sm transition-shadow duration-200 hover:shadow-lg",
             isClassic ? "overflow-hidden" : "overflow-visible",
             // 在缩略图模式下，Card 宽度由 thumbSizeClass 控制
             viewMode === 'thumbnail' && thumbSizeClass[thumbSize]
@@ -1263,7 +1263,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                       ref={(el) => {
                         thumbnailRefs.current[idx] = el;
                       }}
-                      className="relative h-full w-full overflow-hidden transition-transform duration-300 hover:scale-105 cursor-pointer"
+                      className="relative h-full w-full overflow-hidden transition-opacity duration-200 hover:opacity-90 cursor-pointer"
                       onMouseEnter={() => {
                         if (hoveredThumbnailIndex !== idx) {
                           setHoveredThumbnailIndex(idx);
@@ -1438,7 +1438,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
             <div
               ref={(el) => { mainPreviewRef.current = el; }}
               className={cn(
-                'relative overflow-hidden cursor-pointer transition-transform duration-300 group-hover:scale-[1.02]',
+                'relative overflow-hidden cursor-pointer transition-opacity duration-200 group-hover:opacity-90',
                 isOverlayMode ? 'rounded-xl' : 'rounded-t-xl', // 缩略图模式：不设置 flex；经典模式：居中
                 previewBackgroundClass,
                 !isClassic && !isOverlayMode && previewAspectClass, // 非经典模式且非缩略图模式使用aspect类
@@ -1544,7 +1544,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                 src={currentUrl}
                 alt={`${asset.name} - ${displayIndex + 1}`}
                 fill
-                className={`z-10 transition-transform duration-300 group-hover:scale-[1.02] ${
+                className={`z-10 transition-opacity duration-200 group-hover:opacity-90 ${
                   isOverlayMode ? 'rounded-xl object-cover' : 'rounded-t-xl object-cover'
                 }`}
                 sizes={priority ? `(max-width: 768px) 100vw, ${optimizedImageWidth}px` : "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"}

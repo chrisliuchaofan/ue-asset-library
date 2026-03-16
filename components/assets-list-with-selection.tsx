@@ -6,8 +6,14 @@ import { AssetsList } from './assets-list';
 import { HeaderActions } from './header-actions';
 import { useOfficeLocation } from './office-selector';
 import type { Asset } from '@/data/manifest.schema';
-import type { FilterSnapshot } from '@/components/filter-sidebar';
-import { Button } from '@/components/ui/button';
+/** 筛选快照类型（从废弃的 filter-sidebar 迁入） */
+export type FilterSnapshot = {
+  types: string[];
+  styles: string[];
+  tags: string[];
+  sources: string[];
+  versions: string[];
+};
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -18,7 +24,6 @@ import {
 import { LayoutPanelTop, Film, Grid3x3, ArrowUpDown, Clock, Star, ChevronUp, ChevronDown } from 'lucide-react';
 import { getAssetsIndex } from '@/lib/asset-index';
 import { getDescription } from '@/lib/constants';
-import { cn } from '@/lib/utils';
 
 interface AssetsListWithSelectionProps {
   assets: Asset[];
@@ -42,44 +47,43 @@ function ThumbSizeSelector({ thumbSize, onThumbSizeChange }: { thumbSize: ThumbS
   const handleClick = useCallback((size: ThumbSize, e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('[ThumbSize] 点击按钮，设置 thumbSize:', size, '当前值:', thumbSize);
     if (size !== thumbSize) {
-      console.log('[ThumbSize] 状态将更新为:', size);
       onThumbSizeChange(size);
-    } else {
-      console.log('[ThumbSize] 状态未改变，跳过更新');
     }
   }, [onThumbSizeChange, thumbSize]);
 
+  const sizes: { key: ThumbSize; label: string }[] = [
+    { key: 'small', label: '小' },
+    { key: 'medium', label: '中' },
+    { key: 'large', label: '大' },
+  ];
+
   return (
-    <div className="flex items-center gap-1">
-      <Button
-        type="button"
-        variant={thumbSize === 'small' ? 'default' : 'ghost'}
-        size="sm"
-        className="h-8 px-2 text-xs"
-        onClick={(e) => handleClick('small', e)}
-      >
-        小
-      </Button>
-      <Button
-        type="button"
-        variant={thumbSize === 'medium' ? 'default' : 'ghost'}
-        size="sm"
-        className="h-8 px-2 text-xs"
-        onClick={(e) => handleClick('medium', e)}
-      >
-        中
-      </Button>
-      <Button
-        type="button"
-        variant={thumbSize === 'large' ? 'default' : 'ghost'}
-        size="sm"
-        className="h-8 px-2 text-xs"
-        onClick={(e) => handleClick('large', e)}
-      >
-        大
-      </Button>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      {sizes.map((s) => {
+        const active = thumbSize === s.key;
+        return (
+          <button
+            key={s.key}
+            type="button"
+            onClick={(e) => handleClick(s.key, e)}
+            style={{
+              height: 32,
+              padding: '0 8px',
+              fontSize: 12,
+              fontWeight: 500,
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              background: active ? '#fff' : 'transparent',
+              color: active ? '#000' : 'rgba(255,255,255,0.4)',
+            }}
+          >
+            {s.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -194,7 +198,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    console.log('[ThumbSize] 保存到 localStorage:', thumbSize);
     localStorage.setItem(THUMB_SIZE_STORAGE_KEY, thumbSize);
   }, [thumbSize]);
 
@@ -452,21 +455,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       return null; // 有乐观更新时，不进行客户端筛选
     }
     
-    // 调试：检查初始数据
-    if (assets.length > 0 && assets.length <= 10) {
-      console.log('[AssetsListWithSelection] 初始资产数据（前10个）:', assets.slice(0, 10).map(a => ({ id: a.id, name: a.name, project: a.project })));
-    }
-    console.log('[AssetsListWithSelection] 筛选条件:', {
-      selectedProjects,
-      keyword,
-      selectedTypes,
-      selectedStyles,
-      selectedTags,
-      selectedSources,
-      selectedVersions,
-      assetsCount: assets.length,
-    });
-    
     // 检查是否有除了项目之外的其他筛选条件
     const hasOtherFilters = 
       keyword.trim() !== '' ||
@@ -481,17 +469,11 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       const filtered = assetsIndex.filter({
         projects: selectedProjects,
       });
-      console.log('[AssetsListWithSelection] 客户端项目筛选结果:', {
-        selectedProjects,
-        filteredCount: filtered.length,
-        totalAssets: assets.length,
-      });
       return filtered;
     }
     
     // 如果没有任何筛选条件，使用初始数据
     if (!hasServerFilters) {
-      console.log('[AssetsListWithSelection] 使用初始数据，无筛选:', assets.length);
       return assets;
     }
     
@@ -521,7 +503,6 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
 
     // Fast path: if library is empty, skip all queries
     if (assets.length === 0) {
-      console.log('[AssetsListWithSelection] Empty library fast path: skipping query request');
       setDisplayAssets([]);
       setIsFetching(false);
       setFilterDurationMs(null);
@@ -559,18 +540,13 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
       })
       .then(({ assets: nextAssets }) => {
         const duration = performance.now() - start;
-        console.log('[AssetsListWithSelection] 服务端筛选成功:', {
-          returnedCount: nextAssets.length,
-          durationMs: duration,
-        });
         setDisplayAssets(nextAssets || []);
         setFilterDurationMs(duration);
       })
       .catch((error) => {
         if (error.name === 'AbortError') return;
         console.error('[AssetsListWithSelection] 筛选接口错误:', error);
-        // 筛选失败时，回退到原始资产数据（至少显示一些内容）
-        console.warn('[AssetsListWithSelection] 筛选失败，回退到原始资产数据');
+        // 筛选失败时，回退到原始资产数据
         setDisplayAssets(assets);
         setFilterDurationMs(null);
       })
@@ -608,10 +584,10 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
   ];
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="px-2 pt-2 sm:px-5 sm:pt-5 lg:px-6">
-        <div className="mb-3 sm:mb-4 flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-muted-foreground">
+    <div style={{ display: 'flex', height: '100%', flexDirection: 'column' }}>
+      <div style={{ padding: '0' }}>
+        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
             {useMemo(() => {
               if (sortedDisplayAssets.length === 0) {
                 return getDescription('assetsCountZero');
@@ -619,21 +595,34 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
               return `${getDescription('assetsCountPrefix')} ${sortedDisplayAssets.length} ${getDescription('assetsCountSuffix')}`;
             }, [sortedDisplayAssets.length])}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              {viewModeOptions.map((option) => (
-                <Button
-                  key={option.value}
-                  type="button"
-                  variant={viewMode === option.value ? 'default' : 'ghost'}
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => handleViewModeChange(option.value)}
-                  title={option.label}
-                >
-                  {option.icon}
-                </Button>
-              ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {viewModeOptions.map((option) => {
+                const active = viewMode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleViewModeChange(option.value)}
+                    title={option.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 32,
+                      height: 32,
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      background: active ? '#fff' : 'rgba(255,255,255,0.06)',
+                      color: active ? '#000' : 'rgba(255,255,255,0.4)',
+                    }}
+                  >
+                    {option.icon}
+                  </button>
+                );
+              })}
             </div>
             {/* 缩略图尺寸切换 - 仅在缩略图模式下显示 */}
             {viewMode === 'thumbnail' && (
@@ -645,26 +634,37 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
             {/* 排序按钮 */}
             <DropdownMenu open={isSortDropdownOpen} onOpenChange={setIsSortDropdownOpen}>
               <DropdownMenuTrigger asChild>
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground transition hover:bg-transparent"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 10px',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: 'rgba(255,255,255,0.6)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    borderRadius: 6,
+                    transition: 'color 0.15s',
+                  }}
                 >
-                  <ArrowUpDown className="h-4 w-4" />
-                  <span className="hidden md:inline">
-                    {sortBy === 'latest' 
-                      ? (timeSortDirection === 'newest-first' ? '按最新排序' : '按最旧排序')
-                      : '按推荐排序'}
+                  <ArrowUpDown style={{ width: 14, height: 14 }} />
+                  <span>
+                    {sortBy === 'latest'
+                      ? (timeSortDirection === 'newest-first' ? '最新' : '最旧')
+                      : '推荐'}
                   </span>
                   {isSortDropdownOpen ? (
-                    <ChevronUp className="h-4 w-4" />
+                    <ChevronUp style={{ width: 14, height: 14 }} />
                   ) : (
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown style={{ width: 14, height: 14 }} />
                   )}
-                </Button>
+                </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuContent align="start" style={{ width: 176, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}>
                 <DropdownMenuRadioGroup
                   value={sortBy}
                   onValueChange={(value) => {
@@ -672,11 +672,9 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
                     setIsSortDropdownOpen(false);
                   }}
                 >
-                  <DropdownMenuRadioItem 
-                    value="latest" 
-                    className="flex items-center gap-2 text-sm"
+                  <DropdownMenuRadioItem
+                    value="latest"
                     onClick={(e) => {
-                      // 点击时切换时间排序方向
                       if (sortBy === 'latest') {
                         e.preventDefault();
                         setTimeSortDirection(prev => prev === 'newest-first' ? 'oldest-first' : 'newest-first');
@@ -684,14 +682,14 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
                       }
                     }}
                   >
-                    <Clock className="h-4 w-4" />
-                    <span className="text-sm">
+                    <Clock style={{ width: 16, height: 16 }} />
+                    <span>
                       {timeSortDirection === 'newest-first' ? '按最新排序' : '按最旧排序'}
                     </span>
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="recommended" className="flex items-center gap-2 text-sm">
-                    <Star className="h-4 w-4" />
-                    <span className="text-sm">按推荐排序</span>
+                  <DropdownMenuRadioItem value="recommended">
+                    <Star style={{ width: 16, height: 16 }} />
+                    <span>按推荐排序</span>
                   </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
@@ -699,7 +697,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
           </div>
         </div>
       </div>
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto px-2 pb-4 sm:px-5 sm:pb-6 lg:px-6">
+      <div ref={scrollContainerRef} style={{ flex: 1, overflow: 'auto' }}>
         <AssetsList
           assets={sortedDisplayAssets}
           selectedAssetIds={selectedAssetIds}

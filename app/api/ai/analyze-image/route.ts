@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSession } from '@/lib/auth';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { shouldCallRealAI, createDryRunMockResponse, getUserModeInfo } from '@/lib/ai/dry-run-check';
 import { consumeCredits } from '@/lib/credits';
 import { ErrorCode, createStandardError } from '@/lib/errors/error-handler';
@@ -473,14 +473,9 @@ async function callAIImageAPI(
  */
 export async function POST(request: Request) {
   try {
-    // ✅ 检查登录状态
-    const session = await getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { message: '未登录，请先登录' },
-        { status: 401 }
-      );
-    }
+    // ✅ 验证团队访问权限
+    const ctx = await requireTeamAccess();
+    if (isErrorResponse(ctx)) return ctx;
 
     const body = await request.json();
     
@@ -562,7 +557,7 @@ export async function POST(request: Request) {
     // 估算费用（可以根据实际情况调整）
     const estimatedCost = 1; // 每次图像分析消耗 1 积分
     
-    const userId = session.user.id || session.user.email!;
+    const userId = ctx.userId;
     
     try {
       // 检查余额是否充足

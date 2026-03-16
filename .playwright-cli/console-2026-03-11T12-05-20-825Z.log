@@ -1,0 +1,1 @@
+[     153ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://mnkwtiettgeyoihdjlod.supabase.co/rest/v1/deduplication_projects?select=id%2Cname%2Ccost_threshold%2Ccreated_at%2Cupdated_at&order=created_at.asc:0

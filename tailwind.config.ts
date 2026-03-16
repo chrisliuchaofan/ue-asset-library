@@ -50,6 +50,24 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          foreground: 'hsl(var(--info-foreground))',
+        },
+        overlay: {
+          DEFAULT: 'hsl(var(--overlay))',
+          foreground: 'hsl(var(--overlay-foreground))',
+        },
+        'surface-secondary': 'hsl(var(--surface-secondary))',
+        'surface-tertiary': 'hsl(var(--surface-tertiary))',
       },
       borderRadius: {
         lg: 'var(--radius)',

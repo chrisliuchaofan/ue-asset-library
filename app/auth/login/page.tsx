@@ -3,17 +3,18 @@
 import { useState, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import Link from 'next/link';
+import { LoginShowcase } from '@/components/auth/LoginShowcase';
+
+/* ───── 响应式 CSS ───── */
+
+const LOGIN_CSS = `
+.login-right{width:100%}
+@media(min-width:768px){
+  .login-right{width:50%}
+}`;
+
+/* ───── 登录表单 ───── */
 
 function LoginForm() {
   const router = useRouter();
@@ -22,8 +23,19 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
 
-  const callbackUrl = searchParams.get('callbackUrl') || '/admin';
+  const callbackUrl = searchParams.get('callbackUrl') || '/materials';
+
+  const handleOAuth = async (provider: string) => {
+    setOauthLoading(provider);
+    try {
+      await signIn(provider, { callbackUrl });
+    } catch {
+      setOauthLoading(null);
+      setError('第三方登录失败，请重试');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,11 +43,6 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      console.log('[LoginForm] 开始登录:', { username, hasPassword: !!password, callbackUrl });
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/auth/login/page.tsx:36',message:'calling signIn',data:{username,hasPassword:!!password,callbackUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
-      // #endregion
       const result = await signIn('credentials', {
         username,
         password,
@@ -43,60 +50,25 @@ function LoginForm() {
         callbackUrl,
       });
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/auth/login/page.tsx:43',message:'signIn result',data:{ok:result?.ok,error:result?.error,status:result?.status,url:result?.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B'})}).catch(()=>{});
-      // #endregion
-      console.log('[LoginForm] 登录结果:', { 
-        ok: result?.ok, 
-        error: result?.error,
-        status: result?.status,
-        url: result?.url 
-      });
-
       if (result?.error) {
-        console.error('[LoginForm] 登录失败:', result.error);
-        
-        // 根据错误类型显示更详细的错误信息
         let errorMessage = '登录失败';
         if (result.error === 'CredentialsSignin') {
-          // CredentialsSignin 通常意味着 authorize() 返回了 null 或抛出了错误
-          // 检查服务器端日志以获取真实错误信息
-          errorMessage = '登录失败：后端连接错误或认证失败\n\n可能的原因：\n1. 后端服务未运行（检查后端是否在运行）\n2. 网络连接问题（检查 CORS 配置）\n3. 用户名或密码错误\n\n请查看：\n- 浏览器控制台（F12）中的详细错误信息\n- 服务器端日志中的 [Auth] 错误信息';
+          errorMessage = '用户名或密码错误';
         } else if (result.error === 'Configuration') {
-          // Configuration 错误通常意味着 NextAuth 配置有问题
-          errorMessage = '登录失败：NextAuth 配置错误\n\n可能的原因：\n1. NEXTAUTH_SECRET 未配置或配置错误\n2. NEXTAUTH_URL 配置错误\n3. NextAuth 配置文件中存在语法错误\n\n请检查：\n- .env.local 文件中的 NEXTAUTH_SECRET 和 NEXTAUTH_URL\n- 服务器端日志中的 NextAuth 错误信息';
+          errorMessage = '系统配置错误，请联系管理员';
         } else {
           errorMessage = `登录失败: ${result.error}`;
         }
-        
-        // 在控制台输出更详细的错误信息，帮助调试
-        console.error('[LoginForm] ❌ 登录失败详情:', {
-          error: result.error,
-          status: result.status,
-          url: result.url,
-          note: result.error === 'Configuration' 
-            ? 'NextAuth 配置错误，请检查 NEXTAUTH_SECRET 和 NEXTAUTH_URL 环境变量'
-            : '请检查服务器端日志中的 [Auth] 错误信息以获取详细错误原因',
-        });
-        
+
         setError(errorMessage);
         setPassword('');
       } else if (result?.ok) {
-        console.log('[LoginForm] 登录成功，跳转到:', callbackUrl);
-        // 登录成功，跳转到目标页面
-        // 使用 window.location 确保完全刷新页面和 session
         window.location.href = callbackUrl;
       } else {
-        console.warn('[LoginForm] 登录结果异常:', result);
-        // 如果 result 为 undefined 或没有 error，也尝试跳转
         router.push(callbackUrl);
         router.refresh();
       }
     } catch (err: any) {
-      console.error('[LoginForm] 登录异常:', { 
-        error: err.message || err,
-        stack: err.stack?.substring(0, 300)
-      });
       setError(`登录失败: ${err.message || '请重试'}`);
       setPassword('');
     } finally {
@@ -104,96 +76,223 @@ function LoginForm() {
     }
   };
 
+  /* ── 输入框样式 ── */
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 16px',
+    fontSize: 15,
+    color: '#111',
+    background: '#fff',
+    border: '1px solid #e0e0e0',
+    borderRadius: 8,
+    outline: 'none',
+    transition: 'border-color 0.2s ease',
+    boxSizing: 'border-box',
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">管理后台登录</CardTitle>
-          <CardDescription>请输入您的账号和密码以访问管理页面</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">用户名</Label>
-              <Input
-                id="username"
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
+      <style>{LOGIN_CSS}</style>
+
+      {/* ── 左侧：产品展示 ── */}
+      <LoginShowcase />
+
+      {/* ── 右侧：登录表单 ── */}
+      <div
+        className="login-right"
+        style={{
+          background: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'clamp(24px, 5vw, 64px)',
+        }}
+      >
+        <div style={{ width: '100%', maxWidth: 380 }}>
+          {/* 标题 */}
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#111', margin: 0, lineHeight: 1.3 }}>
+            欢迎来到
+            <br />
+            爆款工坊
+          </h1>
+          <p style={{ marginTop: 12, fontSize: 14, color: '#666' }}>
+            没有账号？{' '}
+            <Link href="/auth/register" style={{ color: '#111', fontWeight: 600, textDecoration: 'underline' }}>
+              免费注册
+            </Link>
+          </p>
+
+          {/* 表单 */}
+          <form onSubmit={handleSubmit} style={{ marginTop: 32 }}>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444', marginBottom: 6 }}>
+                用户名或邮箱
+              </label>
+              <input
                 type="text"
                 placeholder="请输入用户名"
                 value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value);
-                  setError('');
-                }}
+                onChange={(e) => { setUsername(e.target.value); setError(''); }}
                 autoFocus
                 required
                 disabled={loading}
+                style={inputStyle}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#111'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = '#e0e0e0'; }}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
-              <Input
-                id="password"
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444', marginBottom: 6 }}>
+                密码
+              </label>
+              <input
                 type="password"
                 placeholder="请输入密码"
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError('');
-                }}
+                onChange={(e) => { setPassword(e.target.value); setError(''); }}
                 required
                 disabled={loading}
+                style={inputStyle}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#111'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = '#e0e0e0'; }}
               />
             </div>
+
+            {/* 错误信息 */}
             {error && (
-              <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+              <div style={{
+                padding: '10px 14px',
+                fontSize: 13,
+                color: '#dc2626',
+                background: '#fef2f2',
+                borderRadius: 8,
+                marginBottom: 16,
+                wordBreak: 'break-word' as const,
+              }}>
                 {error}
               </div>
             )}
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? '登录中...' : '登录'}
-            </Button>
-            {/* 预留钉钉登录按钮位置 */}
-            {/* 
-            <div className="relative w-full">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">或</span>
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => signIn('dingtalk', { callbackUrl })}
+
+            {/* 登录按钮 */}
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: '12px 0',
+                fontSize: 15,
+                fontWeight: 600,
+                color: '#fff',
+                background: '#111',
+                border: 'none',
+                borderRadius: 8,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.7 : 1,
+                transition: 'opacity 0.2s ease',
+              }}
             >
-              使用钉钉登录
-            </Button>
-            */}
-          </CardFooter>
-        </form>
-      </Card>
+              {loading ? '登录中...' : '登录'}
+            </button>
+          </form>
+
+          {/* 分隔线 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0' }}>
+            <div style={{ flex: 1, height: 1, background: '#e5e5e5' }} />
+            <span style={{ fontSize: 12, color: '#999', textTransform: 'uppercase' }}>或</span>
+            <div style={{ flex: 1, height: 1, background: '#e5e5e5' }} />
+          </div>
+
+          {/* OAuth 按钮 — 全宽堆叠 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => handleOAuth('google')}
+              disabled={!!oauthLoading || loading}
+              style={{
+                width: '100%',
+                padding: '11px 0',
+                fontSize: 14,
+                fontWeight: 500,
+                color: '#333',
+                background: '#fff',
+                border: '1px solid #e0e0e0',
+                borderRadius: 8,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                transition: 'background 0.15s ease',
+              }}
+            >
+              {oauthLoading === 'google' ? (
+                <span style={{ width: 16, height: 16, border: '2px solid #ccc', borderTopColor: '#333', borderRadius: '50%', animation: 'spin 0.6s linear infinite', display: 'inline-block' }} />
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                </svg>
+              )}
+              使用 Google 登录
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOAuth('github')}
+              disabled={!!oauthLoading || loading}
+              style={{
+                width: '100%',
+                padding: '11px 0',
+                fontSize: 14,
+                fontWeight: 500,
+                color: '#333',
+                background: '#fff',
+                border: '1px solid #e0e0e0',
+                borderRadius: 8,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                transition: 'background 0.15s ease',
+              }}
+            >
+              {oauthLoading === 'github' ? (
+                <span style={{ width: 16, height: 16, border: '2px solid #ccc', borderTopColor: '#333', borderRadius: '50%', animation: 'spin 0.6s linear infinite', display: 'inline-block' }} />
+              ) : (
+                <svg width="16" height="16" fill="#333" viewBox="0 0 24 24">
+                  <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z" />
+                </svg>
+              )}
+              使用 GitHub 登录
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Spin animation */}
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
+/* ───── Page 入口 ───── */
+
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">管理后台登录</CardTitle>
-            <CardDescription>加载中...</CardDescription>
-          </CardHeader>
-        </Card>
+      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#111' }}>欢迎来到爆款工坊</h1>
+          <p style={{ color: '#999', marginTop: 8 }}>加载中...</p>
+        </div>
       </div>
     }>
       <LoginForm />
     </Suspense>
   );
 }
-

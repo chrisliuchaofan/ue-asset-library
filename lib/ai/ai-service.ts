@@ -6,37 +6,48 @@
 import type { AIProvider, AIProviderType, AIGenerateTextRequest, AIGenerateTextResponse, AIGenerateImageRequest, AIGenerateImageResponse, AIGenerateVideoRequest, AIGenerateVideoResponse, AIGenerateVoiceRequest, AIGenerateVoiceResponse } from './types';
 import { QwenProvider } from './providers/qwen-provider';
 import { JimengProvider } from './providers/jimeng-provider';
+import { KlingProvider } from './providers/kling-provider';
+import { DeepSeekProvider } from './providers/deepseek-provider';
+import { TuyooProvider } from './providers/tuyoo-provider';
 import { createLRUCache } from '@/lib/lru-cache';
 
 class AIServiceManager {
   private providers = new Map<AIProviderType, AIProvider>();
-  private defaultProvider: AIProviderType = 'qwen';
-  
+  // 优先使用 DeepSeek，如果未配置则降级到 qwen
+  private defaultProvider: AIProviderType = process.env.DEEPSEEK_API_KEY ? 'deepseek' : 'qwen';
+
   // 缓存层（性能优化）
   // 注意：文本生成结果缓存需谨慎，避免敏感信息泄露，主要用于公开模板或重复的高频查询
   private textCache = createLRUCache<string, AIGenerateTextResponse>(100);
-  
+
   constructor() {
     this.registerProviders();
   }
-  
+
   private registerProviders() {
     // 注册千问提供商
     this.providers.set('qwen', new QwenProvider());
-    
-    // 注册即梦提供商（预留）
+
+    // 注册即梦提供商
     this.providers.set('jimeng', new JimengProvider());
-    
-    // 可灵等其他提供商可在此注册
+
+    // 注册可灵提供商
+    this.providers.set('kling', new KlingProvider());
+
+    // 注册 DeepSeek 提供商
+    this.providers.set('deepseek', new DeepSeekProvider());
+
+    // 注册 Tuyoo 提供商
+    this.providers.set('tuyoo', new TuyooProvider());
   }
-  
+
   /**
    * 获取提供商（支持降级）
    */
   private getProvider(type?: AIProviderType): AIProvider {
     const providerType = type || this.defaultProvider;
     const provider = this.providers.get(providerType);
-    
+
     if (!provider) {
       // 降级到默认提供商
       const defaultProvider = this.providers.get(this.defaultProvider);
@@ -45,10 +56,10 @@ class AIServiceManager {
       }
       return defaultProvider;
     }
-    
+
     return provider;
   }
-  
+
   /**
    * 文本生成（带缓存）
    */
@@ -59,12 +70,12 @@ class AIServiceManager {
     if (cached) {
       return cached;
     }
-    
+
     const provider = this.getProvider(providerType);
     if (!provider.generateText) {
       throw new Error(`提供商 ${provider.name} 不支持文本生成`);
     }
-    
+
     try {
       const result = await provider.generateText(request);
       this.textCache.set(cacheKey, result);
@@ -78,35 +89,35 @@ class AIServiceManager {
       throw error;
     }
   }
-  
+
   /**
    * 图像生成
    */
   async generateImage(request: AIGenerateImageRequest, providerType?: AIProviderType): Promise<AIGenerateImageResponse> {
     // 图像生成通常不缓存结果（URL 会过期，且生成成本高，通常需要新鲜结果）
-    
+
     const provider = this.getProvider(providerType);
     if (!provider.generateImage) {
       throw new Error(`提供商 ${provider.name} 不支持图像生成`);
     }
-    
+
     return provider.generateImage(request);
   }
-  
+
   /**
    * 视频生成（支持即梦/可灵）
    */
   async generateVideo(request: AIGenerateVideoRequest): Promise<AIGenerateVideoResponse> {
     const providerType = request.provider || 'jimeng'; // 默认即梦
     const provider = this.getProvider(providerType);
-    
+
     if (!provider.generateVideo) {
       throw new Error(`提供商 ${provider.name} 不支持视频生成`);
     }
-    
+
     return provider.generateVideo(request);
   }
-  
+
   /**
    * 语音生成
    */
@@ -115,7 +126,7 @@ class AIServiceManager {
     if (!provider.generateVoice) {
       throw new Error(`提供商 ${provider.name} 不支持语音生成`);
     }
-    
+
     return provider.generateVoice(request);
   }
 }

@@ -1,147 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  'Access-Control-Max-Age': '86400',
+};
 
-/**
- * 视频代理 API - 用于绕过 CORS 限制
- * 使用方法: /api/video-proxy?url=<encoded-video-url>
- */
-export async function GET(request: NextRequest) {
+function isAllowedUrl(url: string): boolean {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const videoUrl = searchParams.get('url');
-
-    if (!videoUrl) {
-      return NextResponse.json(
-        { error: 'Missing url parameter' },
-        { status: 400 }
-      );
-    }
-
-    // 解码 URL
-    const decodedUrl = decodeURIComponent(videoUrl);
-
-    // 验证 URL 格式
-    if (!decodedUrl.startsWith('http://') && !decodedUrl.startsWith('https://')) {
-      return NextResponse.json(
-        { error: 'Invalid URL format' },
-        { status: 400 }
-      );
-    }
-
-    console.log('[Video Proxy] Fetching video:', decodedUrl);
-
-    // 从请求中获取 Range 头（用于视频流式播放）
-    const range = request.headers.get('range');
-    
-    // 构建请求头，模拟浏览器请求
-    const headers: HeadersInit = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
-      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-      'Accept-Encoding': 'identity',
-      'Connection': 'keep-alive',
-      'Sec-Fetch-Dest': 'video',
-      'Sec-Fetch-Mode': 'no-cors',
-      'Sec-Fetch-Site': 'cross-site',
-    };
-
-    // 如果URL包含域名，设置Referer为该域名
-    try {
-      const urlObj = new URL(decodedUrl);
-      headers['Referer'] = `${urlObj.protocol}//${urlObj.host}/`;
-      headers['Origin'] = `${urlObj.protocol}//${urlObj.host}`;
-    } catch (e) {
-      // 如果URL解析失败，使用原始URL作为Referer
-      headers['Referer'] = decodedUrl;
-    }
-
-    // 如果有Range请求，添加Range头
-    if (range) {
-      headers['Range'] = range;
-    }
-
-    // 获取视频流
-    const videoResponse = await fetch(decodedUrl, {
-      headers,
-      redirect: 'follow',
-    });
-
-    if (!videoResponse.ok) {
-      const errorText = await videoResponse.text().catch(() => videoResponse.statusText);
-      console.error('[Video Proxy] Failed to fetch video:', videoResponse.status, videoResponse.statusText, errorText.substring(0, 200));
-      
-      // 如果是403错误，尝试直接返回错误信息，让前端知道需要重新生成视频
-      if (videoResponse.status === 403) {
-        return NextResponse.json(
-          { 
-            error: '视频访问被拒绝，可能已过期。请重新生成视频。',
-            status: 403,
-            code: 'VIDEO_EXPIRED'
-          },
-          { status: 403 }
-        );
-      }
-      
-      return NextResponse.json(
-        { 
-          error: `Failed to fetch video: ${videoResponse.statusText}`,
-          status: videoResponse.status
-        },
-        { status: videoResponse.status }
-      );
-    }
-
-    // 获取视频内容类型
-    const contentType = videoResponse.headers.get('content-type') || 'video/mp4';
-    const contentLength = videoResponse.headers.get('content-length');
-    const contentRange = videoResponse.headers.get('content-range');
-    const acceptRanges = videoResponse.headers.get('accept-ranges') || 'bytes';
-
-    // 处理Range请求
-    if (range && videoResponse.status === 206) {
-      // 部分内容响应
-      const videoBuffer = await videoResponse.arrayBuffer();
-      return new NextResponse(videoBuffer, {
-        status: 206,
-        headers: {
-          'Content-Type': contentType,
-          'Content-Length': videoResponse.headers.get('content-length') || videoBuffer.byteLength.toString(),
-          'Content-Range': contentRange || `bytes ${range}`,
-          'Accept-Ranges': acceptRanges,
-          'Cache-Control': 'public, max-age=3600',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-          'Access-Control-Allow-Headers': 'Range',
-          'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
-        },
-      });
-    }
-
-    // 完整视频响应
-    const videoBuffer = await videoResponse.arrayBuffer();
-
-    // 返回视频流，设置正确的 headers
-    return new NextResponse(videoBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Content-Length': contentLength || videoBuffer.byteLength.toString(),
-        'Accept-Ranges': acceptRanges,
-        'Cache-Control': 'public, max-age=3600', // 缓存 1 小时
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-        'Access-Control-Allow-Headers': 'Range',
-        'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
-      },
-    });
-  } catch (error: any) {
-    console.error('[Video Proxy] Error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
   }
 }
 
+function jsonResponse(body: object, status: number): NextResponse {
+  return NextResponse.json(body, {
+    status,
+    headers: CORS_HEADERS,
+  });
+}
+
+async function fetchUpstream(
+  targetUrl: string,
+  options: { userAgent: string; referer?: string }
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    'User-Agent': options.userAgent,
+  };
+  if (options.referer) headers['Referer'] = options.referer;
+  return fetch(targetUrl, { method: 'GET', headers, redirect: 'follow' });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const urlParam = req.nextUrl.searchParams.get('url');
+    if (!urlParam) {
+      return jsonResponse({ error: 'Missing url parameter' }, 400);
+    }
+
+    const targetUrl = decodeURIComponent(urlParam);
+    if (!isAllowedUrl(targetUrl)) {
+      return jsonResponse({ error: 'Invalid or disallowed url' }, 400);
+    }
+
+    const origin = new URL(targetUrl).origin + '/';
+    const chromeUA =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+    let resp = await fetchUpstream(targetUrl, {
+      userAgent: chromeUA,
+      referer: origin,
+    });
+
+    if (resp.status === 403) {
+      resp = await fetchUpstream(targetUrl, { userAgent: chromeUA });
+    }
+    if (resp.status === 403) {
+      resp = await fetchUpstream(targetUrl, {
+        userAgent: 'Mozilla/5.0 (compatible; SuperInsight-VideoProxy/1.0)',
+      });
+    }
+
+    if (!resp.ok) {
+      return jsonResponse(
+        { error: `Upstream returned ${resp.status}`, detail: '源站拒绝或需鉴权，请检查链接是否公开可访问' },
+        resp.status
+      );
+    }
+
+    const contentType = resp.headers.get('Content-Type') || 'application/octet-stream';
+    const headers = new Headers(CORS_HEADERS);
+    headers.set('Content-Type', contentType);
+
+    return new NextResponse(resp.body as unknown as BodyInit, { status: 200, headers });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return jsonResponse({ error: message }, 502);
+  }
+}

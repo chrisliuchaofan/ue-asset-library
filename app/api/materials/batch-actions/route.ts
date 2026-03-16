@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { updateMaterial, deleteMaterial } from '@/lib/materials-data';
 import { MaterialQualityEnum, MaterialTagEnum, MaterialTypeEnum, type Material } from '@/data/material.schema';
 
-type MaterialsBatchAction = 'update-type' | 'update-tag' | 'update-quality' | 'delete';
+type MaterialsBatchAction = 'update-type' | 'update-tag' | 'update-quality' | 'update-status' | 'delete';
 
 interface BatchActionRequest {
   materialIds: string[];
@@ -11,6 +11,7 @@ interface BatchActionRequest {
     type?: string;
     tag?: string;
     quality?: string[];
+    status?: string;
   };
 }
 
@@ -96,6 +97,29 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         message: `已更新 ${processed} 个素材的质量`,
+        processed,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    }
+
+    if (action === 'update-status') {
+      const nextStatus = payload?.status;
+      const validStatuses = ['draft', 'reviewing', 'approved', 'published'];
+      if (!nextStatus || !validStatuses.includes(nextStatus)) {
+        return NextResponse.json({ message: '无效的状态值' }, { status: 400 });
+      }
+
+      for (const materialId of validIds) {
+        try {
+          await updateMaterial(materialId, { status: nextStatus } as any);
+          processed++;
+        } catch (error) {
+          errors.push(`更新素材 ${materialId} 状态失败：${error instanceof Error ? error.message : '未知错误'}`);
+        }
+      }
+
+      return NextResponse.json({
+        message: `已更新 ${processed} 个素材的状态`,
         processed,
         errors: errors.length > 0 ? errors : undefined,
       });

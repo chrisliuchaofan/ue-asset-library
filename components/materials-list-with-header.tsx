@@ -7,9 +7,15 @@ import { MaterialsList } from '@/components/materials-list';
 import { HeaderActions } from '@/components/header-actions';
 import { type Material } from '@/data/material.schema';
 import { useOfficeLocation } from '@/components/office-selector';
-import { Loader2, ArrowUpDown, Clock, Star, ChevronDown, ChevronUp, Grid, LayoutGrid } from 'lucide-react';
-import type { MaterialFilterSnapshot } from '@/components/material-filter-sidebar';
+import { ArrowUpDown, Clock, Star, ChevronDown, ChevronUp, Grid, LayoutGrid, List, DollarSign, TrendingUp, CheckSquare } from 'lucide-react';
+/** 筛选快照类型（从废弃的 material-filter-sidebar 迁入） */
+export interface MaterialFilterSnapshot {
+  type: string | null;
+  tag: string | null;
+  qualities: string[];
+}
 import type { MaterialsSummary } from '@/lib/materials-data';
+import { MATERIAL_STATUS_LABELS, type MaterialStatus } from '@/data/material.schema';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -17,10 +23,11 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
+import { ConsumptionSummaryBar } from '@/components/charts/consumption-summary-bar';
+import { BatchOperationsBar } from '@/components/batch-operations-bar';
 
-type ThumbSize = 'compact' | 'expanded';
-type SortBy = 'latest' | 'recommended';
+type ThumbSize = 'compact' | 'expanded' | 'list';
+type SortBy = 'latest' | 'recommended' | 'consumption' | 'roi';
 type TimeSortDirection = 'newest-first' | 'oldest-first';
 
 const THUMB_SIZE_STORAGE_KEY = 'material-thumb-size';
@@ -71,6 +78,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
   const [sortBy, setSortBy] = useState<SortBy>('latest');
   const [timeSortDirection, setTimeSortDirection] = useState<TimeSortDirection>('newest-first');
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<MaterialStatus | 'all'>('all');
   const searchParams = useSearchParams();
   const keyword = searchParams.get('q') ?? '';
   const selectedType = searchParams.get('type') || null;
@@ -88,6 +96,38 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
   );
   const hasServerFilters =
     Boolean(keyword) || Boolean(selectedType) || Boolean(selectedTag) || selectedQualities.length > 0 || Boolean(selectedProject);
+
+  // 批量操作状态
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleExitBatchMode = useCallback(() => {
+    setBatchMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBatchComplete = useCallback(() => {
+    setBatchMode(false);
+    setSelectedIds(new Set());
+    // 刷新页面数据
+    window.location.reload();
+  }, []);
 
   const [mounted, setMounted] = useState(false);
   const [officeLocation, setOfficeLocation] = useOfficeLocation();
@@ -107,7 +147,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
       try {
         const stored = localStorage.getItem(THUMB_SIZE_STORAGE_KEY) as ThumbSize | null;
         // 兼容旧数据：将 small/medium/large 转换为 compact/expanded
-        if (stored === 'compact' || stored === 'expanded') {
+        if (stored === 'compact' || stored === 'expanded' || stored === 'list') {
           setThumbSize(stored);
         } else if (stored === 'small' || stored === 'medium') {
           setThumbSize('compact');
@@ -149,7 +189,6 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
   useEffect(() => {
     // Fast path: if library is empty, skip all queries (不等待mounted，立即处理)
     if (summary.total === 0) {
-      console.log('[MaterialsListWithHeader] Empty library fast path: skipping query request');
       setDisplayMaterials([]);
       setIsFetching(false);
       setFilterDuration(null);
@@ -212,7 +251,6 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
       const start = performance.now();
       // 只有在没有乐观更新时才显示加载状态，避免闪烁
       setIsFetching(true);
-      console.log('[MaterialsListWithHeader] Server-side filter request (large dataset)');
       fetch('/api/materials/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -273,7 +311,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
     if (typeof window === 'undefined') return;
     try {
       const stored = localStorage.getItem(SORT_BY_STORAGE_KEY) as SortBy | null;
-      if (stored === 'latest' || stored === 'recommended') {
+      if (stored === 'latest' || stored === 'recommended' || stored === 'consumption' || stored === 'roi') {
         setSortBy(stored);
       }
       const storedDirection = localStorage.getItem(TIME_SORT_DIRECTION_STORAGE_KEY) as TimeSortDirection | null;
@@ -301,86 +339,146 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
   const sortMaterials = useCallback((materials: Material[]): Material[] => {
     const sorted = [...materials];
     if (sortBy === 'latest') {
-      // 按时间排序（按更新时间，如果没有则按创建时间）
       sorted.sort((a, b) => {
         const aTime = a.updatedAt ?? a.createdAt ?? 0;
         const bTime = b.updatedAt ?? b.createdAt ?? 0;
-        // 根据时间排序方向决定升序或降序
         if (timeSortDirection === 'newest-first') {
-          return bTime - aTime; // 降序，最新的在前
+          return bTime - aTime;
         } else {
-          return aTime - bTime; // 升序，最旧的在前
+          return aTime - bTime;
         }
       });
     } else if (sortBy === 'recommended') {
-      // 按推荐排序：推荐素材优先，然后按时间排序
       sorted.sort((a, b) => {
         const aRecommended = a.recommended ?? false;
         const bRecommended = b.recommended ?? false;
-        
-        // 如果推荐状态不同，推荐的在前面
         if (aRecommended !== bRecommended) {
           return aRecommended ? -1 : 1;
         }
-        
-        // 如果推荐状态相同，按时间排序
         const aTime = a.updatedAt ?? a.createdAt ?? 0;
         const bTime = b.updatedAt ?? b.createdAt ?? 0;
         if (timeSortDirection === 'newest-first') {
-          return bTime - aTime; // 降序，最新的在前
+          return bTime - aTime;
         } else {
-          return aTime - bTime; // 升序，最旧的在前
+          return aTime - bTime;
         }
       });
+    } else if (sortBy === 'consumption') {
+      // 按消耗排序（降序，消耗高的在前）
+      sorted.sort((a, b) => (b.consumption ?? 0) - (a.consumption ?? 0));
+    } else if (sortBy === 'roi') {
+      // 按 ROI 排序（降序，ROI 高的在前）
+      sorted.sort((a, b) => (b.roi ?? 0) - (a.roi ?? 0));
     }
     return sorted;
   }, [sortBy, timeSortDirection]);
 
   // 对显示的材料进行排序
+  // 按状态筛选
+  const statusFilteredMaterials = useMemo(() => {
+    if (statusFilter === 'all') return displayMaterials;
+    return displayMaterials.filter(m => (m.status || 'draft') === statusFilter);
+  }, [displayMaterials, statusFilter]);
+
   const sortedDisplayMaterials = useMemo(() => {
-    return sortMaterials(displayMaterials);
-  }, [displayMaterials, sortMaterials]);
+    return sortMaterials(statusFilteredMaterials);
+  }, [statusFilteredMaterials, sortMaterials]);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedIds(new Set(sortedDisplayMaterials.map((m) => m.id)));
+  }, [sortedDisplayMaterials]);
 
   const portal = mounted ? document.getElementById('header-actions-portal') : null;
 
   return (
     <>
-      <div className="mb-3 sm:mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-xs sm:text-sm text-muted-foreground flex-shrink-0 min-w-0 overflow-hidden">
-          <span className="whitespace-nowrap">找到 {String(sortedDisplayMaterials.length)} 个素材</span>
+      {/* 状态筛选 */}
+      <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto' }}>
+        {(['all', 'draft', 'reviewing', 'approved', 'published'] as const).map((s) => {
+          const active = statusFilter === s;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              style={{
+                whiteSpace: 'nowrap',
+                padding: '4px 10px',
+                borderRadius: 9999,
+                fontSize: 12,
+                fontWeight: 500,
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                background: active ? '#fff' : 'rgba(255,255,255,0.06)',
+                color: active ? '#000' : 'rgba(255,255,255,0.5)',
+              }}
+            >
+              {s === 'all' ? '全部' : MATERIAL_STATUS_LABELS[s]}
+              {s !== 'all' && (
+                <span style={{ marginLeft: 4, opacity: 0.7 }}>
+                  {displayMaterials.filter(m => (m.status || 'draft') === s).length}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 消耗分布概览 */}
+      <div style={{ marginBottom: 8 }}>
+        <ConsumptionSummaryBar materials={sortedDisplayMaterials} />
+      </div>
+
+      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', flexShrink: 0, minWidth: 0, overflow: 'hidden' }}>
+          <span style={{ whiteSpace: 'nowrap' }}>找到 {String(sortedDisplayMaterials.length)} 个素材</span>
           {summary.total > 0 && !hasServerFilters && (
-            <span className="ml-1 sm:ml-2 text-xs text-muted-foreground/80 whitespace-nowrap">共 {String(summary.total)} 个</span>
+            <span style={{ marginLeft: 8, fontSize: 12, color: 'rgba(255,255,255,0.25)', whiteSpace: 'nowrap' }}>共 {String(summary.total)} 个</span>
           )}
           {filterDuration !== null && (
-            <span className="ml-1 sm:ml-2 text-xs text-muted-foreground/80 whitespace-nowrap">
+            <span style={{ marginLeft: 8, fontSize: 12, color: 'rgba(255,255,255,0.25)', whiteSpace: 'nowrap' }}>
               ({String(Math.round(filterDuration))} ms)
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0 w-full sm:w-auto justify-end sm:justify-start overflow-x-auto scrollbar-hide">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           {/* 排序按钮 */}
           <DropdownMenu open={isSortDropdownOpen} onOpenChange={setIsSortDropdownOpen}>
             <DropdownMenuTrigger asChild>
-              <Button
+              <button
                 type="button"
-                variant="ghost"
-                size="sm"
-                className="inline-flex items-center gap-1 sm:gap-2 px-1.5 sm:px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-medium text-foreground transition hover:bg-transparent flex-shrink-0"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'rgba(255,255,255,0.6)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  borderRadius: 6,
+                  transition: 'color 0.15s',
+                }}
               >
-                <ArrowUpDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">
-                  {sortBy === 'latest' 
-                    ? (timeSortDirection === 'newest-first' ? '按最新排序' : '按最旧排序')
-                    : '按推荐排序'}
+                <ArrowUpDown style={{ width: 14, height: 14 }} />
+                <span>
+                  {sortBy === 'latest'
+                    ? (timeSortDirection === 'newest-first' ? '最新' : '最旧')
+                    : sortBy === 'recommended' ? '推荐'
+                    : sortBy === 'consumption' ? '消耗'
+                    : 'ROI'}
                 </span>
                 {isSortDropdownOpen ? (
-                  <ChevronUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <ChevronUp style={{ width: 14, height: 14 }} />
                 ) : (
-                  <ChevronDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <ChevronDown style={{ width: 14, height: 14 }} />
                 )}
-              </Button>
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-44">
+            <DropdownMenuContent align="start" style={{ width: 176, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}>
               <DropdownMenuRadioGroup
                 value={sortBy}
                 onValueChange={(value) => {
@@ -388,11 +486,9 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
                   setIsSortDropdownOpen(false);
                 }}
               >
-                <DropdownMenuRadioItem 
-                  value="latest" 
-                  className="flex items-center gap-2 text-sm"
+                <DropdownMenuRadioItem
+                  value="latest"
                   onClick={(e) => {
-                    // 点击时切换时间排序方向
                     if (sortBy === 'latest') {
                       e.preventDefault();
                       setTimeSortDirection(prev => prev === 'newest-first' ? 'oldest-first' : 'newest-first');
@@ -400,59 +496,115 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
                     }
                   }}
                 >
-                  <Clock className="h-4 w-4" />
-                  <span className="text-sm">
+                  <Clock style={{ width: 16, height: 16 }} />
+                  <span>
                     {timeSortDirection === 'newest-first' ? '按最新排序' : '按最旧排序'}
                   </span>
                 </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="recommended" className="flex items-center gap-2 text-sm">
-                  <Star className="h-4 w-4" />
-                  <span className="text-sm">按推荐排序</span>
+                <DropdownMenuRadioItem value="recommended">
+                  <Star style={{ width: 16, height: 16 }} />
+                  <span>按推荐排序</span>
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="consumption">
+                  <DollarSign style={{ width: 16, height: 16 }} />
+                  <span>按消耗排序</span>
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="roi">
+                  <TrendingUp style={{ width: 16, height: 16 }} />
+                  <span>按 ROI 排序</span>
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          {/* 预览模式切换 - 紧凑和展开预览两种模式 */}
-          <div className="flex items-center gap-0.5 flex-shrink-0">
-            <Button
-              type="button"
-              variant={thumbSize === 'compact' ? 'default' : 'outline'}
-              size="icon"
-              className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setThumbSize('compact');
-              }}
-              title="紧凑模式"
-            >
-              <Grid className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant={thumbSize === 'expanded' ? 'default' : 'outline'}
-              size="icon"
-              className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setThumbSize('expanded');
-              }}
-              title="展开预览"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
+          {/* 批量操作按钮 */}
+          <button
+            type="button"
+            onClick={() => {
+              if (batchMode) {
+                handleExitBatchMode();
+              } else {
+                setBatchMode(true);
+              }
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '6px 10px',
+              fontSize: 12,
+              fontWeight: 500,
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              background: batchMode ? '#fff' : 'rgba(255,255,255,0.06)',
+              color: batchMode ? '#000' : 'rgba(255,255,255,0.5)',
+            }}
+          >
+            <CheckSquare style={{ width: 14, height: 14 }} />
+            <span>批量</span>
+          </button>
+          {/* 预览模式切换 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {([
+              { key: 'list' as ThumbSize, icon: <List style={{ width: 16, height: 16 }} />, title: '列表视图' },
+              { key: 'compact' as ThumbSize, icon: <Grid style={{ width: 16, height: 16 }} />, title: '紧凑网格' },
+              { key: 'expanded' as ThumbSize, icon: <LayoutGrid style={{ width: 16, height: 16 }} />, title: '展开预览' },
+            ] as const).map((item) => {
+              const active = thumbSize === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setThumbSize(item.key);
+                  }}
+                  title={item.title}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 32,
+                    height: 32,
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    background: active ? '#fff' : 'rgba(255,255,255,0.06)',
+                    color: active ? '#000' : 'rgba(255,255,255,0.4)',
+                  }}
+                >
+                  {item.icon}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
-      <div className="relative">
-        <MaterialsList 
-          materials={sortedDisplayMaterials} 
+      <div style={{ position: 'relative' }}>
+        <MaterialsList
+          materials={sortedDisplayMaterials}
           thumbSize={thumbSize}
           scrollContainerRef={scrollContainerRef}
+          batchMode={batchMode}
+          selectedIds={selectedIds}
+          onToggleSelect={handleToggleSelect}
         />
         {/* 筛选遮罩层 - 已移除 */}
       </div>
+      {/* 批量操作浮动栏 */}
+      {batchMode && (
+        <BatchOperationsBar
+          selectedIds={selectedIds}
+          totalCount={sortedDisplayMaterials.length}
+          onSelectAll={handleSelectAll}
+          onClearSelection={handleClearSelection}
+          onExitBatchMode={handleExitBatchMode}
+          onBatchComplete={handleBatchComplete}
+        />
+      )}
       {portal && createPortal(
         <HeaderActions
           officeLocation={officeLocation}

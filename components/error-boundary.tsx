@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Component, type ReactNode } from 'react';
+import * as Sentry from '@sentry/nextjs';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 import Link from 'next/link';
@@ -52,11 +53,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       this.props.onError(error, errorInfo);
     }
 
-    // 在生产环境中，可以将错误发送到监控服务（如 Sentry）
-    if (process.env.NODE_ENV === 'production') {
-      // TODO: 集成错误监控服务
-      // Sentry.captureException(error, { contexts: { react: errorInfo } });
-    }
+    // 将错误发送到 Sentry 监控服务
+    Sentry.captureException(error, {
+      contexts: {
+        react: {
+          componentStack: errorInfo.componentStack ?? undefined,
+        },
+      },
+    });
   }
 
   handleReset = () => {

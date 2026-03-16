@@ -1,233 +1,26 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import type { MouseEvent as ReactMouseEvent } from "react";
-import { Suspense, lazy } from "react";
-import { createPortal } from "react-dom";
-import { Menu, X, ChevronDown } from "lucide-react";
-import type { FilterSnapshot } from "@/components/filter-sidebar";
+import { Suspense } from "react";
 import { AssetsListWithSelection } from "@/components/assets-list-with-selection";
 import { AssetsListSkeleton } from "@/components/assets-list";
 import type { Asset } from "@/data/manifest.schema";
 
-// 检测是否为移动端
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
-  
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-    checkMobile();
-    
-    // 性能优化：使用防抖处理 resize 事件，避免频繁触发
-    let timeoutId: NodeJS.Timeout | null = null;
-    const debouncedCheckMobile = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      timeoutId = setTimeout(() => {
-        checkMobile();
-      }, 150); // 150ms 防抖延迟
-    };
-    
-    window.addEventListener('resize', debouncedCheckMobile, { passive: true });
-    return () => {
-      window.removeEventListener('resize', debouncedCheckMobile);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, []);
-  
-  return isMobile;
-}
-
-// 动态导入 FilterSidebar，只在侧边栏打开时加载
-const FilterSidebar = lazy(() => import("@/components/filter-sidebar").then(mod => ({ default: mod.FilterSidebar })));
-
 interface AssetsPageShellProps {
   assets: Asset[];
-  types: string[];
-  styles: string[];
-  tags: string[];
-  sources: string[];
-  engineVersions: string[];
 }
 
-export function AssetsPageShell({
-  assets,
-  types,
-  styles,
-  tags,
-  sources,
-  engineVersions,
-}: AssetsPageShellProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(220);
-  const [optimisticFilters, setOptimisticFilters] = useState<FilterSnapshot | null>(null);
-  const isMobile = useIsMobile();
-  const collapsedWidth = 48;
-  const MIN_WIDTH = 220;
-  const MAX_WIDTH = 420;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const portalTarget = document.getElementById("sidebar-toggle-portal");
-    setPortalContainer(portalTarget);
-  }, []);
-
-  const handleResizeStart = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      if (!isSidebarOpen) return;
-      event.preventDefault();
-      const startX = event.clientX;
-      const startWidth = sidebarWidth;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const delta = moveEvent.clientX - startX;
-        const nextWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
-        setSidebarWidth(nextWidth);
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.body.classList.remove('select-none');
-      };
-
-      document.body.classList.add('select-none');
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    },
-    [isSidebarOpen, sidebarWidth]
-  );
-
-  const collapsedCategories = [
-    { key: "style", label: "S", name: "Style" },
-    { key: "type", label: "T", name: "Type" },
-    { key: "tag", label: "A", name: "Tag" },
-    { key: "source", label: "R", name: "Source" },
-    { key: "version", label: "S", name: "Version" },
-  ];
-
-  const navButtonBase =
-    "inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-transparent bg-transparent text-slate-600 transition active:scale-95 active:border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 dark:text-slate-100 cursor-pointer";
-
-  const effectiveSidebarWidth = isSidebarOpen ? sidebarWidth : collapsedWidth;
-
-  const toggleButton = (
-    <div
-      className="flex h-full items-center justify-center"
-      style={{ width: collapsedWidth }}
-    >
-      <button
-        type="button"
-        onClick={() => setIsSidebarOpen((prev) => !prev)}
-        className={navButtonBase}
-        aria-label={isSidebarOpen ? "关闭筛选" : "打开筛选"}
-        title={isSidebarOpen ? "关闭筛选" : "打开筛选"}
-      >
-        {isSidebarOpen ? (
-          <X className="h-4 w-4" strokeWidth={2} />
-        ) : (
-          <Menu className="h-4 w-4" strokeWidth={2} />
-        )}
-      </button>
-    </div>
-  );
-
+export function AssetsPageShell({ assets }: AssetsPageShellProps) {
   return (
-    <>
-      {portalContainer
-        ? createPortal(toggleButton, portalContainer)
-        : (
-          <div
-            className="fixed left-0 top-24 z-40"
-            style={{ width: collapsedWidth }}
-          >
-            <div className="flex h-full items-center justify-center">
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen((prev) => !prev)}
-                className={navButtonBase}
-                aria-label={isSidebarOpen ? "关闭筛选" : "打开筛选"}
-                title={isSidebarOpen ? "关闭筛选" : "打开筛选"}
-              >
-                {isSidebarOpen ? (
-                  <ChevronDown className="h-4 w-4" strokeWidth={2} />
-                ) : (
-                  <Menu className="h-4 w-4" strokeWidth={2} />
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-      <div className="relative flex flex-1 overflow-hidden">
-        {/* Drawer */}
-        <div className={`pointer-events-auto fixed left-0 bottom-0 top-[3.5rem] sm:top-16 z-30 flex transition-transform duration-300 ease-out ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'
-        }`}>
-          <div
-            className="transform-gpu transition-all duration-300 ease-out"
-            style={{ width: effectiveSidebarWidth }}
-          >
-            <div className="relative h-full border-r border-zinc-200/70 bg-white/95 px-1.5 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/[0.08] dark:bg-black/65 dark:shadow-[0_28px_60px_rgba(0,0,0,0.45)] dark:backdrop-blur">
-              {isSidebarOpen ? (
-                <Suspense fallback={<div className="w-full" />}>
-                  <FilterSidebar
-                    types={types}
-                    styles={styles}
-                    tags={tags}
-                    sources={sources}
-                    engineVersions={engineVersions}
-                    onOptimisticFiltersChange={setOptimisticFilters}
-                  />
-                </Suspense>
-              ) : (
-                <div className="flex h-full flex-col items-stretch gap-2 py-2">
-                  {collapsedCategories.map((item) => (
-                    <button
-                      type="button"
-                      key={item.key}
-                      className="flex h-10 w-full items-center justify-center rounded-md text-sm font-semibold text-slate-600 transition active:scale-95 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/[0.08] cursor-pointer"
-                      onClick={() => setIsSidebarOpen(true)}
-                      title={item.name}
-                      aria-label={item.name}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          {isSidebarOpen && (
-            <div
-              className="hidden w-1.5 cursor-ew-resize bg-zinc-200/80 hover:bg-zinc-300/80 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] sm:block"
-              onMouseDown={handleResizeStart}
-            />
-          )}
-        </div>
-
-        {/* Content */}
-        <main
-          className="relative flex-1 overflow-hidden transform-gpu transition-all duration-300 ease-out"
-          style={{
-            minHeight: 'calc(100vh - 3.5rem)',
-            marginLeft: isMobile ? '0px' : `${effectiveSidebarWidth}px`,
-          }}
-        >
-          {/* 移动端遮罩层 - 已移除 */}
-          <div className="flex h-full flex-col overflow-y-auto">
-            <Suspense fallback={<AssetsListSkeleton />}>
-              <AssetsListWithSelection assets={assets} optimisticFilters={optimisticFilters ?? undefined} />
-            </Suspense>
-          </div>
-        </main>
+    <div style={{
+      flex: 1,
+      overflowY: 'auto',
+      background: '#000',
+    }}>
+      <div style={{ padding: '16px 24px' }}>
+        <Suspense fallback={<AssetsListSkeleton />}>
+          <AssetsListWithSelection assets={assets} />
+        </Suspense>
       </div>
-    </>
+    </div>
   );
 }

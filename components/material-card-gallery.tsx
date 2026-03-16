@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { type Material } from '@/data/material.schema';
+import { type Material, MATERIAL_STATUS_LABELS, MATERIAL_STATUS_COLORS } from '@/data/material.schema';
 import { cn, highlightText, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, X, Eye, BarChart3, Loader2, RefreshCw } from 'lucide-react';
 import { MaterialDetailDialog } from '@/components/material-detail-dialog';
@@ -19,6 +19,9 @@ interface MaterialCardGalleryProps {
   keyword?: string;
   priority?: boolean;
   thumbSize?: ThumbSize;
+  batchMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 // thumbSize 对应的卡片宽度（像素）
@@ -31,7 +34,7 @@ const getThumbSizeWidth = (thumbSize: ThumbSize, isMobile: boolean = false): num
 };
 
 // 性能优化：使用 memo 减少不必要的重渲染
-function MaterialCardGalleryComponent({ material, keyword, priority = false, thumbSize = 'compact' }: MaterialCardGalleryProps) {
+function MaterialCardGalleryComponent({ material, keyword, priority = false, thumbSize = 'compact', batchMode, isSelected, onToggleSelect }: MaterialCardGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [enlarged, setEnlarged] = useState(false);
   const [isHoveringPreview, setIsHoveringPreview] = useState(false);
@@ -504,14 +507,23 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
   return (
     <>
       <Card
-        className="group overflow-hidden transition-shadow hover:shadow-lg flex flex-col relative border"
-        style={{ 
+        className={`group overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 flex flex-col relative border ${batchMode && isSelected ? 'border-primary ring-1 ring-primary/30' : 'hover:bg-white/[0.03]'} ${batchMode ? 'cursor-pointer' : ''}`}
+        style={{
           width: actualCardWidth,
-          height: totalCardHeight 
+          height: totalCardHeight
         }}
         onMouseEnter={() => setIsHoveringCard(true)}
         onMouseLeave={() => setIsHoveringCard(false)}
+        onClick={batchMode ? (e) => { e.preventDefault(); e.stopPropagation(); onToggleSelect?.(material.id); } : undefined}
       >
+        {/* 批量选择复选框 */}
+        {batchMode && (
+          <div className="absolute left-1.5 top-1.5 z-30">
+            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-white/80 bg-black/30'}`}>
+              {isSelected && <svg className="w-3.5 h-3.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+            </div>
+          </div>
+        )}
         {/* 预览区域 */}
         <div
           className="relative overflow-hidden bg-muted flex items-center justify-center cursor-pointer"
@@ -523,7 +535,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
           {/* 详情按钮和AI解析按钮 - 右上角 */}
           <div 
             className={cn(
-              "absolute right-1.5 top-1.5 z-50 transition-opacity duration-200 flex items-center gap-1",
+              "absolute right-1.5 top-1.5 z-20 transition-opacity duration-200 flex items-center gap-1",
               !isHoveringCard && "opacity-0"
             )}
           >
@@ -646,7 +658,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-6 w-6 rounded-full border-white/60 bg-background/80 hover:bg-background"
+                  className="h-6 w-6 rounded-full border-border bg-background/80 hover:bg-background"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -667,7 +679,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-6 w-6 rounded-full border-white/60 bg-background/80 hover:bg-background"
+                  className="h-6 w-6 rounded-full border-border bg-background/80 hover:bg-background"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -733,12 +745,21 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
             >
               {material.type}
             </Badge>
-            <Badge 
-              variant="secondary" 
+            <Badge
+              variant="secondary"
               className="rounded-full font-normal text-[10px] px-1.5 py-0.5"
             >
               {material.tag}
             </Badge>
+            {material.status && material.status !== 'draft' && (
+              <Badge
+                variant="outline"
+                className="rounded-full font-normal text-[10px] px-1.5 py-0.5"
+                style={{ borderColor: MATERIAL_STATUS_COLORS[material.status as keyof typeof MATERIAL_STATUS_COLORS], color: MATERIAL_STATUS_COLORS[material.status as keyof typeof MATERIAL_STATUS_COLORS] }}
+              >
+                {MATERIAL_STATUS_LABELS[material.status as keyof typeof MATERIAL_STATUS_LABELS]}
+              </Badge>
+            )}
             {material.quality.slice(0, 2).map((q) => (
               <Badge 
                 key={q} 
@@ -881,9 +902,10 @@ export const MaterialCardGallery = memo(MaterialCardGalleryComponent, (prevProps
     prevProps.material.gallery?.join(',') === nextProps.material.gallery?.join(',') &&
     prevProps.keyword === nextProps.keyword &&
     prevProps.priority === nextProps.priority &&
-    prevProps.thumbSize === nextProps.thumbSize
+    prevProps.thumbSize === nextProps.thumbSize &&
+    prevProps.batchMode === nextProps.batchMode &&
+    prevProps.isSelected === nextProps.isSelected
   );
 });
 
 MaterialCardGallery.displayName = 'MaterialCardGallery';
-

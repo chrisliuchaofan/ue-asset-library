@@ -3,15 +3,15 @@
 import { useState, useEffect } from 'react';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 type Theme = 'light' | 'dark' | 'system';
+
+const themeLabel: Record<Theme, string> = {
+  light: '浅色模式',
+  dark: '深色模式',
+  system: '跟随系统',
+};
 
 interface ThemeToggleProps {
   className?: string;
@@ -87,6 +87,11 @@ export function ThemeToggle({ className }: ThemeToggleProps = {}) {
     );
   }
 
+  const cycleTheme = () => {
+    const next: Record<Theme, Theme> = { light: 'dark', dark: 'system', system: 'light' };
+    setTheme(next[theme]);
+  };
+
   const getIcon = () => {
     switch (theme) {
       case 'light':
@@ -99,28 +104,16 @@ export function ThemeToggle({ className }: ThemeToggleProps = {}) {
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className={triggerClasses}>
-          {getIcon()}
-          <span className="sr-only">切换主题</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme('light')}>
-          <Sun className="mr-2 h-4 w-4" />
-          <span>浅色</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme('dark')}>
-          <Moon className="mr-2 h-4 w-4" />
-          <span>深色</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme('system')}>
-          <Monitor className="mr-2 h-4 w-4" />
-          <span>跟随系统</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button
+      variant="ghost"
+      size="icon"
+      className={triggerClasses}
+      onClick={cycleTheme}
+      title={themeLabel[theme]}
+    >
+      {getIcon()}
+      <span className="sr-only">{themeLabel[theme]}</span>
+    </Button>
   );
 }
 

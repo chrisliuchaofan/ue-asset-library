@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { handleApiError } from '@/lib/error-handler';
-import { getSession } from '@/lib/auth';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { aiService } from '@/lib/ai/ai-service';
 import { shouldCallRealAI, getUserModeInfo, createDryRunMockResponse } from '@/lib/ai/dry-run-check';
 import { ErrorCode, createStandardError } from '@/lib/errors/error-handler';
@@ -28,14 +28,9 @@ const GenerateTextSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    // ✅ 检查登录状态
-    const session = await getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { message: '未登录，请先登录' },
-        { status: 401 }
-      );
-    }
+    // ✅ 验证团队访问权限
+    const ctx = await requireTeamAccess();
+    if (isErrorResponse(ctx)) return ctx;
 
     const body = await request.json();
     const parsed = GenerateTextSchema.safeParse(body);
@@ -111,7 +106,7 @@ export async function POST(request: Request) {
     
     // ✅ Real 模式 - 先扣除积分
     const estimatedCost = 1; // 每次文本生成消耗 1 积分
-    const userId = session.user.id || session.user.email!;
+    const userId = ctx.userId;
     
     try {
       // 检查余额是否充足

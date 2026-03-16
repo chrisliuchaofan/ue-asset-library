@@ -1,0 +1,220 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e5]:
+        - link "爆款工坊" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e7]: 爆款工坊
+        - generic [ref=e9]:
+          - link "功能" [ref=e10] [cursor=pointer]:
+            - /url: "#features"
+          - link "工作流" [ref=e11] [cursor=pointer]:
+            - /url: "#workflow"
+          - link "场景" [ref=e12] [cursor=pointer]:
+            - /url: "#scenes"
+        - generic [ref=e13]:
+          - link "登录" [ref=e14] [cursor=pointer]:
+            - /url: /auth/login
+          - link "免费试用" [ref=e15] [cursor=pointer]:
+            - /url: /auth/register
+    - generic [ref=e16]:
+      - generic [ref=e24]:
+        - generic [ref=e29]: 爆款分析 — 竞品素材结构拆解
+        - generic [ref=e40]:
+          - generic [ref=e41]: Hook
+          - generic [ref=e42]: 展示
+          - generic [ref=e43]: 转场
+          - generic [ref=e44]: CTA
+        - generic [ref=e45]:
+          - generic [ref=e46]: Hook 强度 92%
+          - generic [ref=e47]: 转场 3 次
+          - generic [ref=e48]: CTA 明确
+          - generic [ref=e49]: 首帧吸睛
+      - generic [ref=e50]:
+        - generic [ref=e51]: "[ 拆解爆款结构，提取可复用的广告公式 ]"
+        - heading "首帧定生死 爆款有工坊" [level=1] [ref=e52]:
+          - text: 首帧定生死
+          - text: 爆款有工坊
+        - paragraph [ref=e53]: 游戏广告素材 AI 工作台 — 从创意灵感到可投放视频，全链路自动化
+        - link "免费开始" [ref=e55] [cursor=pointer]:
+          - /url: /auth/register
+          - text: 免费开始
+          - img [ref=e56]
+      - generic [ref=e58]:
+        - button "切换到第 1 张" [ref=e59] [cursor=pointer]
+        - button "切换到第 2 张" [ref=e60] [cursor=pointer]
+        - button "切换到第 3 张" [ref=e61] [cursor=pointer]
+    - generic [ref=e62]:
+      - generic [ref=e64]:
+        - heading "为游戏广告而生" [level=2] [ref=e65]
+        - paragraph [ref=e66]: 无论什么品类、什么风格，AI 都能帮你找到爆款公式
+      - generic [ref=e67]:
+        - generic [ref=e72] [cursor=pointer]:
+          - heading "RPG 角色展示" [level=3] [ref=e73]
+          - paragraph [ref=e74]: 突出角色技能和画面表现力
+          - generic [ref=e75]:
+            - text: 开始创作
+            - img [ref=e76]
+        - generic [ref=e82] [cursor=pointer]:
+          - heading "SLG 策略推广" [level=3] [ref=e83]
+          - paragraph [ref=e84]: 展示建造、联盟、战争玩法
+          - generic [ref=e85]:
+            - text: 开始创作
+            - img [ref=e86]
+        - generic [ref=e92] [cursor=pointer]:
+          - heading "休闲游戏买量" [level=3] [ref=e93]
+          - paragraph [ref=e94]: 趣味玩法 + 强 CTA 转化
+          - generic [ref=e95]:
+            - text: 开始创作
+            - img [ref=e96]
+        - generic [ref=e102] [cursor=pointer]:
+          - heading "二次元手游" [level=3] [ref=e103]
+          - paragraph [ref=e104]: Live2D 角色 + 剧情向素材
+          - generic [ref=e105]:
+            - text: 开始创作
+            - img [ref=e106]
+        - generic [ref=e112] [cursor=pointer]:
+          - heading "竞技对战" [level=3] [ref=e113]
+          - paragraph [ref=e114]: 快节奏操作 + 排名激励
+          - generic [ref=e115]:
+            - text: 开始创作
+            - img [ref=e116]
+    - generic [ref=e119]:
+      - generic [ref=e120]:
+        - heading "核心功能" [level=2] [ref=e121]
+        - paragraph [ref=e122]: 覆盖游戏广告素材从灵感到投放的全生命周期
+      - generic [ref=e123]:
+        - generic [ref=e125]:
+          - text: 爆款分析
+          - heading "AI 拆解竞品素材结构" [level=3] [ref=e126]
+          - paragraph [ref=e127]: 自动识别 Hook、转场、CTA 等关键节点，提取可复用的爆款公式，让你的创作有据可依。
+          - link "了解更多 →" [ref=e128] [cursor=pointer]:
+            - /url: /auth/register
+        - generic [ref=e144]:
+          - generic [ref=e145]:
+            - text: AI 脚本 + 分镜
+            - heading "一键生成脚本与视觉分镜" [level=3] [ref=e146]
+            - paragraph [ref=e147]: 基于爆款模版匹配，AI 自动生成完整脚本与逐帧分镜图，从文字到画面无缝衔接。
+            - link "了解更多 →" [ref=e148] [cursor=pointer]:
+              - /url: /auth/register
+          - generic [ref=e150]:
+            - generic [ref=e151]:
+              - generic [ref=e152]: 脚本
+              - generic [ref=e153]: 分镜
+            - generic [ref=e154]:
+              - generic [ref=e156]: "1"
+              - generic [ref=e161]: "2"
+              - generic [ref=e166]: "3"
+              - generic [ref=e171]: "4"
+        - generic [ref=e176]:
+          - text: AI 视频生成
+          - heading "分镜图直接生成视频片段" [level=3] [ref=e177]
+          - paragraph [ref=e178]: 对接可灵、即梦等多家 AI 视频引擎，分镜图一键转视频，大幅缩短制作周期。
+          - link "了解更多 →" [ref=e179] [cursor=pointer]:
+            - /url: /auth/register
+        - generic [ref=e193]:
+          - generic [ref=e194]:
+            - text: 智能审核
+            - heading "上线前 AI 全方位质检" [level=3] [ref=e195]
+            - paragraph [ref=e196]: 自动检测首帧吸引力、Hook 有效性、CTA 清晰度，审核通过率提升到 95% 以上。
+            - link "了解更多 →" [ref=e197] [cursor=pointer]:
+              - /url: /auth/register
+          - generic [ref=e200]:
+            - generic [ref=e201]: "95"
+            - generic [ref=e202]:
+              - generic [ref=e205]: 首帧
+              - generic [ref=e208]: Hook
+              - generic [ref=e211]: CTA
+    - generic [ref=e216]:
+      - generic [ref=e217]:
+        - heading "闭环工作流" [level=2] [ref=e218]
+        - paragraph [ref=e219]: 从灵感到成品，四步完成高质量素材产出
+      - generic [ref=e220]:
+        - generic [ref=e223]:
+          - generic [ref=e224]:
+            - img [ref=e225]
+            - generic [ref=e228]: "1"
+          - generic [ref=e229]:
+            - heading "灵感收集" [level=3] [ref=e230]
+            - paragraph [ref=e231]: 发现竞品爆款
+        - generic [ref=e232]:
+          - generic [ref=e233]:
+            - img [ref=e234]
+            - generic [ref=e237]: "2"
+          - generic [ref=e238]:
+            - heading "模版匹配" [level=3] [ref=e239]
+            - paragraph [ref=e240]: AI 结构化拆解
+        - generic [ref=e241]:
+          - generic [ref=e242]:
+            - img [ref=e243]
+            - generic [ref=e246]: "3"
+          - generic [ref=e247]:
+            - heading "AI 创作" [level=3] [ref=e248]
+            - paragraph [ref=e249]: 脚本 + 分镜 + 视频
+        - generic [ref=e250]:
+          - generic [ref=e251]:
+            - img [ref=e252]
+            - generic [ref=e255]: "4"
+          - generic [ref=e256]:
+            - heading "审核发布" [level=3] [ref=e257]
+            - paragraph [ref=e258]: 质检通过即上线
+    - generic [ref=e265]:
+      - generic [ref=e266]:
+        - generic [ref=e267]:
+          - generic [ref=e268]: 1000+
+          - generic [ref=e269]: 素材分析
+        - generic [ref=e270]:
+          - generic [ref=e271]: 3 min
+          - generic [ref=e272]: 脚本生成
+        - generic [ref=e273]:
+          - generic [ref=e274]: 95%
+          - generic [ref=e275]: 审核通过率
+      - heading "让每一个素材 都有爆款潜力" [level=2] [ref=e276]:
+        - text: 让每一个素材
+        - text: 都有爆款潜力
+      - paragraph [ref=e277]: 免费注册，体验 AI 驱动的游戏广告素材工作流
+      - generic [ref=e278]:
+        - link "立即开始" [ref=e279] [cursor=pointer]:
+          - /url: /auth/register
+          - text: 立即开始
+          - img [ref=e280]
+        - link "已有账号？登录" [ref=e282] [cursor=pointer]:
+          - /url: /auth/login
+    - contentinfo [ref=e283]:
+      - generic [ref=e284]:
+        - generic [ref=e285]:
+          - generic [ref=e286]:
+            - generic [ref=e288]: 爆款工坊
+            - paragraph [ref=e290]:
+              - text: 游戏广告素材 AI 工作台
+              - text: 首帧定生死，爆款有工坊
+          - generic [ref=e291]:
+            - heading "产品" [level=4] [ref=e292]
+            - list [ref=e293]:
+              - listitem [ref=e294]:
+                - link "功能介绍" [ref=e295] [cursor=pointer]:
+                  - /url: "#features"
+              - listitem [ref=e296]:
+                - link "工作流" [ref=e297] [cursor=pointer]:
+                  - /url: "#workflow"
+              - listitem [ref=e298]:
+                - link "免费试用" [ref=e299] [cursor=pointer]:
+                  - /url: /auth/register
+          - generic [ref=e300]:
+            - heading "账号" [level=4] [ref=e301]
+            - list [ref=e302]:
+              - listitem [ref=e303]:
+                - link "登录" [ref=e304] [cursor=pointer]:
+                  - /url: /auth/login
+              - listitem [ref=e305]:
+                - link "注册" [ref=e306] [cursor=pointer]:
+                  - /url: /auth/register
+          - generic [ref=e307]:
+            - heading "支持" [level=4] [ref=e308]
+            - list [ref=e309]:
+              - listitem [ref=e310]: 帮助中心（即将上线）
+              - listitem [ref=e311]: 联系我们（即将上线）
+        - generic [ref=e312]:
+          - paragraph [ref=e313]: © 2026 爆款工坊. All rights reserved.
+          - paragraph [ref=e314]: Made with AI · Built for game advertisers
+  - alert [ref=e315]

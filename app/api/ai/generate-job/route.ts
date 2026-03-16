@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { aiService } from '@/lib/ai/ai-service';
 import { z } from 'zod';
 import { handleApiError } from '@/lib/error-handler';
-import { getSession } from '@/lib/auth';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { shouldCallRealAI, getUserModeInfo, createDryRunMockResponse } from '@/lib/ai/dry-run-check';
 import { consumeCredits } from '@/lib/credits';
 // 稍后实现 Asset Resolver 后引入
@@ -24,14 +24,9 @@ const GenerateJobSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    // ✅ 检查登录状态
-    const session = await getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { message: '未登录，请先登录' },
-        { status: 401 }
-      );
-    }
+    // ✅ 验证团队访问权限
+    const ctx = await requireTeamAccess();
+    if (isErrorResponse(ctx)) return ctx;
 
     const body = await request.json();
     const parsed = GenerateJobSchema.safeParse(body);
@@ -122,7 +117,7 @@ export async function POST(request: Request) {
         }
         
         // 扣除积分（使用 Supabase）
-        const userId = session.user.id || session.user.email!;
+        const userId = ctx.userId;
         const consumeResult = await consumeCredits(userId, {
           amount: estimatedCost,
           action: 'ai_generate_video',

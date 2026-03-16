@@ -113,6 +113,71 @@ export class JimengProvider implements AIProvider {
     }
   }
   
+  /**
+   * 查询异步视频任务状态（供外部轮询调用）
+   */
+  async queryTaskStatus(taskId: string): Promise<{
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    videoUrl?: string;
+    error?: string;
+  }> {
+    if (!this.accessKey || !this.secretKey) {
+      throw new Error('即梦 API 密钥未配置');
+    }
+
+    const uri = '/';
+    const method = 'POST';
+    const query = '';
+
+    const requestBody = {
+      req_key: this.reqKey,
+      task_id: taskId,
+    };
+
+    const body = JSON.stringify(requestBody);
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Host': new URL(this.endpoint).hostname,
+      'X-Date': new Date(timestamp * 1000).toISOString().replace(/[:\-]|\.\d{3}/g, ''),
+    };
+
+    const signature = this.generateSignature(method, uri, query, headers, body);
+    const date = new Date(timestamp * 1000).toISOString().substring(0, 10).replace(/-/g, '');
+    const authorization = `HMAC-SHA256 Credential=${this.accessKey}/${date}/${this.region}/visual/request, SignedHeaders=${Object.keys(headers).sort().map(k => k.toLowerCase()).join(';')}, Signature=${signature}`;
+    headers['Authorization'] = authorization;
+
+    const response = await fetch(`${this.endpoint}${uri}`, {
+      method,
+      headers,
+      body,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`即梦任务查询失败: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    const status = data.Result?.status || data.status;
+    const videoUrl = data.Result?.video_url || data.Result?.output_video_url || '';
+
+    switch (status) {
+      case 'done':
+      case 'success':
+        return { status: 'completed', videoUrl };
+      case 'failed':
+      case 'error':
+        return { status: 'failed', error: data.Result?.error_message || '视频生成失败' };
+      case 'running':
+      case 'processing':
+        return { status: 'processing' };
+      default:
+        return { status: 'pending' };
+    }
+  }
+
   async healthCheck(): Promise<boolean> {
     return !!(this.accessKey && this.secretKey);
   }

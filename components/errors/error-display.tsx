@@ -94,7 +94,7 @@ export function ErrorDisplay({
             <div className="text-sm opacity-95 mb-3 font-medium">{context}</div>
           )}
           {standardError.details && (
-            <div className="text-sm opacity-95 mt-3 space-y-2 bg-black/20 p-3 rounded-lg">
+            <div className="text-sm opacity-95 mt-3 space-y-2 bg-muted/50 p-3 rounded-lg">
               {standardError.details.balance !== undefined && (
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">💰 当前余额:</span>
@@ -110,7 +110,7 @@ export function ErrorDisplay({
             </div>
           )}
           {standardError.traceId && process.env.NODE_ENV === 'development' && (
-            <div className="text-xs opacity-70 mt-3 pt-3 border-t border-white/30 font-mono break-all">
+            <div className="text-xs opacity-70 mt-3 pt-3 border-t border-border font-mono break-all">
               🔍 追踪 ID: {standardError.traceId}
             </div>
           )}

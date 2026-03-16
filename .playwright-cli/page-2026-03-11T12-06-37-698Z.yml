@@ -1,0 +1,375 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - generic [ref=e12]: 爆款工坊
+      - button "admin 的团队 所有者" [ref=e134] [cursor=pointer]:
+        - img [ref=e136]
+        - generic [ref=e141]:
+          - paragraph [ref=e142]: admin 的团队
+          - paragraph [ref=e143]: 所有者
+        - img [ref=e144]
+      - generic [ref=e14]:
+        - navigation [ref=e15]:
+          - heading "工作流" [level=3] [ref=e16]
+          - list [ref=e17]:
+            - listitem [ref=e18]:
+              - link "灵感收集" [ref=e19] [cursor=pointer]:
+                - /url: /inspirations
+                - generic [ref=e20]:
+                  - img [ref=e21]
+                  - generic [ref=e23]: 灵感收集
+            - listitem [ref=e24]:
+              - link "爆款模版" [ref=e25] [cursor=pointer]:
+                - /url: /templates
+                - generic [ref=e26]:
+                  - img [ref=e27]
+                  - generic [ref=e31]: 爆款模版
+            - listitem [ref=e32]:
+              - link "AI 创作" [ref=e33] [cursor=pointer]:
+                - /url: /studio
+                - generic [ref=e34]:
+                  - img [ref=e35]
+                  - generic [ref=e38]: AI 创作
+            - listitem [ref=e39]:
+              - link "智能审核" [ref=e40] [cursor=pointer]:
+                - /url: /review
+                - generic [ref=e41]:
+                  - img [ref=e42]
+                  - generic [ref=e45]: 智能审核
+            - listitem [ref=e46]:
+              - link "投放素材" [ref=e47] [cursor=pointer]:
+                - /url: /materials
+                - generic [ref=e48]:
+                  - img [ref=e49]
+                  - generic [ref=e51]: 投放素材
+            - listitem [ref=e52]:
+              - link "爆款分析" [ref=e53] [cursor=pointer]:
+                - /url: /analysis
+                - generic [ref=e54]:
+                  - img [ref=e55]
+                  - generic [ref=e58]: 爆款分析
+        - navigation [ref=e59]:
+          - heading "数据与资源" [level=3] [ref=e60]
+          - list [ref=e61]:
+            - listitem [ref=e62]:
+              - link "知识库" [ref=e63] [cursor=pointer]:
+                - /url: /knowledge
+                - generic [ref=e64]:
+                  - img [ref=e65]
+                  - generic [ref=e67]: 知识库
+            - listitem [ref=e68]:
+              - link "UE 资产" [ref=e69] [cursor=pointer]:
+                - /url: /assets
+                - generic [ref=e70]:
+                  - img [ref=e71]
+                  - generic [ref=e75]: UE 资产
+            - listitem [ref=e76]:
+              - link "数据洞察" [ref=e77] [cursor=pointer]:
+                - /url: /weekly-reports
+                - generic [ref=e78]:
+                  - img [ref=e79]
+                  - generic [ref=e80]: 数据洞察
+            - listitem [ref=e81]:
+              - link "设置" [ref=e82] [cursor=pointer]:
+                - /url: /settings
+                - generic [ref=e83]:
+                  - img [ref=e84]
+                  - generic [ref=e87]: 设置
+      - generic [ref=e89]:
+        - generic [ref=e146]:
+          - generic [ref=e148]: A
+          - generic [ref=e149]: admin@admin.local
+        - generic [ref=e150]:
+          - generic [ref=e151]:
+            - button "中" [ref=e152] [cursor=pointer]
+            - button "EN" [ref=e153] [cursor=pointer]
+          - button "深色模式" [ref=e154] [cursor=pointer]:
+            - img [ref=e155]
+            - generic [ref=e157]: 深色模式
+          - button "退出" [ref=e158] [cursor=pointer]:
+            - img [ref=e159]
+    - main [ref=e90]:
+      - generic [ref=e91]:
+        - generic [ref=e93]:
+          - heading "审核中心" [level=1] [ref=e94]
+          - generic [ref=e95]: P4
+          - generic [ref=e97]: 知识驱动 AI 智能审核
+        - main [ref=e98]:
+          - generic [ref=e99]:
+            - heading "动态维度审核" [level=2] [ref=e100]
+            - paragraph [ref=e101]: 审核维度由知识库定义，支持动态配置。AI 结合 RAG 上下文进行智能审核，支持人工修正与反馈闭环。
+            - tablist [ref=e104]:
+              - tab "全部" [selected] [ref=e105] [cursor=pointer]
+              - tab "已通过" [ref=e106] [cursor=pointer]
+              - tab "已拦截" [ref=e107] [cursor=pointer]
+              - tab "未审核" [ref=e108] [cursor=pointer]
+            - table [ref=e110]:
+              - rowgroup [ref=e111]:
+                - row "素材名 / ID 来源 机审状态 时长规范 前3秒钩子 CTA行动指引 操作" [ref=e161]:
+                  - columnheader "素材名 / ID" [ref=e113]
+                  - columnheader "来源" [ref=e114]
+                  - columnheader "机审状态" [ref=e115]
+                  - columnheader "时长规范" [ref=e162]
+                  - columnheader "前3秒钩子" [ref=e163]
+                  - columnheader "CTA行动指引" [ref=e164]
+                  - columnheader "操作" [ref=e116]
+              - rowgroup [ref=e117]:
+                - row "#241223_2珍_3珍_4AE_6小游戏_9H615红蓝对抗38_aA_b三冰_c竖 4225f90f... 三冰 未送审 查看素材 执行 AI 审核" [ref=e165]:
+                  - cell "#241223_2珍_3珍_4AE_6小游戏_9H615红蓝对抗38_aA_b三冰_c竖 4225f90f..." [ref=e166]:
+                    - link "#241223_2珍_3珍_4AE_6小游戏_9H615红蓝对抗38_aA_b三冰_c竖 4225f90f..." [ref=e167] [cursor=pointer]:
+                      - /url: /materials/4225f90f-b101-49e1-af84-c97df27ddb69
+                      - generic "#241223_2珍_3珍_4AE_6小游戏_9H615红蓝对抗38_aA_b三冰_c竖" [ref=e168]
+                      - generic [ref=e169]: 4225f90f...
+                  - cell "三冰" [ref=e170]
+                  - cell "未送审" [ref=e171]
+                  - cell [ref=e172]:
+                    - img [ref=e173]
+                  - cell [ref=e175]:
+                    - img [ref=e176]
+                  - cell [ref=e178]:
+                    - img [ref=e179]
+                  - cell "查看素材 执行 AI 审核" [ref=e181]:
+                    - generic [ref=e182]:
+                      - button "查看素材" [ref=e183] [cursor=pointer]:
+                        - link "查看素材" [ref=e184]:
+                          - /url: /materials/4225f90f-b101-49e1-af84-c97df27ddb69
+                          - img [ref=e185]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e189] [cursor=pointer]:
+                        - img [ref=e190]
+                        - text: 执行 AI 审核
+                - row "#251229_1WZ_2贺鑫_3贺_4AE_5W玩法_6Z解说_8D_925541RCB女神瀑布改灰_aB_b三冰_c竖 e5043c83... 三冰 未送审 查看素材 执行 AI 审核" [ref=e192]:
+                  - cell "#251229_1WZ_2贺鑫_3贺_4AE_5W玩法_6Z解说_8D_925541RCB女神瀑布改灰_aB_b三冰_c竖 e5043c83..." [ref=e193]:
+                    - link "#251229_1WZ_2贺鑫_3贺_4AE_5W玩法_6Z解说_8D_925541RCB女神瀑布改灰_aB_b三冰_c竖 e5043c83..." [ref=e194] [cursor=pointer]:
+                      - /url: /materials/e5043c83-75d3-4056-b24d-d1042cb15979
+                      - generic "#251229_1WZ_2贺鑫_3贺_4AE_5W玩法_6Z解说_8D_925541RCB女神瀑布改灰_aB_b三冰_c竖" [ref=e195]
+                      - generic [ref=e196]: e5043c83...
+                  - cell "三冰" [ref=e197]
+                  - cell "未送审" [ref=e198]
+                  - cell [ref=e199]:
+                    - img [ref=e200]
+                  - cell [ref=e202]:
+                    - img [ref=e203]
+                  - cell [ref=e205]:
+                    - img [ref=e206]
+                  - cell "查看素材 执行 AI 审核" [ref=e208]:
+                    - generic [ref=e209]:
+                      - button "查看素材" [ref=e210] [cursor=pointer]:
+                        - link "查看素材" [ref=e211]:
+                          - /url: /materials/e5043c83-75d3-4056-b24d-d1042cb15979
+                          - img [ref=e212]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e216] [cursor=pointer]:
+                        - img [ref=e217]
+                        - text: 执行 AI 审核
+                - row "#251106_1Z_2晓_3晓_4AE_6Z小游戏_8H_919708木场54解说_aB_b三冰_c竖.mp4 e8997e74... 三冰 未送审 查看素材 执行 AI 审核" [ref=e219]:
+                  - cell "#251106_1Z_2晓_3晓_4AE_6Z小游戏_8H_919708木场54解说_aB_b三冰_c竖.mp4 e8997e74..." [ref=e220]:
+                    - link "#251106_1Z_2晓_3晓_4AE_6Z小游戏_8H_919708木场54解说_aB_b三冰_c竖.mp4 e8997e74..." [ref=e221] [cursor=pointer]:
+                      - /url: /materials/e8997e74-a38f-47cb-8c33-3891166b5ce0
+                      - generic "#251106_1Z_2晓_3晓_4AE_6Z小游戏_8H_919708木场54解说_aB_b三冰_c竖.mp4" [ref=e222]
+                      - generic [ref=e223]: e8997e74...
+                  - cell "三冰" [ref=e224]
+                  - cell "未送审" [ref=e225]
+                  - cell [ref=e226]:
+                    - img [ref=e227]
+                  - cell [ref=e229]:
+                    - img [ref=e230]
+                  - cell [ref=e232]:
+                    - img [ref=e233]
+                  - cell "查看素材 执行 AI 审核" [ref=e235]:
+                    - generic [ref=e236]:
+                      - button "查看素材" [ref=e237] [cursor=pointer]:
+                        - link "查看素材" [ref=e238]:
+                          - /url: /materials/e8997e74-a38f-47cb-8c33-3891166b5ce0
+                          - img [ref=e239]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e243] [cursor=pointer]:
+                        - img [ref=e244]
+                        - text: 执行 AI 审核
+                - row "#251031_1W808_2慧_3慧_4UE_5Wfake_8A_919048潜入红蓝对抗_aA_b三冰_c竖 b815286c... 三冰 未送审 查看素材 执行 AI 审核" [ref=e246]:
+                  - cell "#251031_1W808_2慧_3慧_4UE_5Wfake_8A_919048潜入红蓝对抗_aA_b三冰_c竖 b815286c..." [ref=e247]:
+                    - link "#251031_1W808_2慧_3慧_4UE_5Wfake_8A_919048潜入红蓝对抗_aA_b三冰_c竖 b815286c..." [ref=e248] [cursor=pointer]:
+                      - /url: /materials/b815286c-b5a5-429a-b3a7-7ce924f3402c
+                      - generic "#251031_1W808_2慧_3慧_4UE_5Wfake_8A_919048潜入红蓝对抗_aA_b三冰_c竖" [ref=e249]
+                      - generic [ref=e250]: b815286c...
+                  - cell "三冰" [ref=e251]
+                  - cell "未送审" [ref=e252]
+                  - cell [ref=e253]:
+                    - img [ref=e254]
+                  - cell [ref=e256]:
+                    - img [ref=e257]
+                  - cell [ref=e259]:
+                    - img [ref=e260]
+                  - cell "查看素材 执行 AI 审核" [ref=e262]:
+                    - generic [ref=e263]:
+                      - button "查看素材" [ref=e264] [cursor=pointer]:
+                        - link "查看素材" [ref=e265]:
+                          - /url: /materials/b815286c-b5a5-429a-b3a7-7ce924f3402c
+                          - img [ref=e266]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e270] [cursor=pointer]:
+                        - img [ref=e271]
+                        - text: 执行 AI 审核
+                - row "#250806_2W轩晓李_3晓_4AE_6混剪解说_910092RCB金鳄鱼补牙片头2_aB_b三冰_c竖.mp4 c16220b0... 三冰 未送审 查看素材 执行 AI 审核" [ref=e273]:
+                  - cell "#250806_2W轩晓李_3晓_4AE_6混剪解说_910092RCB金鳄鱼补牙片头2_aB_b三冰_c竖.mp4 c16220b0..." [ref=e274]:
+                    - link "#250806_2W轩晓李_3晓_4AE_6混剪解说_910092RCB金鳄鱼补牙片头2_aB_b三冰_c竖.mp4 c16220b0..." [ref=e275] [cursor=pointer]:
+                      - /url: /materials/c16220b0-54eb-4278-840b-85e1b1d061c9
+                      - generic "#250806_2W轩晓李_3晓_4AE_6混剪解说_910092RCB金鳄鱼补牙片头2_aB_b三冰_c竖.mp4" [ref=e276]
+                      - generic [ref=e277]: c16220b0...
+                  - cell "三冰" [ref=e278]
+                  - cell "未送审" [ref=e279]
+                  - cell [ref=e280]:
+                    - img [ref=e281]
+                  - cell [ref=e283]:
+                    - img [ref=e284]
+                  - cell [ref=e286]:
+                    - img [ref=e287]
+                  - cell "查看素材 执行 AI 审核" [ref=e289]:
+                    - generic [ref=e290]:
+                      - button "查看素材" [ref=e291] [cursor=pointer]:
+                        - link "查看素材" [ref=e292]:
+                          - /url: /materials/c16220b0-54eb-4278-840b-85e1b1d061c9
+                          - img [ref=e293]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e297] [cursor=pointer]:
+                        - img [ref=e298]
+                        - text: 执行 AI 审核
+                - row "#250722_2晓_3晓_4AE_6小游戏_9H8516木场54_aA_b三冰_c竖.mp4 203bbff4... 三冰 未送审 查看素材 执行 AI 审核" [ref=e300]:
+                  - cell "#250722_2晓_3晓_4AE_6小游戏_9H8516木场54_aA_b三冰_c竖.mp4 203bbff4..." [ref=e301]:
+                    - link "#250722_2晓_3晓_4AE_6小游戏_9H8516木场54_aA_b三冰_c竖.mp4 203bbff4..." [ref=e302] [cursor=pointer]:
+                      - /url: /materials/203bbff4-1b15-40ae-8505-803136b491ba
+                      - generic "#250722_2晓_3晓_4AE_6小游戏_9H8516木场54_aA_b三冰_c竖.mp4" [ref=e303]
+                      - generic [ref=e304]: 203bbff4...
+                  - cell "三冰" [ref=e305]
+                  - cell "未送审" [ref=e306]
+                  - cell [ref=e307]:
+                    - img [ref=e308]
+                  - cell [ref=e310]:
+                    - img [ref=e311]
+                  - cell [ref=e313]:
+                    - img [ref=e314]
+                  - cell "查看素材 执行 AI 审核" [ref=e316]:
+                    - generic [ref=e317]:
+                      - button "查看素材" [ref=e318] [cursor=pointer]:
+                        - link "查看素材" [ref=e319]:
+                          - /url: /materials/203bbff4-1b15-40ae-8505-803136b491ba
+                          - img [ref=e320]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e324] [cursor=pointer]:
+                        - img [ref=e325]
+                        - text: 执行 AI 审核
+                - row "#241223_2珍_3珍_4AE_6小游戏_9H830红蓝对抗81_aA_b三冰_c竖 0740d04d... 三冰 未送审 查看素材 执行 AI 审核" [ref=e327]:
+                  - cell "#241223_2珍_3珍_4AE_6小游戏_9H830红蓝对抗81_aA_b三冰_c竖 0740d04d..." [ref=e328]:
+                    - link "#241223_2珍_3珍_4AE_6小游戏_9H830红蓝对抗81_aA_b三冰_c竖 0740d04d..." [ref=e329] [cursor=pointer]:
+                      - /url: /materials/0740d04d-2f48-4456-b214-37a9873e9356
+                      - generic "#241223_2珍_3珍_4AE_6小游戏_9H830红蓝对抗81_aA_b三冰_c竖" [ref=e330]
+                      - generic [ref=e331]: 0740d04d...
+                  - cell "三冰" [ref=e332]
+                  - cell "未送审" [ref=e333]
+                  - cell [ref=e334]:
+                    - img [ref=e335]
+                  - cell [ref=e337]:
+                    - img [ref=e338]
+                  - cell [ref=e340]:
+                    - img [ref=e341]
+                  - cell "查看素材 执行 AI 审核" [ref=e343]:
+                    - generic [ref=e344]:
+                      - button "查看素材" [ref=e345] [cursor=pointer]:
+                        - link "查看素材" [ref=e346]:
+                          - /url: /materials/0740d04d-2f48-4456-b214-37a9873e9356
+                          - img [ref=e347]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e351] [cursor=pointer]:
+                        - img [ref=e352]
+                        - text: 执行 AI 审核
+                - row "#250422_2晓_3晓_4AE_6小游戏_9H6186红蓝对抗15_aA_b三冰_c竖 56a6883f... 三冰 未送审 查看素材 执行 AI 审核" [ref=e354]:
+                  - cell "#250422_2晓_3晓_4AE_6小游戏_9H6186红蓝对抗15_aA_b三冰_c竖 56a6883f..." [ref=e355]:
+                    - link "#250422_2晓_3晓_4AE_6小游戏_9H6186红蓝对抗15_aA_b三冰_c竖 56a6883f..." [ref=e356] [cursor=pointer]:
+                      - /url: /materials/56a6883f-3fe4-4b14-9334-6483cc0243d6
+                      - generic "#250422_2晓_3晓_4AE_6小游戏_9H6186红蓝对抗15_aA_b三冰_c竖" [ref=e357]
+                      - generic [ref=e358]: 56a6883f...
+                  - cell "三冰" [ref=e359]
+                  - cell "未送审" [ref=e360]
+                  - cell [ref=e361]:
+                    - img [ref=e362]
+                  - cell [ref=e364]:
+                    - img [ref=e365]
+                  - cell [ref=e367]:
+                    - img [ref=e368]
+                  - cell "查看素材 执行 AI 审核" [ref=e370]:
+                    - generic [ref=e371]:
+                      - button "查看素材" [ref=e372] [cursor=pointer]:
+                        - link "查看素材" [ref=e373]:
+                          - /url: /materials/56a6883f-3fe4-4b14-9334-6483cc0243d6
+                          - img [ref=e374]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e378] [cursor=pointer]:
+                        - img [ref=e379]
+                        - text: 执行 AI 审核
+                - row "#250814_2W慧卢_3卢_4AE_6混剪解说_910852AI读评论1RCB怪物围栏_aB_b三冰_c竖.mp4 53123501... 三冰 未送审 查看素材 执行 AI 审核" [ref=e381]:
+                  - cell "#250814_2W慧卢_3卢_4AE_6混剪解说_910852AI读评论1RCB怪物围栏_aB_b三冰_c竖.mp4 53123501..." [ref=e382]:
+                    - link "#250814_2W慧卢_3卢_4AE_6混剪解说_910852AI读评论1RCB怪物围栏_aB_b三冰_c竖.mp4 53123501..." [ref=e383] [cursor=pointer]:
+                      - /url: /materials/53123501-e588-45b5-bcd8-8df327acf0d0
+                      - generic "#250814_2W慧卢_3卢_4AE_6混剪解说_910852AI读评论1RCB怪物围栏_aB_b三冰_c竖.mp4" [ref=e384]
+                      - generic [ref=e385]: 53123501...
+                  - cell "三冰" [ref=e386]
+                  - cell "未送审" [ref=e387]
+                  - cell [ref=e388]:
+                    - img [ref=e389]
+                  - cell [ref=e391]:
+                    - img [ref=e392]
+                  - cell [ref=e394]:
+                    - img [ref=e395]
+                  - cell "查看素材 执行 AI 审核" [ref=e397]:
+                    - generic [ref=e398]:
+                      - button "查看素材" [ref=e399] [cursor=pointer]:
+                        - link "查看素材" [ref=e400]:
+                          - /url: /materials/53123501-e588-45b5-bcd8-8df327acf0d0
+                          - img [ref=e401]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e405] [cursor=pointer]:
+                        - img [ref=e406]
+                        - text: 执行 AI 审核
+                - row "#250729_2鹏_3鹏_4UE_6fake_9639木场烧木头_aA_b三冰_c竖.mp4 65adc584... 三冰 未送审 查看素材 执行 AI 审核" [ref=e408]:
+                  - cell "#250729_2鹏_3鹏_4UE_6fake_9639木场烧木头_aA_b三冰_c竖.mp4 65adc584..." [ref=e409]:
+                    - link "#250729_2鹏_3鹏_4UE_6fake_9639木场烧木头_aA_b三冰_c竖.mp4 65adc584..." [ref=e410] [cursor=pointer]:
+                      - /url: /materials/65adc584-ef6a-4860-a31c-7335bc6cab5e
+                      - generic "#250729_2鹏_3鹏_4UE_6fake_9639木场烧木头_aA_b三冰_c竖.mp4" [ref=e411]
+                      - generic [ref=e412]: 65adc584...
+                  - cell "三冰" [ref=e413]
+                  - cell "未送审" [ref=e414]
+                  - cell [ref=e415]:
+                    - img [ref=e416]
+                  - cell [ref=e418]:
+                    - img [ref=e419]
+                  - cell [ref=e421]:
+                    - img [ref=e422]
+                  - cell "查看素材 执行 AI 审核" [ref=e424]:
+                    - generic [ref=e425]:
+                      - button "查看素材" [ref=e426] [cursor=pointer]:
+                        - link "查看素材" [ref=e427]:
+                          - /url: /materials/65adc584-ef6a-4860-a31c-7335bc6cab5e
+                          - img [ref=e428]
+                          - text: 查看素材
+                      - button "执行 AI 审核" [ref=e432] [cursor=pointer]:
+                        - img [ref=e433]
+                        - text: 执行 AI 审核
+  - button "Open Next.js Dev Tools" [ref=e128] [cursor=pointer]:
+    - img [ref=e129]
+  - alert [ref=e132]
+  - generic [ref=e437]:
+    - generic [ref=e443]:
+      - img [ref=e445]
+      - heading "欢迎来到爆款工坊" [level=2] [ref=e450]
+      - paragraph [ref=e451]: 游戏广告素材 AI 工作台
+      - paragraph [ref=e452]: 从创意灵感到数据洞察，AI 驱动你的广告素材全生命周期管理。 无论是脚本生成、素材审核还是爆款分析，我们都能帮你搞定。
+      - generic [ref=e453]:
+        - img [ref=e454]
+        - generic [ref=e456]: 首帧定生死，爆款有工坊
+    - generic [ref=e457]:
+      - button "跳过引导" [ref=e458] [cursor=pointer]
+      - button "下一步" [ref=e459] [cursor=pointer]:
+        - text: 下一步
+        - img [ref=e460]

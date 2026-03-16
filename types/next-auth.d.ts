@@ -7,6 +7,13 @@ declare module 'next-auth' {
       id: string;
       name?: string | null;
       email?: string | null;
+      // Phase 2: 团队上下文
+      activeTeamId?: string | null;
+      activeTeamRole?: string | null;
+      activeTeamName?: string | null;
+      activeTeamSlug?: string | null;
+      // Phase 3: Onboarding
+      onboardingCompleted?: boolean;
     };
   }
 
@@ -22,6 +29,12 @@ declare module 'next-auth/jwt' {
     id: string;
     name?: string | null;
     email?: string | null;
+    // Phase 2: 团队上下文
+    activeTeamId?: string | null;
+    activeTeamRole?: string | null;
+    activeTeamName?: string | null;
+    activeTeamSlug?: string | null;
+    // Phase 3: Onboarding
+    onboardingCompleted?: boolean;
   }
 }
-

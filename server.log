@@ -1,0 +1,51 @@
+
+> ue-asset-library@0.8.0 dev
+> NODE_OPTIONS='--no-deprecation' next dev -p 3001
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   ▲ Next.js 16.0.8 (Turbopack)
+   - Local:         http://localhost:3001
+   - Network:       http://172.16.83.49:3001
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · optimizePackageImports
+
+ ✓ Starting...
+ ✓ Ready in 1270ms
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[MaterialsManifest] { mode: 'oss', count: 38, durationMs: 161 }
+ GET / 200 in 4.1s (compile: 1237ms, render: 2.8s)
+[Auth Config] ✅ NextAuth 环境变量已配置: { hasSecret: true, secretLength: 44, url: 'http://localhost:3000' }
+[Auth Config] ✅ NextAuth 环境变量已配置: { hasSecret: true, secretLength: 44, url: 'http://localhost:3000' }
+[33m[auth][warn][debug-enabled][0m Read more: https://warnings.authjs.dev
+ GET /api/auth/session 200 in 490ms (compile: 481ms, render: 9ms)
+ GET /api/auth/session 200 in 4ms (compile: 2ms, render: 2ms)
+[Auth Config] ✅ NextAuth 环境变量已配置: { hasSecret: true, secretLength: 44, url: 'http://localhost:3000' }
+[MaterialsManifest] { mode: 'oss', count: 38, durationMs: 1 }
+ GET / 200 in 2.1s (compile: 2ms, render: 2.1s)
+ GET /api/auth/session 200 in 5ms (compile: 3ms, render: 2ms)
+ GET /api/auth/session 200 in 3ms (compile: 1176µs, render: 2ms)
+[Auth Config] ✅ NextAuth 环境变量已配置: { hasSecret: true, secretLength: 44, url: 'http://localhost:3000' }
+[MaterialsManifest] { mode: 'oss', count: 38, durationMs: 116 }
+ GET / 200 in 2.8s (compile: 5ms, render: 2.8s)
+ GET /api/auth/session 200 in 19ms (compile: 4ms, render: 14ms)
+ GET /api/auth/session 200 in 7ms (compile: 1152µs, render: 5ms)
+[Auth Config] ✅ NextAuth 环境变量已配置: { hasSecret: true, secretLength: 44, url: 'http://localhost:3000' }
+ GET /studio 200 in 253ms (compile: 245ms, render: 8ms)
+ GET /review 200 in 168ms (compile: 161ms, render: 7ms)
+ ✓ Compiled in 37ms
+ ✓ Compiled in 31ms
+ ✓ Compiled in 28ms
+ ✓ Compiled in 35ms
+ ✓ Compiled in 26ms
+[MaterialsManifest] { mode: 'oss', count: 38, durationMs: 106 }
+ GET / 200 in 191ms (compile: 67ms, render: 123ms)
+ GET /api/auth/session 200 in 16ms (compile: 5ms, render: 11ms)
+ GET /api/auth/session 200 in 8ms (compile: 1235µs, render: 7ms)
+[Auth Config] ✅ NextAuth 环境变量已配置: { hasSecret: true, secretLength: 44, url: 'http://localhost:3000' }
+ GET /api/auth/session 200 in 12ms (compile: 4ms, render: 8ms)
+ GET /api/auth/session 200 in 7ms (compile: 1007µs, render: 6ms)
+[Auth Config] ✅ NextAuth 环境变量已配置: { hasSecret: true, secretLength: 44, url: 'http://localhost:3000' }
+[MaterialsManifest] { mode: 'oss', count: 38, durationMs: 118 }
+ GET / 200 in 220ms (compile: 84ms, render: 136ms)
+ ✓ Compiled in 36ms

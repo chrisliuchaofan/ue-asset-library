@@ -128,10 +128,10 @@ export function AssetDetailDialog({ open, onOpenChange, asset }: AssetDetailDial
                 <div className="font-medium">{formatDuration(asset.duration)}</div>
               </div>
             )}
-            {asset.filesize && (
+            {asset.fileSize && (
               <div>
                 <div className="text-sm text-muted-foreground">文件大小</div>
-                <div className="font-medium">{formatFileSize(asset.filesize)}</div>
+                <div className="font-medium">{formatFileSize(asset.fileSize)}</div>
               </div>
             )}
           </div>

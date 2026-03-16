@@ -1,59 +1,41 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import Google from 'next-auth/providers/google';
+import GitHub from 'next-auth/providers/github';
 import type { NextAuthConfig } from 'next-auth';
 
 // 启动时验证 NextAuth 配置
 if (typeof window === 'undefined') {
-  // 仅在服务端执行
   const requiredEnvVars = {
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   };
-  
+
   const missingVars = Object.entries(requiredEnvVars)
     .filter(([_, value]) => !value)
     .map(([key]) => key);
-  
+
   if (missingVars.length > 0) {
-    console.warn('[Auth Config] ⚠️ 缺少必需的环境变量:', missingVars);
-    console.warn('[Auth Config] 这可能导致 NextAuth "Configuration" 错误');
-  } else {
-    // 验证 NEXTAUTH_URL 格式
-    const nextAuthUrl = requiredEnvVars.NEXTAUTH_URL;
-    if (nextAuthUrl && !nextAuthUrl.startsWith('http://') && !nextAuthUrl.startsWith('https://')) {
-      console.error('[Auth Config] ❌ NEXTAUTH_URL 格式错误，必须以 http:// 或 https:// 开头:', nextAuthUrl);
-    } else if (nextAuthUrl && nextAuthUrl.includes('factory-buy.com')) {
-      console.error('[Auth Config] ❌ NEXTAUTH_URL 配置错误，指向了 factory-buy.com:', nextAuthUrl);
-      console.error('[Auth Config] 请将 NEXTAUTH_URL 设置为正确的 Vercel 域名，例如: https://ue-asset-library.vercel.app');
-    } else {
-      console.log('[Auth Config] ✅ NextAuth 环境变量已配置:', {
-        hasSecret: !!requiredEnvVars.NEXTAUTH_SECRET,
-        secretLength: requiredEnvVars.NEXTAUTH_SECRET?.length || 0,
-        url: requiredEnvVars.NEXTAUTH_URL,
-      });
-    }
+    console.warn('[Auth Config] Missing required env vars:', missingVars);
   }
 }
 
-// 从环境变量读取管理员账号配置
+// 从环境变量读取管理员账号配置（向后兼容）
 // 格式：ADMIN_USERS=username1:password1,username2:password2
 function getAdminUsers(): Array<{ username: string; password: string; email?: string }> {
   const usersEnv = process.env.ADMIN_USERS || '';
   if (!usersEnv) {
-    // 如果没有配置，使用默认的管理员账号（兼容旧配置）
-    const defaultPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin123';
-    return [{ username: 'admin', password: defaultPassword, email: 'admin@admin.local' }];
+    return [];
   }
 
   return usersEnv.split(',').map((user) => {
     const [username, password] = user.split(':');
     const usernameTrimmed = username.trim();
-    // 如果 username 包含 @，则作为 email；否则生成 email
-    const email = usernameTrimmed.includes('@') 
-      ? usernameTrimmed 
+    const email = usernameTrimmed.includes('@')
+      ? usernameTrimmed
       : `${usernameTrimmed}@admin.local`;
-    return { 
-      username: usernameTrimmed, 
+    return {
+      username: usernameTrimmed,
       password: password.trim(),
       email,
     };
@@ -62,7 +44,19 @@ function getAdminUsers(): Array<{ username: string; password: string; email?: st
 
 export const authOptions: NextAuthConfig = {
   providers: [
-    // 密码登录
+    // OAuth providers (配置了环境变量才启用)
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? [Google({
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        })]
+      : []),
+    ...(process.env.GITHUB_ID && process.env.GITHUB_SECRET
+      ? [GitHub({
+          clientId: process.env.GITHUB_ID,
+          clientSecret: process.env.GITHUB_SECRET,
+        })]
+      : []),
     Credentials({
       name: '密码登录',
       credentials: {
@@ -70,34 +64,47 @@ export const authOptions: NextAuthConfig = {
         password: { label: '密码', type: 'password' },
       },
       async authorize(credentials) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:39',message:'authorize called',data:{hasUsername:!!credentials?.username,hasPassword:!!credentials?.password},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         if (!credentials?.username || !credentials?.password) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:41',message:'authorize rejected - missing credentials',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
           return null;
         }
 
-        // ✅ 本地认证：使用 ADMIN_USERS 环境变量（已迁移至 Supabase，不再依赖后端）
         try {
-          // 将用户名转换为 email 格式（如果还不是 email）
           const username = String(credentials.username || '');
-          const loginEmail = username.includes('@') 
-            ? username 
+          const password = String(credentials.password || '');
+          const loginEmail = username.includes('@')
+            ? username
             : `${username}@admin.local`;
-          
-          console.log('[Auth] 开始本地认证:', { 
-            username: credentials.username,
-            loginEmail,
-            hasPassword: !!credentials.password 
-          });
-          
-          // 从环境变量获取管理员用户列表
+
+          // === 方式1: 从 Supabase profiles 验证（bcrypt 密码） ===
+          try {
+            const { supabaseAdmin } = await import('@/lib/supabase/admin');
+            const bcrypt = await import('bcryptjs');
+
+            // 尝试通过 email 或 username 查找用户
+            const { data: profile } = await (supabaseAdmin.from('profiles') as any)
+              .select('id, email, username, password_hash, is_active')
+              .or(`email.eq.${loginEmail},username.eq.${username}`)
+              .limit(1)
+              .single();
+
+            if (profile && profile.password_hash && profile.is_active !== false) {
+              const passwordValid = await bcrypt.compare(password, profile.password_hash);
+              if (passwordValid) {
+                console.log('[Auth] ✅ Supabase 密码验证成功:', profile.email);
+                return {
+                  id: profile.email || profile.id,
+                  name: profile.username || profile.email,
+                  email: profile.email,
+                };
+              }
+            }
+          } catch (dbError) {
+            // Supabase 查询失败不影响 fallback
+            console.warn('[Auth] Supabase 查询失败，回退到环境变量:', dbError);
+          }
+
+          // === 方式2: 环境变量 ADMIN_USERS 验证（向后兼容） ===
           const adminUsers = getAdminUsers();
-          
-          // 支持用户名和 email 两种格式匹配
           const user = adminUsers.find((u) => {
             const usernameMatch = u.username === credentials.username;
             const emailMatch = u.email === credentials.username || u.email === loginEmail;
@@ -106,115 +113,206 @@ export const authOptions: NextAuthConfig = {
           });
 
           if (user) {
-            console.log('[Auth] ✅ 本地认证成功:', { 
-              username: user.username,
-              email: user.email,
-            });
-            
-            // 返回用户信息
-            const userInfo = {
+            console.log('[Auth] ✅ 环境变量验证成功:', user.email);
+            return {
               id: user.email || user.username,
               name: user.username,
               email: user.email || loginEmail,
             };
-            
-            return userInfo;
           }
 
-          console.warn('[Auth] ❌ 本地认证失败：用户不存在或密码错误');
           return null;
         } catch (error: any) {
-          // 其他未预期的错误
-          const errorMessage = error.message || String(error);
-          console.error('[Auth] ❌ 未预期的错误:', {
-            errorMessage,
-            errorName: error.name,
-            errorStack: error.stack?.substring(0, 300),
-          });
-          
+          console.error('[Auth] Unexpected error:', error.message);
           return null;
         }
       },
     }),
-    // 钉钉登录（可选，需要配置钉钉 OAuth）
-    // 注意：钉钉 OAuth 需要企业认证，这里先预留接口
-    // 如果需要启用，请配置 DINGTALK_CLIENT_ID 和 DINGTALK_CLIENT_SECRET
-    // 并取消下面的注释
-    /*
-    {
-      id: 'dingtalk',
-      name: '钉钉',
-      type: 'oauth',
-      authorization: {
-        url: 'https://oapi.dingtalk.com/connect/oauth2/sns_authorize',
-        params: {
-          appid: process.env.DINGTALK_CLIENT_ID,
-          response_type: 'code',
-          scope: 'snsapi_login',
-          redirect_uri: process.env.NEXTAUTH_URL + '/api/auth/callback/dingtalk',
-        },
-      },
-      token: 'https://oapi.dingtalk.com/sns/gettoken',
-      userinfo: 'https://oapi.dingtalk.com/sns/getuserinfo_bycode',
-      client: {
-        id: process.env.DINGTALK_CLIENT_ID!,
-        secret: process.env.DINGTALK_CLIENT_SECRET!,
-      },
-      profile(profile) {
-        return {
-          id: profile.openid,
-          name: profile.nick,
-          email: profile.unionid + '@dingtalk.local',
-        };
-      },
-    },
-    */
   ],
   pages: {
-    signIn: '/auth/login', // 自定义登录页面
+    signIn: '/auth/login',
   },
   session: {
-    strategy: 'jwt' as const, // 使用 JWT，不需要数据库
-    maxAge: 30 * 24 * 60 * 60, // 30 天（长期会话）
-    updateAge: 24 * 60 * 60, // 24 小时更新一次
+    strategy: 'jwt' as const,
+    maxAge: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
   callbacks: {
-    async jwt({ token, user }) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:201',message:'jwt callback',data:{hasUser:!!user,userId:user?.id,userEmail:user?.email,tokenId:token.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+    async signIn({ user, account }) {
+      // OAuth 登录时自动创建 profile 和个人团队
+      if (account?.provider && account.provider !== 'credentials' && user.email) {
+        try {
+          const { supabaseAdmin } = await import('@/lib/supabase/admin');
+
+          // 检查 profile 是否已存在
+          const { data: existingProfile } = await (supabaseAdmin.from('profiles') as any)
+            .select('id, email')
+            .eq('email', user.email)
+            .single();
+
+          if (!existingProfile) {
+            // 创建 auth user
+            const { data: authData } = await supabaseAdmin.auth.admin.createUser({
+              email: user.email,
+              email_confirm: true,
+              user_metadata: {
+                username: user.name || user.email.split('@')[0],
+                oauth_provider: account.provider,
+              },
+            });
+
+            const userId = authData?.user?.id;
+            if (userId) {
+              // 创建/upsert profile
+              await (supabaseAdmin.from('profiles') as any)
+                .upsert({
+                  id: userId,
+                  email: user.email,
+                  username: user.name || user.email.split('@')[0],
+                  avatar_url: user.image || null,
+                  is_active: true,
+                }, { onConflict: 'id' });
+
+              // 创建个人团队
+              const slug = user.email.split('@')[0].replace(/[^a-zA-Z0-9-]/g, '-');
+              const { data: team } = await (supabaseAdmin.from('teams') as any)
+                .insert({
+                  name: `${user.name || slug} 的团队`,
+                  slug: `${slug}-${Date.now().toString(36)}`,
+                  created_by: user.email,
+                })
+                .select()
+                .single();
+
+              if (team) {
+                await (supabaseAdmin.from('team_members') as any)
+                  .insert({
+                    team_id: team.id,
+                    user_id: user.email,
+                    role: 'owner',
+                  });
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[Auth signIn] OAuth provisioning error:', error);
+          // 不阻止登录
+        }
+      }
+      return true;
+    },
+    async jwt({ token, user, trigger, account }) {
       if (user) {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:207',message:'jwt callback returning',data:{tokenId:token.id,tokenEmail:token.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
+
+      // 注入 Onboarding 状态（仅首次登录或 session update 时查询）
+      if (user || trigger === 'update') {
+        try {
+          const { supabaseAdmin } = await import('@/lib/supabase/admin');
+          const email = token.email || token.name || '';
+          if (email) {
+            const { data: profile } = await (supabaseAdmin.from('profiles') as any)
+              .select('onboarding_completed')
+              .eq('email', email)
+              .single();
+            token.onboardingCompleted = profile?.onboarding_completed ?? false;
+          }
+        } catch {
+          // 查询失败不影响登录
+        }
+      }
+
+      // 注入团队上下文
+      // 检查条件：首次登录 / session update / cookie 中的团队 ID 与 token 不一致
+      try {
+        const userId = token.email || token.name || '';
+        if (userId) {
+          let cookieTeamId: string | null = null;
+
+          // 尝试从 cookie 读取活跃团队
+          try {
+            const { getActiveTeamId } = await import('@/lib/team/active-team');
+            cookieTeamId = await getActiveTeamId();
+          } catch {
+            // cookies() 在某些上下文不可用（如 middleware）
+          }
+
+          // 决定是否需要刷新团队上下文
+          const teamChanged = cookieTeamId && cookieTeamId !== token.activeTeamId;
+          const shouldRefresh = user || trigger === 'update' || teamChanged;
+
+          if (shouldRefresh) {
+            const { getDefaultTeam, getMemberRole, getTeam } = await import('@/lib/team/team-service');
+
+            let activeTeamId = cookieTeamId;
+
+            if (activeTeamId) {
+              // 验证用户是否仍属于该团队
+              const role = await getMemberRole(activeTeamId, userId);
+              if (role) {
+                const team = await getTeam(activeTeamId);
+                if (team) {
+                  token.activeTeamId = team.id;
+                  token.activeTeamRole = role;
+                  token.activeTeamName = team.name;
+                  token.activeTeamSlug = team.slug;
+                }
+              } else {
+                activeTeamId = null; // 不再属于该团队
+              }
+            }
+
+            // 没有活跃团队，使用默认团队
+            if (!activeTeamId) {
+              const defaultTeam = await getDefaultTeam(userId);
+              if (defaultTeam) {
+                const team = await getTeam(defaultTeam.teamId);
+                if (team) {
+                  token.activeTeamId = team.id;
+                  token.activeTeamRole = defaultTeam.role;
+                  token.activeTeamName = team.name;
+                  token.activeTeamSlug = team.slug;
+
+                  try {
+                    const { setActiveTeamId } = await import('@/lib/team/active-team');
+                    await setActiveTeamId(team.id);
+                  } catch {
+                    // cookies() 不可用
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[Auth JWT] 获取团队上下文失败:', error);
+        // 不影响登录
+      }
+
       return token;
     },
     async session({ session, token }) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:209',message:'session callback',data:{hasSessionUser:!!session.user,tokenId:token.id,tokenEmail:token.email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       if (session.user) {
         session.user.id = token.id as string;
         session.user.name = token.name as string;
         session.user.email = token.email as string;
+        // 注入团队上下文
+        session.user.activeTeamId = (token.activeTeamId as string) || null;
+        session.user.activeTeamRole = (token.activeTeamRole as string) || null;
+        session.user.activeTeamName = (token.activeTeamName as string) || null;
+        session.user.activeTeamSlug = (token.activeTeamSlug as string) || null;
+        // 注入 Onboarding 状态
+        session.user.onboardingCompleted = token.onboardingCompleted ?? false;
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e41af73f-c02b-452a-8798-4720359cec20',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/auth-config.ts:216',message:'session callback returning',data:{sessionUserId:session.user?.id,sessionUserEmail:session.user?.email,hasNextAuthSecret:!!process.env.NEXTAUTH_SECRET},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET || 'your-secret-key-change-in-production',
-  trustHost: true, // NextAuth v5 需要这个选项
-  
-  // 调试：输出配置信息
-  debug: process.env.NODE_ENV === 'development', // 开发环境启用调试
+  secret: process.env.NEXTAUTH_SECRET,
+  trustHost: true,
+  debug: process.env.NODE_ENV === 'development',
 };
 
-// 导出 NextAuth 实例
 export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
-

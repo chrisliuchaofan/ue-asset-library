@@ -1,0 +1,220 @@
+[  240353ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: WebSocket opening handshake timed out @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  248503ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Connection closed before receiving a handshake response @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  249505ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  250508ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  251511ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  252514ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  257527ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  262544ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  267585ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  272615ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  277754ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  282995ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  288570ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4DQGZ5RBEtlNJDmne7PM6' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[  686996ms] Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <ScrollAndFocusHandler segmentPath={[...]}>
+      <InnerScrollAndFocusHandler segmentPath={[...]} focusAndScrollRef={{apply:false, ...}}>
+        <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+          <LoadingBoundary name="/" loading={null}>
+            <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+              <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+                <RedirectBoundary>
+                  <RedirectErrorBoundary router={{...}}>
+                    <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{lazyData:null, ...}} ...>
+                      <SegmentViewNode type="page" pagePath="page.tsx">
+                        <SegmentTrieNode>
+                        <LandingPage>
+                          <LandingPageContent>
+                            <div className="flex min-h...">
+                              <LandingNav>
+                              <HeroShowcase>
+                                <section
++                                 className="relative h-screen overflow-hidden bg-[#0a0a0f]"
+-                                 className="relative h-screen overflow-hidden"
+-                                 style={{background-image:"initial",background-position-x:"initial",background-position-y:"ini...", ...}}
+                                >
+                                  <div
++                                   className="absolute inset-0 transition-opacity duration-[1500ms] ease-in-out"
+-                                   className="relative z-10 flex flex-col justify-end h-full px-6 sm:px-8 lg:px-12 pb..."
++                                   style={{opacity:1}}
+-                                   style={{}}
+                                  >
+                                    <BgVideo src="https://gu..." active={true}>
++                                     <video
++                                       ref={{current:null}}
++                                       src="https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com/assets/176969519991..."
++                                       muted={true}
++                                       loop={true}
++                                       playsInline={true}
++                                       preload="metadata"
++                                       className="absolute inset-0 w-full h-full object-cover"
++                                     >
+-                                     <span className="text-white/35 text-xs sm:text-sm mb-4 font-mono">
+                                  ...
+                                  ...
+                              ...
+                      ...
+                    ...
+        ...
+
+    at throwOnHydrationMismatch (http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:3342:56)
+    at beginWork (http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:6769:918)
+    at runWithFiberInDEV (http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:959:74)
+    at performUnitOfWork (http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9556:97)
+    at workLoopConcurrentByScheduler (http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9552:58)
+    at renderRootConcurrent (http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9535:71)
+    at performWorkOnRoot (http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9062:150)
+    at performWorkOnRootViaSchedulerTask (http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:10224:9)
+    at MessagePort.performWorkUntilDeadline (http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_a0e4c7b4._.js:2647:64)
+[ 1036699ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4Nl0vk3r8dN8tIEybUeRC' failed:  @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 1037707ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4Nl0vk3r8dN8tIEybUeRC' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 1038711ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4Nl0vk3r8dN8tIEybUeRC' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 1039715ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4Nl0vk3r8dN8tIEybUeRC' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 1040719ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4Nl0vk3r8dN8tIEybUeRC' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 1041722ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=4Nl0vk3r8dN8tIEybUeRC' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 2912032ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JlWZx8Br062aW_ZDXDRsI' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 2913034ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JlWZx8Br062aW_ZDXDRsI' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 2914036ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JlWZx8Br062aW_ZDXDRsI' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 2915038ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JlWZx8Br062aW_ZDXDRsI' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 2916042ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=JlWZx8Br062aW_ZDXDRsI' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_aaee43fe._.js:10116
+[ 3714703ms] [ERROR] ./app/page.tsx:11:28
+Ecmascript file had an error
+   9 |  */
+  10 |
+> 11 | const LandingPageContent = dynamic(
+     |                            ^^^^^^^^
+> 12 |   () =>
+     | ^^^^^^^
+> 13 |     import('@/components/landing/LandingPageContent').then((m) => ({
+     | ^^^^^^^
+> 14 |       default: m.LandingPageContent,
+     | ^^^^^^^
+> 15 |     })),
+     | ^^^^^^^
+> 16 |   {
+     | ^^^^^^^
+> 17 |     ssr: false,
+     | ^^^^^^^
+> 18 |     loading: () => (
+     | ^^^^^^^
+> 19 |       <div
+     | ^^^^^^^
+> 20 |         className="flex min-h-screen flex-col relative"
+     | ^^^^^^^
+> 21 |         style={{ background: '#0a0a0f' }}
+     | ^^^^^^^
+> 22 |       />
+     | ^^^^^^^
+> 23 |     ),
+     | ^^^^^^^
+> 24 |   }
+     | ^^^^^^^
+> 25 | );
+     | ^^
+  26 |
+  27 | export const metadata: Metadata = {
+  28 |   title: '爆款工坊 — 游戏广告素材 AI 工作台',
+
+`ssr: false` is not allowed with `next/dynamic` in Server Components. Please move it into a Client Component. @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3117
+[ 3719295ms] [ERROR] ./app/page.tsx:11:28
+Ecmascript file had an error
+   9 |  */
+  10 |
+> 11 | const LandingPageContent = dynamic(
+     |                            ^^^^^^^^
+> 12 |   () =>
+     | ^^^^^^^
+> 13 |     import('@/components/landing/LandingPageContent').then((m) => ({
+     | ^^^^^^^
+> 14 |       default: m.LandingPageContent,
+     | ^^^^^^^
+> 15 |     })),
+     | ^^^^^^^
+> 16 |   {
+     | ^^^^^^^
+> 17 |     ssr: false,
+     | ^^^^^^^
+> 18 |     loading: () => (
+     | ^^^^^^^
+> 19 |       <div
+     | ^^^^^^^
+> 20 |         className="flex min-h-screen flex-col relative"
+     | ^^^^^^^
+> 21 |         style={{ background: '#0a0a0f' }}
+     | ^^^^^^^
+> 22 |       />
+     | ^^^^^^^
+> 23 |     ),
+     | ^^^^^^^
+> 24 |   }
+     | ^^^^^^^
+> 25 | );
+     | ^^
+  26 |
+  27 | export const metadata: Metadata = {
+  28 |   title: '爆款工坊 — 游戏广告素材 AI 工作台',
+
+`ssr: false` is not allowed with `next/dynamic` in Server Components. Please move it into a Client Component. @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3117
+[ 3719399ms] [ERROR] ./app/page.tsx:11:28
+Ecmascript file had an error
+   9 |  */
+  10 |
+> 11 | const LandingPageContent = dynamic(
+     |                            ^^^^^^^^
+> 12 |   () =>
+     | ^^^^^^^
+> 13 |     import('@/components/landing/LandingPageContent').then((m) => ({
+     | ^^^^^^^
+> 14 |       default: m.LandingPageContent,
+     | ^^^^^^^
+> 15 |     })),
+     | ^^^^^^^
+> 16 |   {
+     | ^^^^^^^
+> 17 |     ssr: false,
+     | ^^^^^^^
+> 18 |     loading: () => (
+     | ^^^^^^^
+> 19 |       <div
+     | ^^^^^^^
+> 20 |         className="flex min-h-screen flex-col relative"
+     | ^^^^^^^
+> 21 |         style={{ background: '#0a0a0f' }}
+     | ^^^^^^^
+> 22 |       />
+     | ^^^^^^^
+> 23 |     ),
+     | ^^^^^^^
+> 24 |   }
+     | ^^^^^^^
+> 25 | );
+     | ^^
+  26 |
+  27 | export const metadata: Metadata = {
+  28 |   title: '爆款工坊 — 游戏广告素材 AI 工作台',
+
+`ssr: false` is not allowed with `next/dynamic` in Server Components. Please move it into a Client Component. @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3117
+[ 3763237ms] [ERROR] ./app/page.tsx:2:1
+Module not found: Can't resolve '@/components/landing/LandingClientWrapper'
+  1 | import type { Metadata } from 'next';
+> 2 | import { LandingClientWrapper } from '@/components/landing/LandingClientWrapper';
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  3 |
+  4 | /**
+  5 |  * Landing Page SEO Metadata
+
+Import map: aliased to relative './components/landing/LandingClientWrapper' inside of [project]/
+
+https://nextjs.org/docs/messages/module-not-found @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3117

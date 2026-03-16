@@ -661,8 +661,8 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
           {/* 已保存的分析内容 */}
           {savedAnalysis && !aiResult && !isAnalyzing && (
             <div className="space-y-2">
-              <div className="rounded-md border border-neutral-700 bg-neutral-900/50 p-3">
-                <p className="text-sm text-neutral-200 leading-relaxed whitespace-normal break-words">
+              <div className="rounded-md border border-border bg-muted/50 p-3">
+                <p className="text-sm text-foreground leading-relaxed whitespace-normal break-words">
                   {savedAnalysis}
                 </p>
               </div>
@@ -671,7 +671,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                 variant="ghost"
                 size="sm"
                 onClick={handleRegenerate}
-                className="text-xs text-neutral-400 hover:text-neutral-200"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 重新生成
@@ -683,15 +683,15 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
           {(aiResult || aiError) && (
             <div className="space-y-2">
               {aiResult && (
-                <div className="rounded-md border border-neutral-700 bg-neutral-900/50 p-3">
-                  <p className="text-sm text-neutral-200 leading-relaxed whitespace-normal break-words">
+                <div className="rounded-md border border-border bg-muted/50 p-3">
+                  <p className="text-sm text-foreground leading-relaxed whitespace-normal break-words">
                     {aiResult.description}
                   </p>
                 </div>
               )}
               {aiError && (
-                <div className="rounded-md border border-red-800/50 bg-red-900/20 p-3">
-                  <p className="text-sm text-red-400">
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3">
+                  <p className="text-sm text-destructive">
                     {aiError}
                   </p>
                 </div>
@@ -702,7 +702,7 @@ export function MediaGallery({ asset }: MediaGalleryProps) {
                   variant="ghost"
                   size="sm"
                   onClick={handleRegenerate}
-                  className="text-xs text-neutral-400 hover:text-neutral-200"
+                  className="text-xs text-muted-foreground hover:text-foreground"
                 >
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                   重新生成

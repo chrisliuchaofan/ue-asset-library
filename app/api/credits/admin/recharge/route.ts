@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createStandardError, ErrorCode, handleApiRouteError } from '@/lib/errors/error-handler';
 import { isAdmin } from '@/lib/auth/is-admin';
@@ -13,16 +13,11 @@ import { randomUUID } from 'crypto';
  */
 export async function POST(request: Request) {
   try {
-    const session = await getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        createStandardError(ErrorCode.AUTH_REQUIRED, '未登录，请先登录'),
-        { status: 401 }
-      );
-    }
+    const ctx = await requireTeamAccess('credits:manage');
+    if (isErrorResponse(ctx)) return ctx;
 
     // 检查管理员权限（从 Supabase 数据库读取）
-    const adminCheck = await isAdmin(session.user.email);
+    const adminCheck = await isAdmin(ctx.email);
     if (!adminCheck) {
       return NextResponse.json(
         createStandardError(ErrorCode.FORBIDDEN, '权限不足，需要管理员权限'),
@@ -61,7 +56,7 @@ export async function POST(request: Request) {
       const { data: profile } = await supabaseAdmin
         .from('profiles')
         .select('credits')
-        .eq('id', targetUserId)
+        .eq('email', targetUserId)
         .single();
 
       if (!profile) {
@@ -77,7 +72,7 @@ export async function POST(request: Request) {
       const { error: updateError } = await ((supabaseAdmin
         .from('profiles') as any)
         .update({ credits: updatedCredits, updated_at: new Date().toISOString() })
-        .eq('id', targetUserId));
+        .eq('email', targetUserId));
 
       if (updateError) {
         throw updateError;
@@ -88,9 +83,10 @@ export async function POST(request: Request) {
       await (supabaseAdmin.from('credit_transactions') as any).insert({
         id: transactionId,
         user_id: targetUserId,
+        team_id: ctx.teamId,
         amount,
         type: 'RECHARGE',
-        description: `管理员充值：${amount} 积分（操作人：${session.user.email}）`,
+        description: `管理员充值：${amount} 积分（操作人：${ctx.email}）`,
         created_at: new Date().toISOString(),
       });
 
@@ -105,9 +101,10 @@ export async function POST(request: Request) {
     await (supabaseAdmin.from('credit_transactions') as any).insert({
       id: transactionId,
       user_id: targetUserId,
+      team_id: ctx.teamId,
       amount,
       type: 'RECHARGE',
-      description: `管理员充值：${amount} 积分（操作人：${session.user.email}）`,
+      description: `管理员充值：${amount} 积分（操作人：${ctx.email}）`,
       created_at: new Date().toISOString(),
     });
 

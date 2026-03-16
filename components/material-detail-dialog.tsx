@@ -84,10 +84,10 @@ export function MaterialDetailDialog({ open, onOpenChange, material }: MaterialD
                 <div className="font-medium">{formatDuration(material.duration)}</div>
               </div>
             )}
-            {material.filesize && (
+            {material.fileSize && (
               <div>
                 <div className="text-sm text-muted-foreground">文件大小</div>
-                <div className="font-medium">{formatFileSize(material.filesize)}</div>
+                <div className="font-medium">{formatFileSize(material.fileSize)}</div>
               </div>
             )}
           </div>

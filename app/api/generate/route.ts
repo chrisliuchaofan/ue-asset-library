@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createStandardError, ErrorCode, handleApiRouteError } from '@/lib/errors/error-handler';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
-import { getSession } from '@/lib/auth';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 
 // 强制动态路由
 export const dynamic = 'force-dynamic';
@@ -38,6 +38,10 @@ const GenerateRequestSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    // 0. 验证团队访问权限
+    const ctx = await requireTeamAccess();
+    if (isErrorResponse(ctx)) return ctx;
+
     // 1. 解析请求体
     let body: unknown;
     try {
@@ -62,9 +66,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const { prompt, userId, cost, type } = parsed.data;
+    const { prompt, cost, type } = parsed.data;
+    // userId 始终来自认证上下文，不再从请求体获取
+    const userId = ctx.userId;
     const finalCost = cost ?? 10; // 默认费用 10 积分
-    const shouldDeductCredits = userId !== null && userId !== undefined;
+    const shouldDeductCredits = true; // 已认证用户始终需要检查扣费
     const generationType = type || 'image'; // 默认图片生成
 
     // 获取用户模式信息（检查是否应该调用真实 AI）
@@ -78,7 +84,7 @@ export async function POST(request: Request) {
         const { data: profile } = await supabaseAdmin
           .from('profiles')
           .select('billing_mode, model_mode')
-          .eq('id', userId)
+          .eq('email', userId)
           .single();
         
         if (profile) {
@@ -129,7 +135,7 @@ export async function POST(request: Request) {
           const { data: profile, error: profileError } = await supabaseAdmin
             .from('profiles')
             .select('credits')
-            .eq('id', userId)
+            .eq('email', userId)
             .single();
 
           if (profileError || !profile) {
@@ -157,7 +163,7 @@ export async function POST(request: Request) {
           const { data: updated, error: updateError } = await ((supabaseAdmin
             .from('profiles') as any)
             .update({ credits: currentCredits - finalCost })
-            .eq('id', userId)
+            .eq('email', userId)
             .gte('credits', finalCost) // 只有余额 >= cost 时才更新
             .select('credits')
             .single());
@@ -167,7 +173,7 @@ export async function POST(request: Request) {
             const { data: recheckProfile } = await supabaseAdmin
               .from('profiles')
               .select('credits')
-              .eq('id', userId)
+              .eq('email', userId)
               .single() as { data: { credits?: number } | null };
 
             const recheckCredits = recheckProfile?.credits ?? 0;
@@ -191,7 +197,7 @@ export async function POST(request: Request) {
             const { data: profile } = await supabaseAdmin
               .from('profiles')
               .select('credits')
-              .eq('id', userId)
+              .eq('email', userId)
               .single();
 
             const currentCredits = (profile as { credits?: number } | null)?.credits ?? 0;
@@ -227,7 +233,8 @@ export async function POST(request: Request) {
       .from('generations') as any)
       .insert({
         id: generationId,
-        user_id: userId || 'anonymous',
+        user_id: userId,
+        team_id: ctx.teamId,
         prompt,
         status: 'processing',
         cost: finalCost,
@@ -348,7 +355,7 @@ export async function POST(request: Request) {
           const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('credits')
-            .eq('id', userId)
+            .eq('email', userId)
             .single();
 
           if (profile) {
@@ -356,7 +363,7 @@ export async function POST(request: Request) {
             const { error: updateError } = await ((supabaseAdmin
               .from('profiles') as any)
               .update({ credits: currentCredits + finalCost, updated_at: new Date().toISOString() })
-              .eq('id', userId));
+              .eq('email', userId));
 
             if (updateError) {
               console.error('[Generate API] 回退积分失败（直接更新）:', updateError);
@@ -386,6 +393,7 @@ export async function POST(request: Request) {
           .insert({
             id: randomUUID(),
             user_id: userId,
+            team_id: ctx.teamId,
             amount: -finalCost,
             type: 'CONSUME',
             ref_id: generationId,

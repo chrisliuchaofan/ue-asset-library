@@ -90,7 +90,7 @@ export function RedeemCodeForm({ onSuccess }: RedeemCodeFormProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 mb-4">
-        <Gift className="w-6 h-6 text-indigo-400" />
+        <Gift className="w-6 h-6 text-primary" />
         <h3 className="text-lg font-bold">兑换码充值</h3>
       </div>
 
@@ -99,11 +99,11 @@ export function RedeemCodeForm({ onSuccess }: RedeemCodeFormProps) {
       )}
 
       {success && (
-        <div className="p-4 bg-green-900/20 border border-green-700/50 rounded-lg flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+        <div className="p-4 bg-success/10 border border-success/30 rounded-lg flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
           <div className="flex-1">
-            <p className="text-green-400 font-semibold">兑换成功！</p>
-            <p className="text-sm text-slate-300 mt-1">
+            <p className="text-success font-semibold">兑换成功！</p>
+            <p className="text-sm text-muted-foreground mt-1">
               已充值 {success.amount} 积分，当前余额：{success.balance} 积分
             </p>
           </div>
@@ -150,21 +150,21 @@ export function RedeemCodeForm({ onSuccess }: RedeemCodeFormProps) {
         {validationResult && (
           <div className={`p-3 rounded-lg border ${
             validationResult.valid
-              ? 'bg-green-900/20 border-green-700/50'
-              : 'bg-red-900/20 border-red-700/50'
+              ? 'bg-success/10 border-success/30'
+              : 'bg-destructive/10 border-destructive/30'
           }`}>
             <div className="flex items-center gap-2">
               {validationResult.valid ? (
                 <>
-                  <CheckCircle2 className="w-4 h-4 text-green-400" />
-                  <span className="text-sm text-green-400">
+                  <CheckCircle2 className="w-4 h-4 text-success" />
+                  <span className="text-sm text-success">
                     兑换码有效，可充值 {validationResult.amount} 积分
                   </span>
                 </>
               ) : (
                 <>
-                  <XCircle className="w-4 h-4 text-red-400" />
-                  <span className="text-sm text-red-400">兑换码无效</span>
+                  <XCircle className="w-4 h-4 text-destructive" />
+                  <span className="text-sm text-destructive">兑换码无效</span>
                 </>
               )}
             </div>

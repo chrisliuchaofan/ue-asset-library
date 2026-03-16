@@ -1,47 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Suspense } from 'react';
-import { createPortal } from 'react-dom';
-import { Menu, X, ChevronDown } from 'lucide-react';
-import { MaterialFilterSidebar, type MaterialFilterSnapshot } from '@/components/material-filter-sidebar';
 import { MaterialsListWithHeader } from '@/components/materials-list-with-header';
+import { MaterialSourceTabs, type MaterialSource } from '@/components/materials-source-tabs';
 import type { Material } from '@/data/material.schema';
 import type { MaterialsSummary } from '@/lib/materials-data';
-
-// 检测是否为移动端
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
-  
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-    checkMobile();
-    
-    // 性能优化：使用防抖处理 resize 事件，避免频繁触发
-    let timeoutId: NodeJS.Timeout | null = null;
-    const debouncedCheckMobile = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      timeoutId = setTimeout(() => {
-        checkMobile();
-      }, 150); // 150ms 防抖延迟
-    };
-    
-    window.addEventListener('resize', debouncedCheckMobile, { passive: true });
-    return () => {
-      window.removeEventListener('resize', debouncedCheckMobile);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, []);
-  
-  return isMobile;
-}
 
 interface MaterialsPageShellProps {
   materials: Material[];
@@ -49,174 +13,63 @@ interface MaterialsPageShellProps {
 }
 
 export function MaterialsPageShell({ materials, summary }: MaterialsPageShellProps) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(220);
-  const [optimisticFilters, setOptimisticFilters] = useState<MaterialFilterSnapshot | null>(null);
-  const isMobile = useIsMobile();
-  const collapsedWidth = 48;
-  const MIN_WIDTH = 220;
-  const MAX_WIDTH = 420;
-  // 性能优化：虚拟滚动需要滚动容器的引用
+  const [activeSource, setActiveSource] = useState<MaterialSource>('internal');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const portalTarget = document.getElementById('sidebar-toggle-portal');
-    setPortalContainer(portalTarget);
-  }, []);
+  const { filteredMaterials, internalCount, competitorCount, filteredSummary } = useMemo(() => {
+    const internal = materials.filter(m => (m.source || 'internal') === 'internal');
+    const competitor = materials.filter(m => m.source === 'competitor');
+    const filtered = activeSource === 'internal' ? internal : competitor;
 
-  const handleResizeStart = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      if (!isSidebarOpen) return;
-      event.preventDefault();
-      const startX = event.clientX;
-      const startWidth = sidebarWidth;
+    const types: Record<string, number> = {};
+    const tags: Record<string, number> = {};
+    const qualities: Record<string, number> = {};
+    const projects: Record<string, number> = {};
+    for (const m of filtered) {
+      types[m.type] = (types[m.type] || 0) + 1;
+      tags[m.tag] = (tags[m.tag] || 0) + 1;
+      for (const q of m.quality) {
+        qualities[q] = (qualities[q] || 0) + 1;
+      }
+      projects[m.project] = (projects[m.project] || 0) + 1;
+    }
 
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const delta = moveEvent.clientX - startX;
-        const nextWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta));
-        setSidebarWidth(nextWidth);
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.body.classList.remove('select-none');
-      };
-
-      document.body.classList.add('select-none');
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    },
-    [isSidebarOpen, sidebarWidth]
-  );
-
-  const collapsedCategories = [
-    { key: 'type', label: 'S', name: 'Style' },
-    { key: 'kind', label: 'T', name: 'Type' },
-    { key: 'tag', label: 'A', name: 'Tag' },
-    { key: 'source', label: 'R', name: 'Source' },
-    { key: 'quality', label: 'S', name: 'Quality' },
-  ];
-
-  const navButtonBase =
-    'inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-transparent bg-transparent text-slate-600 transition active:scale-95 active:border-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 dark:text-slate-100 cursor-pointer';
-
-  const effectiveSidebarWidth = isSidebarOpen ? sidebarWidth : collapsedWidth;
-
-  const toggleButton = (
-    <div
-      className="flex h-full items-center justify-center"
-      style={{ width: collapsedWidth }}
-    >
-      <button
-        onClick={() => setIsSidebarOpen((prev) => !prev)}
-        className={navButtonBase}
-        aria-label={isSidebarOpen ? '关闭筛选' : '打开筛选'}
-        title={isSidebarOpen ? '关闭筛选' : '打开筛选'}
-      >
-        {isSidebarOpen ? (
-          <X className="h-4 w-4" strokeWidth={2} />
-        ) : (
-          <Menu className="h-4 w-4" strokeWidth={2} />
-        )}
-      </button>
-    </div>
-  );
+    return {
+      filteredMaterials: filtered,
+      internalCount: internal.length,
+      competitorCount: competitor.length,
+      filteredSummary: { total: filtered.length, types, tags, qualities, projects } as MaterialsSummary,
+    };
+  }, [materials, activeSource]);
 
   return (
-    <>
-      {portalContainer
-        ? createPortal(toggleButton, portalContainer)
-        : (
-          <div
-            className="fixed left-0 top-24 z-40"
-            style={{ width: collapsedWidth }}
-          >
-            <div className="flex h-full items-center justify-center">
-              <button
-                onClick={() => setIsSidebarOpen((prev) => !prev)}
-                className={navButtonBase}
-                aria-label={isSidebarOpen ? '关闭筛选' : '打开筛选'}
-                title={isSidebarOpen ? '关闭筛选' : '打开筛选'}
-              >
-                {isSidebarOpen ? (
-                  <ChevronDown className="h-4 w-4" strokeWidth={2} />
-                ) : (
-                  <Menu className="h-4 w-4" strokeWidth={2} />
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-      <div className="relative flex flex-1 overflow-hidden">
-        {/* Drawer */}
-        <div className={`pointer-events-auto fixed left-0 bottom-0 top-[3.5rem] sm:top-16 z-30 flex transition-transform duration-300 ease-out ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full sm:translate-x-0'
-        }`}>
-          <div
-            className="transform-gpu transition-all duration-300 ease-out"
-            style={{ width: effectiveSidebarWidth }}
-          >
-            <div className="relative h-full border-r border-zinc-200/70 bg-white/95 px-1.5 py-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/[0.08] dark:bg-black/65 dark:shadow-[0_28px_60px_rgba(0,0,0,0.45)] dark:backdrop-blur">
-              {isSidebarOpen ? (
-                <Suspense fallback={<div className="w-full" />}>
-                  <MaterialFilterSidebar
-                    types={Object.keys(summary.types)}
-                    tags={Object.keys(summary.tags)}
-                    qualities={Object.keys(summary.qualities)}
-                    onOptimisticFiltersChange={setOptimisticFilters}
-                  />
-                </Suspense>
-              ) : (
-                <div className="flex h-full flex-col items-stretch gap-2 py-2">
-                  {collapsedCategories.map((item) => (
-                    <button
-                      key={item.key}
-                      className="flex h-10 w-full items-center justify-center rounded-md text-sm font-semibold text-slate-600 transition active:scale-95 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/[0.08] cursor-pointer"
-                      onClick={() => setIsSidebarOpen(true)}
-                      title={item.name}
-                      aria-label={item.name}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          {isSidebarOpen && (
-            <div
-              className="hidden w-1.5 cursor-ew-resize bg-zinc-200/80 hover:bg-zinc-300/80 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] sm:block"
-              onMouseDown={handleResizeStart}
-            />
-          )}
+    <div
+      ref={scrollContainerRef}
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        background: '#000',
+      }}
+    >
+      <div style={{ padding: '16px 24px' }}>
+        {/* Source Tabs */}
+        <div style={{ marginBottom: 16 }}>
+          <MaterialSourceTabs
+            activeSource={activeSource}
+            onSourceChange={setActiveSource}
+            internalCount={internalCount}
+            competitorCount={competitorCount}
+          />
         </div>
 
-        {/* Content */}
-        <main
-          ref={scrollContainerRef}
-          className="relative flex-1 transform-gpu transition-all duration-300 ease-out overflow-y-auto"
-          style={{
-            minHeight: 'calc(100vh - 3.5rem)',
-            marginLeft: isMobile ? '0px' : `${effectiveSidebarWidth}px`,
-          }}
-        >
-          {/* 移动端遮罩层 - 已移除 */}
-          <div className="p-2 sm:p-4 lg:p-6 overflow-x-hidden">
-            <Suspense fallback={<div>加载中...</div>}>
-              <MaterialsListWithHeader
-                materials={materials}
-                optimisticFilters={optimisticFilters}
-                summary={summary}
-                scrollContainerRef={scrollContainerRef}
-              />
-            </Suspense>
-          </div>
-        </main>
+        <Suspense fallback={<div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>加载中...</div>}>
+          <MaterialsListWithHeader
+            materials={filteredMaterials}
+            summary={filteredSummary}
+            scrollContainerRef={scrollContainerRef}
+          />
+        </Suspense>
       </div>
-    </>
+    </div>
   );
 }

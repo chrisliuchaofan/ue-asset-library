@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { PROJECTS, getAllProjects, getProjectDisplayName } from '@/lib/constants';
 import { MaterialsTagsManagementDialog } from './materials-tags-management-dialog';
 import { MaterialsBatchEditDialog } from './materials-batch-edit-dialog';
+import { MaterialsCsvImport } from './materials-csv-import';
 import {
   Dialog,
   DialogContent,
@@ -70,10 +71,19 @@ interface FormState {
   project: '项目A' | '项目B' | '项目C' | '';
   tag: '爆款' | '优质' | '达标';
   quality: ('高品质' | '常规' | '迭代')[];
+  source: 'internal' | 'competitor';
+  consumption: string;
+  conversions: string;
+  roi: string;
+  platform: string;
+  advertiser: string;
+  estimatedSpend: string;
+  firstSeen: string;
+  lastSeen: string;
   thumbnail: string;
   src: string;
   gallery: string;
-  filesize: string;
+  fileSize: string;
   width: string;
   height: string;
   duration: string;
@@ -85,10 +95,19 @@ const initialFormState: FormState = {
   project: '',
   tag: '达标',
   quality: ['常规'],
+  source: 'internal',
+  consumption: '',
+  conversions: '',
+  roi: '',
+  platform: '',
+  advertiser: '',
+  estimatedSpend: '',
+  firstSeen: '',
+  lastSeen: '',
   thumbnail: '',
   src: '',
   gallery: '',
-  filesize: '',
+  fileSize: '',
   width: '',
   height: '',
   duration: '',
@@ -117,7 +136,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     hash?: string;
   }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // 搜索和筛选状态
   const [searchKeyword, setSearchKeyword] = useState('');
   const [filterProject, setFilterProject] = useState<string | null>(null);
@@ -129,6 +148,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   const ITEMS_PER_PAGE = 12;
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<string>>(new Set());
   const [batchEditOpen, setBatchEditOpen] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingMaterialInDialog, setEditingMaterialInDialog] = useState<Material | null>(null);
   // 编辑对话框中的文件上传状态
@@ -147,7 +167,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [materialToDelete, setMaterialToDelete] = useState<Material | null>(null);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
-  
+
   // 待确认的素材列表（多文件上传时使用）
   interface PendingMaterial {
     name: string;
@@ -158,7 +178,6 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     thumbnail: string;
     src: string;
     gallery: string[];
-    filesize: number;
     fileSize: number;
     hash: string;
     width?: number;
@@ -187,7 +206,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
     tag: '爆款' | '优质' | '达标';
     quality: ('高品质' | '常规' | '迭代')[];
   } | null>(null);
-  
+
   // 当开始编辑待确认素材时，初始化表单
   useEffect(() => {
     if (editingPendingMaterialIndex !== null && pendingMaterials[editingPendingMaterialIndex]) {
@@ -206,13 +225,13 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   const [isLongPressing, setIsLongPressing] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const rowRefsRef = useRef<Map<string, HTMLTableRowElement>>(new Map());
-  
+
   // 框选功能状态
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectStart, setSelectStart] = useState<{ x: number; y: number } | null>(null);
   const [selectEnd, setSelectEnd] = useState<{ x: number; y: number } | null>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  
+
   const [columnWidths, setColumnWidths] = useState<Record<(typeof MATERIAL_COLUMNS)[number]['id'], number>>(() =>
     MATERIAL_COLUMNS.reduce((acc, column) => {
       acc[column.id] = column.defaultWidth;
@@ -407,10 +426,10 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   // 更新表单从已上传文件列表
   const updateFormFromUploadedFiles = useCallback((files: typeof uploadedFiles) => {
     if (files.length === 0) return;
-    
+
     const firstFile = files[0];
     const galleryUrls = files.map((f) => f.url);
-    
+
     // 处理预览 URL
     const previewUrls = files.map((f) => {
       let url = f.url;
@@ -421,14 +440,14 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       }
       return url;
     });
-    
+
     setPreviewUrls(previewUrls);
     setCurrentPreviewIndex(0);
-    
+
     setForm((prev) => {
       const finalThumbnail = firstFile.type === 'image' ? firstFile.url : (firstFile.url || prev.thumbnail);
       const finalSrc = firstFile.url || finalThumbnail;
-      
+
       return {
         ...prev,
         name: prev.name || firstFile.originalName.replace(/\.[^/.]+$/, ''),
@@ -437,7 +456,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         gallery: galleryUrls.join(','),
         width: firstFile.width ? String(firstFile.width) : prev.width,
         height: firstFile.height ? String(firstFile.height) : prev.height,
-        filesize: firstFile.size ? String(firstFile.size) : prev.filesize,
+        fileSize: firstFile.size ? String(firstFile.size) : prev.fileSize,
       };
     });
   }, [storageMode, normalizedCdnBase]);
@@ -463,11 +482,11 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
   const handleInputChange =
     (field: keyof FormState) => (event: ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: event.target.value,
-    }));
-  };
+      setForm((prev) => ({
+        ...prev,
+        [field]: event.target.value,
+      }));
+    };
 
   const refreshMaterials = useCallback(async () => {
     const response = await fetch('/api/materials', { cache: 'no-store' });
@@ -648,7 +667,6 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           thumbnail: uploadData.url,
           src: uploadData.url,
           gallery: [uploadData.url],
-          filesize: fileSize,
           fileSize: fileSize,
           hash: fileHash,
           width: uploadData.width ?? localMetadata.width,
@@ -908,7 +926,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   // 筛选素材
   const filteredMaterials = useMemo(() => {
     // 先按项目过滤
-    let filtered = filterProject 
+    let filtered = filterProject
       ? materials.filter((material) => material.project === filterProject)
       : materials;
 
@@ -1004,7 +1022,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         const previewSource = getPreviewUrl(material.thumbnail || material.src);
         const isVideo = Boolean(
           material.thumbnail?.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/) ||
-            material.src?.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/)
+          material.src?.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv)$/)
         );
 
         // 收集所有媒体文件
@@ -1022,7 +1040,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             type: isVideoUrl(material.thumbnail) ? 'video' : 'image',
           });
         }
-        
+
         if (material.src && material.src !== material.thumbnail) {
           allMediaFiles.push({
             url: material.src,
@@ -1030,7 +1048,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             type: isVideoUrl(material.src) ? 'video' : 'image',
           });
         }
-        
+
         if (material.gallery && material.gallery.length > 0) {
           material.gallery.forEach((url, index) => {
             if (url && url !== material.thumbnail && url !== material.src) {
@@ -1042,7 +1060,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             }
           });
         }
-        
+
         if (allMediaFiles.length === 0 && material.src) {
           allMediaFiles.push({
             url: material.src,
@@ -1053,7 +1071,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
         return (
           <div className="flex h-[56px] items-center">
-            <div 
+            <div
               className="relative group cursor-pointer"
               ref={(el) => {
                 if (el) {
@@ -1075,7 +1093,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 setHoveredPreview(null);
               }}
             >
-              <div className="relative h-[48px] w-[48px] overflow-hidden border border-gray-300 bg-gray-100">
+              <div className="relative h-[48px] w-[48px] overflow-hidden border border-gray-300 bg-muted">
                 {previewSource ? (
                   isVideo ? (
                     <video src={previewSource} className="h-full w-full object-cover" muted playsInline />
@@ -1097,7 +1115,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       }
       case 'name':
         return (
-          <div className="flex h-[56px] items-center text-xs text-gray-700 gap-2" title={needsReview ? `待完善：${missingFields.join('、')}` : material.name}>
+          <div className="flex h-[56px] items-center text-xs text-foreground gap-2" title={needsReview ? `待完善：${missingFields.join('、')}` : material.name}>
             <span className="truncate">{material.name}</span>
             {needsReview && (
               <span className="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-800 border border-amber-300">
@@ -1108,21 +1126,21 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         );
       case 'type':
         return (
-          <div className="flex h-[56px] items-center whitespace-nowrap text-xs text-gray-700">
+          <div className="flex h-[56px] items-center whitespace-nowrap text-xs text-foreground">
             {material.type}
           </div>
         );
       case 'tag':
         return (
           <div className="flex h-[56px] items-center">
-            <span className="inline-flex items-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-700">{material.tag}</span>
+            <span className="inline-flex items-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-foreground">{material.tag}</span>
           </div>
         );
       case 'quality':
         return (
           <div className="flex h-[56px] flex-wrap items-center gap-1">
             {material.quality.map((quality) => (
-              <span key={quality} className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium text-gray-700">
+              <span key={quality} className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-foreground">
                 {quality}
               </span>
             ))}
@@ -1132,16 +1150,16 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         const timestamp = material.updatedAt ?? material.createdAt;
         const formatted = timestamp
           ? new Date(timestamp).toLocaleString('zh-CN', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-            })
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
           : '-';
 
         return (
-          <div className="flex h-[56px] items-center text-[10px] text-gray-600 whitespace-nowrap">
+          <div className="flex h-[56px] items-center text-[10px] text-muted-foreground whitespace-nowrap">
             {formatted}
           </div>
         );
@@ -1155,9 +1173,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
               variant="ghost"
               className={cn(
                 "h-7 w-7 transition-colors",
-                material.recommended 
-                  ? "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" 
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                material.recommended
+                  ? "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
               onClick={async (e) => {
                 e.stopPropagation();
@@ -1173,12 +1191,12 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                       recommended: !material.recommended,
                     }),
                   });
-                  
+
                   if (!response.ok) {
                     const error = await response.json();
                     throw new Error(error.message || '更新推荐状态失败');
                   }
-                  
+
                   await refreshMaterials();
                   setMessage(material.recommended ? '已取消推荐' : '已设为推荐');
                 } catch (error) {
@@ -1197,7 +1215,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
               onClick={(e) => {
                 e.stopPropagation();
                 // 初始化编辑对话框时，识别已上传的素材
@@ -1206,7 +1224,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   const lower = url.toLowerCase();
                   return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
                 };
-                
+
                 const allMediaFiles: Array<{
                   url: string;
                   originalName: string;
@@ -1216,31 +1234,31 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   height?: number;
                   hash?: string;
                 }> = [];
-                
+
                 // 添加 thumbnail
                 if (material.thumbnail) {
                   allMediaFiles.push({
                     url: material.thumbnail,
                     originalName: material.thumbnail.split('/').pop() || 'thumbnail',
                     type: isVideoUrl(material.thumbnail) ? 'video' : 'image',
-                    size: material.filesize || 0,
+                    size: material.fileSize || 0,
                     width: material.width,
                     height: material.height,
                   });
                 }
-                
+
                 // 添加 src（如果与 thumbnail 不同）
                 if (material.src && material.src !== material.thumbnail) {
                   allMediaFiles.push({
                     url: material.src,
                     originalName: material.src.split('/').pop() || 'src',
                     type: isVideoUrl(material.src) ? 'video' : 'image',
-                    size: material.filesize || 0,
+                    size: material.fileSize || 0,
                     width: material.width,
                     height: material.height,
                   });
                 }
-                
+
                 // 添加 gallery 中的文件
                 if (material.gallery && material.gallery.length > 0) {
                   material.gallery.forEach((url) => {
@@ -1254,7 +1272,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                     }
                   });
                 }
-                
+
                 setEditingDialogUploadedFiles(allMediaFiles);
                 setEditingMaterialInDialog(material);
                 setEditDialogOpen(true);
@@ -1268,7 +1286,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
               onClick={(e) => {
                 e.stopPropagation();
                 setMaterialToDelete(material);
@@ -1430,12 +1448,21 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         project: form.project,
         tag: form.tag,
         quality: form.quality,
+        source: form.source,
+        consumption: form.consumption ? Number(form.consumption) : undefined,
+        conversions: form.conversions ? Number(form.conversions) : undefined,
+        roi: form.roi ? Number(form.roi) : undefined,
+        platform: form.platform,
+        advertiser: form.advertiser,
+        estimatedSpend: form.estimatedSpend ? Number(form.estimatedSpend) : undefined,
+        firstSeen: form.firstSeen ? new Date(form.firstSeen).getTime() : undefined,
+        lastSeen: form.lastSeen ? new Date(form.lastSeen).getTime() : undefined,
         thumbnail: form.thumbnail || undefined,
         src: form.src || undefined,
         gallery: form.gallery
           ? form.gallery.split(',').map((url) => url.trim()).filter(Boolean)
           : undefined,
-        filesize: form.filesize ? Number(form.filesize) : undefined,
+        fileSize: form.fileSize ? Number(form.fileSize) : undefined,
         width: form.width ? Number(form.width) : undefined,
         height: form.height ? Number(form.height) : undefined,
         duration: form.duration ? Number(form.duration) : undefined,
@@ -1472,11 +1499,11 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   const handleDelete = async (id: string) => {
     const material = materials.find((m) => m.id === id);
     const materialName = material?.name || '该素材';
-    
+
     if (!confirm(`确定要删除素材 "${materialName}" 吗？此操作不可恢复。`)) {
       return;
     }
-    
+
     setMessage(null);
     setLoading(true);
     try {
@@ -1515,17 +1542,26 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   const handleEdit = useCallback((material: Material) => {
     setEditingMaterialId(material.id);
     setOriginalMaterial(JSON.parse(JSON.stringify(material)));
-    
+
     setForm({
       name: material.name,
       type: material.type,
-      project: material.project || '',
+      project: (material.project as '项目A' | '项目B' | '项目C') || '',
       tag: material.tag,
       quality: material.quality,
+      source: material.source || 'internal',
+      consumption: material.consumption ? String(material.consumption) : '',
+      conversions: material.conversions ? String(material.conversions) : '',
+      roi: material.roi ? String(material.roi) : '',
+      platform: material.platform || '',
+      advertiser: material.advertiser || '',
+      estimatedSpend: material.estimatedSpend ? String(material.estimatedSpend) : '',
+      firstSeen: material.firstSeen ? new Date(material.firstSeen).toISOString().split('T')[0] : '',
+      lastSeen: material.lastSeen ? new Date(material.lastSeen).toISOString().split('T')[0] : '',
       thumbnail: material.thumbnail || '',
       src: material.src || '',
       gallery: material.gallery?.join(', ') || '',
-      filesize: material.filesize ? String(material.filesize) : '',
+      fileSize: material.fileSize ? String(material.fileSize) : '',
       width: material.width ? String(material.width) : '',
       height: material.height ? String(material.height) : '',
       duration: material.duration ? String(material.duration) : '',
@@ -1550,7 +1586,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         url: material.thumbnail,
         originalName: material.thumbnail.split('/').pop() || 'thumbnail',
         type: isVideoUrl(material.thumbnail) ? 'video' : 'image',
-        size: material.filesize || 0,
+        size: material.fileSize || 0,
       });
     }
 
@@ -1559,7 +1595,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         url: material.src,
         originalName: material.src.split('/').pop() || 'src',
         type: isVideoUrl(material.src) ? 'video' : 'image',
-        size: material.filesize || 0,
+        size: material.fileSize || 0,
       });
     }
 
@@ -1594,8 +1630,8 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       const previewUrl = url.startsWith('http')
         ? url
         : storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/'
-        ? `${normalizedCdnBase.replace(/\/+$/, '')}${url}`
-        : url;
+          ? `${normalizedCdnBase.replace(/\/+$/, '')}${url}`
+          : url;
       setPreviewUrls([previewUrl]);
       setCurrentPreviewIndex(0);
     }
@@ -1622,7 +1658,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       form.thumbnail.trim() !== (originalMaterial.thumbnail || '') ||
       form.src.trim() !== (originalMaterial.src || '') ||
       form.gallery.trim() !== (originalMaterial.gallery?.join(', ') || '') ||
-      form.filesize !== (originalMaterial.filesize ? String(originalMaterial.filesize) : '') ||
+      form.fileSize !== (originalMaterial.fileSize ? String(originalMaterial.fileSize) : '') ||
       form.width !== (originalMaterial.width ? String(originalMaterial.width) : '') ||
       form.height !== (originalMaterial.height ? String(originalMaterial.height) : '') ||
       form.duration !== (originalMaterial.duration ? String(originalMaterial.duration) : '')
@@ -1631,7 +1667,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
   const handleUpdate = async () => {
     if (!editingMaterialId) return;
-    
+
     setMessage(null);
     setLoading(true);
     try {
@@ -1649,12 +1685,21 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
         project: form.project || undefined,
         tag: form.tag,
         quality: form.quality,
+        source: form.source,
+        consumption: form.consumption ? Number(form.consumption) : undefined,
+        conversions: form.conversions ? Number(form.conversions) : undefined,
+        roi: form.roi ? Number(form.roi) : undefined,
+        platform: form.platform || undefined,
+        advertiser: form.advertiser || undefined,
+        estimatedSpend: form.estimatedSpend ? Number(form.estimatedSpend) : undefined,
+        firstSeen: form.firstSeen ? new Date(form.firstSeen).getTime() : undefined,
+        lastSeen: form.lastSeen ? new Date(form.lastSeen).getTime() : undefined,
         thumbnail: form.thumbnail || undefined,
         src: form.src || undefined,
         gallery: form.gallery
           ? form.gallery.split(',').map((url) => url.trim()).filter(Boolean)
           : undefined,
-        filesize: form.filesize ? Number(form.filesize) : undefined,
+        fileSize: form.fileSize ? Number(form.fileSize) : undefined,
         width: form.width ? Number(form.width) : undefined,
         height: form.height ? Number(form.height) : undefined,
         duration: form.duration ? Number(form.duration) : undefined,
@@ -1876,351 +1921,358 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
   return (
     <div className="space-y-4 h-full flex flex-col">
       {!showOnlyForm && (
-      <div className="bg-white">
-        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">素材列表</h3>
-            <div className="flex flex-wrap items-center gap-2">
-              {selectedMaterialIds.size > 0 && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => setBatchEditOpen(true)}
-                >
-                  <CheckSquare className="mr-2 h-4 w-4" />
-                  批量操作 ({selectedMaterialIds.size})
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setTagsManagementOpen(true)}
-              >
-                <Tags className="mr-2 h-4 w-4" />
-                标签和类型管理
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div className="space-y-4 px-4 py-4">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <Input
-                  placeholder="搜索素材名称..."
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="pl-10 border-gray-300 bg-white text-gray-900"
-                />
-              </div>
-              <select
-                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                value={filterProject || ''}
-                onChange={(e) => setFilterProject(e.target.value || null)}
-              >
-                <option value="">全部项目</option>
-                {getAllProjects().map((project) => (
-                  <option key={project} value={project}>
-                    {getProjectDisplayName(project)}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-              >
-                <option value="">全部类型</option>
-                {MATERIAL_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                value={filterTag}
-                onChange={(e) => setFilterTag(e.target.value)}
-              >
-                <option value="">全部标签</option>
-                {MATERIAL_TAGS.map((tag) => (
-                  <option key={tag} value={tag}>
-                    {tag}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => setFilterRecommended(filterRecommended === true ? null : true)}
-                className={cn(
-                  "h-9 rounded border px-3 text-sm transition",
-                  filterRecommended === true
-                    ? 'border-yellow-500 bg-yellow-50 text-yellow-700'
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+        <div className="bg-white">
+          <div className="border-b border-border bg-muted/50 px-4 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-sm font-semibold text-foreground">素材列表</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedMaterialIds.size > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setBatchEditOpen(true)}
+                  >
+                    <CheckSquare className="mr-2 h-4 w-4" />
+                    批量操作 ({selectedMaterialIds.size})
+                  </Button>
                 )}
-              >
-                <div className="flex items-center gap-1.5">
-                  <ThumbsUp className={cn("h-4 w-4", filterRecommended === true && "fill-current")} />
-                  <span>已推荐</span>
-                </div>
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-gray-600">
-                共找到 {filteredMaterials.length} 个素材
-                {filteredMaterials.length !== materials.length && `（共 ${materials.length} 个）`}
-              </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCsvImportOpen(true)}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  批量导入
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTagsManagementOpen(true)}
+                >
+                  <Tags className="mr-2 h-4 w-4" />
+                  标签和类型管理
+                </Button>
+              </div>
             </div>
           </div>
-
-          <div className="flex-1 overflow-hidden bg-white">
-            <div 
-              ref={tableContainerRef}
-              className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)] relative"
-              onMouseDown={handleTableMouseDown}
-            >
-              {/* 选择框视觉反馈 */}
-              {isSelecting && selectStart && selectEnd && (
-                <div
-                  className="absolute border-2 border-blue-500 bg-blue-100/20 pointer-events-none z-30"
-                  style={{
-                    left: `${Math.min(selectStart.x, selectEnd.x)}px`,
-                    top: `${Math.min(selectStart.y, selectEnd.y)}px`,
-                    width: `${Math.abs(selectEnd.x - selectStart.x)}px`,
-                    height: `${Math.abs(selectEnd.y - selectStart.y)}px`,
-                  }}
-                />
-              )}
-              <table className="min-w-full table-fixed text-xs sm:text-sm">
-                <colgroup>
-                  <col style={{ width: `${SELECTION_COL_WIDTH}px` }} />
-                  {MATERIAL_COLUMNS.map((column) => (
-                    <col key={column.id} style={{ width: `${columnWidths[column.id]}px` }} />
+          <div className="space-y-4 px-4 py-4">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="搜索素材名称..."
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    className="pl-10 border-gray-300 bg-white text-foreground"
+                  />
+                </div>
+                <select
+                  className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
+                  value={filterProject || ''}
+                  onChange={(e) => setFilterProject(e.target.value || null)}
+                >
+                  <option value="">全部项目</option>
+                  {getAllProjects().map((project) => (
+                    <option key={project} value={project}>
+                      {getProjectDisplayName(project)}
+                    </option>
                   ))}
-                </colgroup>
-                <thead className="bg-gray-50 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">
-                  <tr>
-                    <th className="px-2 py-2">
-                      <div className="flex h-[32px] items-center justify-center">
-                        <Checkbox
-                          checked={
-                            displayedMaterials.length > 0 &&
-                            displayedMaterials.every((material) => selectedMaterialIds.has(material.id))
-                          }
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              const next = new Set(selectedMaterialIds);
-                              displayedMaterials.forEach((material) => next.add(material.id));
-                              setSelectedMaterialIds(next);
-                            } else {
-                              const next = new Set(selectedMaterialIds);
-                              displayedMaterials.forEach((material) => next.delete(material.id));
-                              setSelectedMaterialIds(next);
+                </select>
+                <select
+                  className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                >
+                  <option value="">全部类型</option>
+                  {MATERIAL_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="h-9 rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
+                  value={filterTag}
+                  onChange={(e) => setFilterTag(e.target.value)}
+                >
+                  <option value="">全部标签</option>
+                  {MATERIAL_TAGS.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setFilterRecommended(filterRecommended === true ? null : true)}
+                  className={cn(
+                    "h-9 rounded border px-3 text-sm transition",
+                    filterRecommended === true
+                      ? 'border-yellow-500 bg-yellow-50 text-yellow-700'
+                      : 'border-gray-300 text-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <ThumbsUp className={cn("h-4 w-4", filterRecommended === true && "fill-current")} />
+                    <span>已推荐</span>
+                  </div>
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  共找到 {filteredMaterials.length} 个素材
+                  {filteredMaterials.length !== materials.length && `（共 ${materials.length} 个）`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-hidden bg-white">
+              <div
+                ref={tableContainerRef}
+                className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)] relative"
+                onMouseDown={handleTableMouseDown}
+              >
+                {/* 选择框视觉反馈 */}
+                {isSelecting && selectStart && selectEnd && (
+                  <div
+                    className="absolute border-2 border-blue-500 bg-blue-100/20 pointer-events-none z-30"
+                    style={{
+                      left: `${Math.min(selectStart.x, selectEnd.x)}px`,
+                      top: `${Math.min(selectStart.y, selectEnd.y)}px`,
+                      width: `${Math.abs(selectEnd.x - selectStart.x)}px`,
+                      height: `${Math.abs(selectEnd.y - selectStart.y)}px`,
+                    }}
+                  />
+                )}
+                <table className="min-w-full table-fixed text-xs sm:text-sm">
+                  <colgroup>
+                    <col style={{ width: `${SELECTION_COL_WIDTH}px` }} />
+                    {MATERIAL_COLUMNS.map((column) => (
+                      <col key={column.id} style={{ width: `${columnWidths[column.id]}px` }} />
+                    ))}
+                  </colgroup>
+                  <thead className="bg-muted/50 text-left text-sm font-semibold text-foreground border-b border-border">
+                    <tr>
+                      <th className="px-2 py-2">
+                        <div className="flex h-[32px] items-center justify-center">
+                          <Checkbox
+                            checked={
+                              displayedMaterials.length > 0 &&
+                              displayedMaterials.every((material) => selectedMaterialIds.has(material.id))
+                            }
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                const next = new Set(selectedMaterialIds);
+                                displayedMaterials.forEach((material) => next.add(material.id));
+                                setSelectedMaterialIds(next);
+                              } else {
+                                const next = new Set(selectedMaterialIds);
+                                displayedMaterials.forEach((material) => next.delete(material.id));
+                                setSelectedMaterialIds(next);
+                              }
+                            }}
+                          />
+                        </div>
+                      </th>
+                      {MATERIAL_COLUMNS.map((column) => {
+                        const isActions = column.id === 'actions';
+                        const isSortable = ['name', 'type', 'updatedAt'].includes(column.id);
+                        const isSorted = sortKey === column.id;
+                        return (
+                          <th
+                            key={column.id}
+                            className="relative px-2 py-2 text-sm font-semibold text-foreground"
+                          >
+                            <div
+                              className={cn(
+                                "flex items-center gap-1",
+                                isSortable && "cursor-pointer hover:text-foreground select-none"
+                              )}
+                              onClick={() => isSortable && handleColumnSort(column.id)}
+                            >
+                              <span>{column.label}</span>
+                              {isSortable && (
+                                <span className="text-[8px] text-muted-foreground">
+                                  {isSorted ? (sortDirection === 'asc' ? '↑' : '↓') : '⇅'}
+                                </span>
+                              )}
+                            </div>
+                            {!isActions && (
+                              <span
+                                onMouseDown={(event) => {
+                                  event.stopPropagation();
+                                  handleColumnResizeStart(event, column.id);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute right-0 top-0 h-full w-4 cursor-col-resize select-none hover:bg-blue-300 z-20 transition-colors"
+                                style={{ marginRight: '-8px', paddingLeft: '4px', paddingRight: '4px' }}
+                              />
+                            )}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {displayedMaterials.map((material, index) => {
+                      const missingFields = getMaterialMissingFields(material);
+                      const isIncomplete = missingFields.length > 0;
+                      const isSelected = selectedMaterialIds.has(material.id);
+                      return (
+                        <tr
+                          key={material.id}
+                          ref={(el) => {
+                            if (el) rowRefsRef.current.set(material.id, el);
+                            else rowRefsRef.current.delete(material.id);
+                          }}
+                          className={`align-middle transition-colors cursor-pointer select-none ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-muted/50'} ${isIncomplete ? 'border-r border-r-amber-400 bg-amber-50' : ''}`}
+                          title={isIncomplete ? `待完善：${missingFields.join('、')}` : undefined}
+                          onMouseDown={(e) => {
+                            // 如果点击的是checkbox或按钮，不触发行选择
+                            const target = e.target as HTMLElement;
+                            if (target.closest('input[type="checkbox"]') || target.closest('button')) {
+                              return;
+                            }
+                            handleRowMouseDown(material.id, index, e);
+                          }}
+                          onClick={(e) => {
+                            // 如果点击的是checkbox或按钮，不触发行选择
+                            const target = e.target as HTMLElement;
+                            if (target.closest('input[type="checkbox"]') || target.closest('button')) {
+                              return;
+                            }
+                            // 普通点击切换选择
+                            if (!e.shiftKey && !isLongPressing) {
+                              const nextSelection = new Set(selectedMaterialIds);
+                              if (nextSelection.has(material.id)) {
+                                nextSelection.delete(material.id);
+                              } else {
+                                nextSelection.add(material.id);
+                              }
+                              setSelectedMaterialIds(nextSelection);
+                              setLastSelectedIndex(index);
                             }
                           }}
-                        />
-                      </div>
-                    </th>
-                    {MATERIAL_COLUMNS.map((column) => {
-                      const isActions = column.id === 'actions';
-                      const isSortable = ['name', 'type', 'updatedAt'].includes(column.id);
-                      const isSorted = sortKey === column.id;
-                      return (
-                        <th 
-                          key={column.id} 
-                          className="relative px-2 py-2 text-sm font-semibold text-gray-700"
                         >
-                          <div 
-                            className={cn(
-                              "flex items-center gap-1",
-                              isSortable && "cursor-pointer hover:text-gray-900 select-none"
-                            )}
-                            onClick={() => isSortable && handleColumnSort(column.id)}
-                          >
-                            <span>{column.label}</span>
-                            {isSortable && (
-                              <span className="text-[8px] text-gray-400">
-                                {isSorted ? (sortDirection === 'asc' ? '↑' : '↓') : '⇅'}
-                              </span>
-                            )}
-                          </div>
-                          {!isActions && (
-                            <span
-                              onMouseDown={(event) => {
-                                event.stopPropagation();
-                                handleColumnResizeStart(event, column.id);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 top-0 h-full w-4 cursor-col-resize select-none hover:bg-blue-300 z-20 transition-colors"
-                              style={{ marginRight: '-8px', paddingLeft: '4px', paddingRight: '4px' }}
-                            />
-                          )}
-                        </th>
+                          <td className="px-2 py-1.5">
+                            <div className="flex h-[56px] items-center justify-center">
+                              <Checkbox
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  const nextSelection = new Set(selectedMaterialIds);
+                                  if (e.target.checked) {
+                                    nextSelection.add(material.id);
+                                  } else {
+                                    nextSelection.delete(material.id);
+                                  }
+                                  setSelectedMaterialIds(nextSelection);
+                                  setLastSelectedIndex(index);
+                                }}
+                              />
+                            </div>
+                          </td>
+                          {MATERIAL_COLUMNS.map((column) => (
+                            <td key={column.id} className="px-2 py-1.5">
+                              {renderMaterialCell(column.id, material)}
+                            </td>
+                          ))}
+                        </tr>
                       );
                     })}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {displayedMaterials.map((material, index) => {
-                    const missingFields = getMaterialMissingFields(material);
-                    const isIncomplete = missingFields.length > 0;
-                    const isSelected = selectedMaterialIds.has(material.id);
-                    return (
-                      <tr
-                        key={material.id}
-                        ref={(el) => {
-                          if (el) rowRefsRef.current.set(material.id, el);
-                          else rowRefsRef.current.delete(material.id);
-                        }}
-                        className={`align-middle transition-colors cursor-pointer select-none ${isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50'} ${isIncomplete ? 'border-r border-r-amber-400 bg-amber-50' : ''}`}
-                        title={isIncomplete ? `待完善：${missingFields.join('、')}` : undefined}
-                        onMouseDown={(e) => {
-                          // 如果点击的是checkbox或按钮，不触发行选择
-                          const target = e.target as HTMLElement;
-                          if (target.closest('input[type="checkbox"]') || target.closest('button')) {
-                            return;
-                          }
-                          handleRowMouseDown(material.id, index, e);
-                        }}
-                        onClick={(e) => {
-                          // 如果点击的是checkbox或按钮，不触发行选择
-                          const target = e.target as HTMLElement;
-                          if (target.closest('input[type="checkbox"]') || target.closest('button')) {
-                            return;
-                          }
-                          // 普通点击切换选择
-                          if (!e.shiftKey && !isLongPressing) {
-                            const nextSelection = new Set(selectedMaterialIds);
-                            if (nextSelection.has(material.id)) {
-                              nextSelection.delete(material.id);
-                            } else {
-                              nextSelection.add(material.id);
-                            }
-                            setSelectedMaterialIds(nextSelection);
-                            setLastSelectedIndex(index);
-                          }
-                        }}
-                      >
-                        <td className="px-2 py-1.5">
-                          <div className="flex h-[56px] items-center justify-center">
-                            <Checkbox
-                              checked={isSelected}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                const nextSelection = new Set(selectedMaterialIds);
-                                if (e.target.checked) {
-                                  nextSelection.add(material.id);
-                                } else {
-                                  nextSelection.delete(material.id);
-                                }
-                                setSelectedMaterialIds(nextSelection);
-                                setLastSelectedIndex(index);
-                              }}
-                            />
-                          </div>
-                        </td>
-                        {MATERIAL_COLUMNS.map((column) => (
-                          <td key={column.id} className="px-2 py-1.5">
-                            {renderMaterialCell(column.id, material)}
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
-          {/* 横向分页控制 */}
-          {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="h-8 px-3"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                上一页
-              </Button>
-              <div className="flex items-center gap-1">
-                {/* 显示页码按钮，最多显示7个页码 */}
-                {(() => {
-                  const pages: (number | string)[] = [];
-                  const maxVisible = 7;
-                  
-                  if (totalPages <= maxVisible) {
-                    // 如果总页数少于等于7，显示所有页码
-                    for (let i = 1; i <= totalPages; i++) {
-                      pages.push(i);
-                    }
-                  } else {
-                    // 否则显示：1 ... 当前页附近 ... 最后一页
-                    pages.push(1);
-                    
-                    if (currentPage > 3) {
-                      pages.push('...');
-                    }
-                    
-                    const start = Math.max(2, currentPage - 1);
-                    const end = Math.min(totalPages - 1, currentPage + 1);
-                    
-                    for (let i = start; i <= end; i++) {
-                      if (i !== 1 && i !== totalPages) {
+            {/* 横向分页控制 */}
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="h-8 px-3"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  上一页
+                </Button>
+                <div className="flex items-center gap-1">
+                  {/* 显示页码按钮，最多显示7个页码 */}
+                  {(() => {
+                    const pages: (number | string)[] = [];
+                    const maxVisible = 7;
+
+                    if (totalPages <= maxVisible) {
+                      // 如果总页数少于等于7，显示所有页码
+                      for (let i = 1; i <= totalPages; i++) {
                         pages.push(i);
                       }
+                    } else {
+                      // 否则显示：1 ... 当前页附近 ... 最后一页
+                      pages.push(1);
+
+                      if (currentPage > 3) {
+                        pages.push('...');
+                      }
+
+                      const start = Math.max(2, currentPage - 1);
+                      const end = Math.min(totalPages - 1, currentPage + 1);
+
+                      for (let i = start; i <= end; i++) {
+                        if (i !== 1 && i !== totalPages) {
+                          pages.push(i);
+                        }
+                      }
+
+                      if (currentPage < totalPages - 2) {
+                        pages.push('...');
+                      }
+
+                      pages.push(totalPages);
                     }
-                    
-                    if (currentPage < totalPages - 2) {
-                      pages.push('...');
-                    }
-                    
-                    pages.push(totalPages);
-                  }
-                  
-                  return pages.map((page, index) => {
-                    if (page === '...') {
+
+                    return pages.map((page, index) => {
+                      if (page === '...') {
+                        return (
+                          <span key={`ellipsis-${index}`} className="px-2 text-muted-foreground">
+                            ...
+                          </span>
+                        );
+                      }
                       return (
-                        <span key={`ellipsis-${index}`} className="px-2 text-gray-500">
-                          ...
-                        </span>
+                        <Button
+                          key={page}
+                          variant={currentPage === page ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setCurrentPage(page as number)}
+                          className={`h-8 min-w-[32px] px-2 ${currentPage === page ? 'bg-blue-600 text-white' : ''
+                            }`}
+                        >
+                          {page}
+                        </Button>
                       );
-                    }
-                    return (
-                      <Button
-                        key={page}
-                        variant={currentPage === page ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setCurrentPage(page as number)}
-                        className={`h-8 min-w-[32px] px-2 ${
-                          currentPage === page ? 'bg-blue-600 text-white' : ''
-                        }`}
-                      >
-                        {page}
-                      </Button>
-                    );
-                  });
-                })()}
+                    });
+                  })()}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="h-8 px-3"
+                >
+                  下一页
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <span className="text-sm text-muted-foreground ml-2">
+                  第 {currentPage} / {totalPages} 页，共 {filteredMaterials.length} 条
+                </span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="h-8 px-3"
-              >
-                下一页
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-gray-600 ml-2">
-                第 {currentPage} / {totalPages} 页，共 {filteredMaterials.length} 条
-              </span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
       )}
 
       <MaterialsBatchEditDialog
@@ -2237,398 +2289,443 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
       />
 
       {!showOnlyList && (
-      <div
-        id="material-form-card"
-        className="bg-white"
-      >
-        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
-          <h3 className="text-sm font-semibold text-gray-900">{editingMaterialId ? '编辑素材' : '新增素材'}</h3>
-        </div>
-        <div className="space-y-4 px-4 py-4">
-          {/* 文件上传区域 */}
-          <div
-            className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center transition-colors hover:border-primary/50"
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,video/*"
-              multiple
-              onChange={handleFileSelect}
-              className="hidden"
-              id="material-file-upload"
-              disabled={uploading || loading}
-            />
-            <label
-              htmlFor="material-file-upload"
-              className="cursor-pointer flex flex-col items-center gap-2"
-            >
-              <Upload className="h-8 w-8 text-gray-400" />
-              <div className="text-sm text-gray-700 w-full">
-                {uploading ? (
-                  <div className="space-y-2 w-full">
-                    <div className="text-center">{uploadProgress || '上传中...'}</div>
-                    {uploadProgressPercent > 0 && (
-                      <div className="w-full rounded-full h-2 bg-gray-200">
-                        <div
-                          className="bg-primary h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${uploadProgressPercent}%` }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {editingMaterialId ? (
-                      <>
-                        点击或拖拽文件到此处添加文件
-                        <br />
-                        <span className="text-xs">支持图片和视频文件（可多选）</span>
-                      </>
-                    ) : (
-                      <>
-                        点击或拖拽文件到此处上传
-                        <br />
-                        <span className="text-xs">支持图片和视频文件（可多选），每个文件将分别创建素材</span>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            </label>
+        <div
+          id="material-form-card"
+          className="bg-white"
+        >
+          <div className="border-b border-border bg-muted/50 px-4 py-3">
+            <h3 className="text-sm font-semibold text-foreground">{editingMaterialId ? '编辑素材' : '新增素材'}</h3>
           </div>
-
-          {/* 预览区域 */}
-          {previewUrls.length > 0 && (
-            <div className="relative border border-gray-300 rounded-lg p-4 bg-gray-50">
-              <div className="flex items-start justify-between mb-2">
-                <span className="text-sm font-medium">
-                  预览 ({currentPreviewIndex + 1}/{previewUrls.length})
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => {
-                    setPreviewUrls([]);
-                    setCurrentPreviewIndex(0);
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-gray-100">
-                {previewUrls[currentPreviewIndex] && (
-                  <>
-                    {(() => {
-                      const currentFile = uploadedFiles[currentPreviewIndex];
-                      const isImage = currentFile?.type === 'image' || 
-                        previewUrls[currentPreviewIndex].match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
-                      return isImage ? (
-                        <img
-                          src={previewUrls[currentPreviewIndex]}
-                          alt={`预览 ${currentPreviewIndex + 1}`}
-                          className="w-full h-full object-contain"
-                        />
+          <div className="space-y-4 px-4 py-4">
+            {/* 文件上传区域 */}
+            <div
+              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center transition-colors hover:bg-white/[0.03]"
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+                id="material-file-upload"
+                disabled={uploading || loading}
+              />
+              <label
+                htmlFor="material-file-upload"
+                className="cursor-pointer flex flex-col items-center gap-2"
+              >
+                <Upload className="h-8 w-8 text-muted-foreground" />
+                <div className="text-sm text-foreground w-full">
+                  {uploading ? (
+                    <div className="space-y-2 w-full">
+                      <div className="text-center">{uploadProgress || '上传中...'}</div>
+                      {uploadProgressPercent > 0 && (
+                        <div className="w-full rounded-full h-2 bg-muted">
+                          <div
+                            className="bg-primary h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgressPercent}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {editingMaterialId ? (
+                        <>
+                          点击或拖拽文件到此处添加文件
+                          <br />
+                          <span className="text-xs">支持图片和视频文件（可多选）</span>
+                        </>
                       ) : (
-                        <video
-                          src={previewUrls[currentPreviewIndex]}
-                          controls
-                          className="w-full h-full object-contain"
-                        />
-                      );
-                    })()}
-                  </>
-                )}
-                {previewUrls.length > 1 && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                      onClick={() =>
-                        setCurrentPreviewIndex((prev) =>
-                          prev > 0 ? prev - 1 : previewUrls.length - 1
-                        )
-                      }
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                      onClick={() =>
-                        setCurrentPreviewIndex((prev) =>
-                          prev < previewUrls.length - 1 ? prev + 1 : 0
-                        )
-                      }
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-              </div>
+                        <>
+                          点击或拖拽文件到此处上传
+                          <br />
+                          <span className="text-xs">支持图片和视频文件（可多选），每个文件将分别创建素材</span>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </label>
             </div>
-          )}
 
-          {/* 已上传文件列表 */}
-          {uploadedFiles.length > 0 && editingMaterialId && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">已上传文件 ({uploadedFiles.length})</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {uploadedFiles.map((file, index) => {
-                  const previewUrl = file.url.startsWith('http')
-                    ? file.url
-                    : storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/'
-                    ? `${normalizedCdnBase.replace(/\/+$/, '')}${file.url}`
-                    : file.url;
-                  
-                  return (
-                    <div
-                      key={index}
-                      className="relative group border border-gray-300 rounded-lg overflow-hidden bg-gray-50"
-                    >
-                      <div className="aspect-video relative">
-                        {file.type === 'image' ? (
+            {/* 预览区域 */}
+            {previewUrls.length > 0 && (
+              <div className="relative border border-gray-300 rounded-lg p-4 bg-muted/50">
+                <div className="flex items-start justify-between mb-2">
+                  <span className="text-sm font-medium">
+                    预览 ({currentPreviewIndex + 1}/{previewUrls.length})
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      setPreviewUrls([]);
+                      setCurrentPreviewIndex(0);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-muted">
+                  {previewUrls[currentPreviewIndex] && (
+                    <>
+                      {(() => {
+                        const currentFile = uploadedFiles[currentPreviewIndex];
+                        const isImage = currentFile?.type === 'image' ||
+                          previewUrls[currentPreviewIndex].match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
+                        return isImage ? (
                           <img
-                            src={previewUrl}
-                            alt={file.originalName}
+                            src={previewUrls[currentPreviewIndex]}
+                            alt={`预览 ${currentPreviewIndex + 1}`}
                             className="w-full h-full object-contain"
                           />
                         ) : (
                           <video
-                            src={previewUrl}
+                            src={previewUrls[currentPreviewIndex]}
+                            controls
                             className="w-full h-full object-contain"
-                            muted
-                            playsInline
                           />
+                        );
+                      })()}
+                    </>
+                  )}
+                  {previewUrls.length > 1 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                        onClick={() =>
+                          setCurrentPreviewIndex((prev) =>
+                            prev > 0 ? prev - 1 : previewUrls.length - 1
+                          )
+                        }
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                        onClick={() =>
+                          setCurrentPreviewIndex((prev) =>
+                            prev < previewUrls.length - 1 ? prev + 1 : 0
+                          )
+                        }
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 已上传文件列表 */}
+            {uploadedFiles.length > 0 && editingMaterialId && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">已上传文件 ({uploadedFiles.length})</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {uploadedFiles.map((file, index) => {
+                    const previewUrl = file.url.startsWith('http')
+                      ? file.url
+                      : storageMode === 'oss' && normalizedCdnBase && normalizedCdnBase !== '/'
+                        ? `${normalizedCdnBase.replace(/\/+$/, '')}${file.url}`
+                        : file.url;
+
+                    return (
+                      <div
+                        key={index}
+                        className="relative group border border-gray-300 rounded-lg overflow-hidden bg-muted/50"
+                      >
+                        <div className="aspect-video relative">
+                          {file.type === 'image' ? (
+                            <img
+                              src={previewUrl}
+                              alt={file.originalName}
+                              className="w-full h-full object-contain"
+                            />
+                          ) : (
+                            <video
+                              src={previewUrl}
+                              className="w-full h-full object-contain"
+                              muted
+                              playsInline
+                            />
+                          )}
+                        </div>
+                        <div className="p-2">
+                          <p className="text-xs truncate" title={file.originalName}>
+                            {file.originalName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {(file.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="default"
+                            size="icon"
+                            className="h-6 w-6 bg-primary/80 hover:bg-primary"
+                            onClick={() => handleSetAsThumbnail(file.url)}
+                            title="设置为预览图"
+                          >
+                            <Star className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleRemoveUploadedFile(index)}
+                            title="删除"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        {form.thumbnail === file.url && (
+                          <div className="absolute top-1 left-1 bg-primary text-primary-foreground px-1.5 py-0.5 rounded text-xs">
+                            预览图
+                          </div>
                         )}
                       </div>
-                      <div className="p-2">
-                        <p className="text-xs truncate" title={file.originalName}>
-                          {file.originalName}
-                        </p>
-                        <p className="text-xs text-gray-600">
-                          {(file.size / 1024).toFixed(1)} KB
-                        </p>
-                      </div>
-                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="default"
-                          size="icon"
-                          className="h-6 w-6 bg-primary/80 hover:bg-primary"
-                          onClick={() => handleSetAsThumbnail(file.url)}
-                          title="设置为预览图"
-                        >
-                          <Star className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => handleRemoveUploadedFile(index)}
-                          title="删除"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      {form.thumbnail === file.url && (
-                        <div className="absolute top-1 left-1 bg-primary text-primary-foreground px-1.5 py-0.5 rounded text-xs">
-                          预览图
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">名称 <span className="text-red-500">*</span></label>
-              <Input
-                placeholder="素材名称"
-                value={form.name}
-                onChange={handleInputChange('name')}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">类型 <span className="text-red-500">*</span></label>
-              <select
-                className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                value={form.type}
-                onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as any }))}
-                disabled={loading}
-              >
-                {MATERIAL_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">项目 <span className="text-red-500">*</span></label>
-              <select
-                className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                value={form.project}
-                onChange={(e) => setForm((prev) => ({ ...prev, project: e.target.value as any }))}
-                disabled={loading}
-                required
-              >
-                <option value="">请选择项目</option>
-                {getAllProjects().map((project) => (
-                  <option key={project} value={project}>
-                    {getProjectDisplayName(project)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">标签 <span className="text-red-500">*</span></label>
-              <select
-                className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm text-gray-900"
-                value={form.tag}
-                onChange={(e) => setForm((prev) => ({ ...prev, tag: e.target.value as any }))}
-                disabled={loading}
-              >
-                {MATERIAL_TAGS.map((tag) => (
-                  <option key={tag} value={tag}>
-                    {tag}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">质量 <span className="text-red-500">*</span></label>
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                {MATERIAL_QUALITIES.map((quality) => (
-                  <div key={quality} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`quality-${quality}`}
-                      checked={form.quality.includes(quality)}
-                      onChange={(e) => handleQualityToggle(quality, e.target.checked)}
-                      disabled={loading}
-                    />
-                    <Label htmlFor={`quality-${quality}`} className="cursor-pointer">
-                      {quality}
-                    </Label>
-                  </div>
-                ))}
+                <label className="text-sm font-medium">名称 <span className="text-destructive">*</span></label>
+                <Input
+                  placeholder="素材名称"
+                  value={form.name}
+                  onChange={handleInputChange('name')}
+                  disabled={loading}
+                />
               </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">预览图路径</label>
-              <div className="flex gap-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">类型 <span className="text-destructive">*</span></label>
+                <select
+                  className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
+                  value={form.type}
+                  onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as any }))}
+                  disabled={loading}
+                >
+                  {MATERIAL_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">项目 <span className="text-destructive">*</span></label>
+                <select
+                  className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
+                  value={form.project}
+                  onChange={(e) => setForm((prev) => ({ ...prev, project: e.target.value as any }))}
+                  disabled={loading}
+                  required
+                >
+                  <option value="">请选择项目</option>
+                  {getAllProjects().map((project) => (
+                    <option key={project} value={project}>
+                      {getProjectDisplayName(project)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">标签 <span className="text-destructive">*</span></label>
+                <select
+                  className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
+                  value={form.tag}
+                  onChange={(e) => setForm((prev) => ({ ...prev, tag: e.target.value as any }))}
+                  disabled={loading}
+                >
+                  {MATERIAL_TAGS.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">来源 <span className="text-destructive">*</span></label>
+                <select
+                  className="h-10 w-full rounded border border-gray-300 bg-white px-3 text-sm text-foreground"
+                  value={form.source}
+                  onChange={(e) => setForm((prev) => ({ ...prev, source: e.target.value as any }))}
+                  disabled={loading}
+                >
+                  <option value="internal">内部</option>
+                  <option value="competitor">竞品</option>
+                </select>
+              </div>
+              {form.source === 'internal' && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">消耗金额</label>
+                    <Input type="number" placeholder="例如: 1000" value={form.consumption} onChange={handleInputChange('consumption')} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">转化数</label>
+                    <Input type="number" placeholder="例如: 50" value={form.conversions} onChange={handleInputChange('conversions')} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">ROI</label>
+                    <Input type="number" step="0.01" placeholder="例如: 1.5" value={form.roi} onChange={handleInputChange('roi')} />
+                  </div>
+                </>
+              )}
+              {form.source === 'competitor' && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">来源平台</label>
+                    <Input placeholder="例如: 抖音" value={form.platform} onChange={handleInputChange('platform')} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">广告主</label>
+                    <Input placeholder="广告主名称" value={form.advertiser} onChange={handleInputChange('advertiser')} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">预估消耗</label>
+                    <Input type="number" placeholder="预估金额" value={form.estimatedSpend} onChange={handleInputChange('estimatedSpend')} />
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">质量 <span className="text-destructive">*</span></label>
+                <div className="space-y-2">
+                  {MATERIAL_QUALITIES.map((quality) => (
+                    <div key={quality} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`quality-${quality}`}
+                        checked={form.quality.includes(quality)}
+                        onChange={(e) => handleQualityToggle(quality, e.target.checked)}
+                        disabled={loading}
+                      />
+                      <Label htmlFor={`quality-${quality}`} className="cursor-pointer">
+                        {quality}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">预览图路径</label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="/demo/xxx.jpg 或完整 CDN 地址"
+                    value={form.thumbnail}
+                    onChange={handleInputChange('thumbnail')}
+                    disabled={loading}
+                    className="flex-1"
+                  />
+                  {form.thumbnail && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        setForm((prev) => ({ ...prev, thumbnail: '' }));
+                        setMessage('已清空预览图');
+                      }}
+                      disabled={loading}
+                      title="删除预览图"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">资源路径</label>
                 <Input
                   placeholder="/demo/xxx.jpg 或完整 CDN 地址"
-                  value={form.thumbnail}
-                  onChange={handleInputChange('thumbnail')}
+                  value={form.src}
+                  onChange={handleInputChange('src')}
                   disabled={loading}
-                  className="flex-1"
                 />
-                {form.thumbnail && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      setForm((prev) => ({ ...prev, thumbnail: '' }));
-                      setMessage('已清空预览图');
-                    }}
-                    disabled={loading}
-                    title="删除预览图"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">画廊（逗号分隔）</label>
+                <Input
+                  placeholder="/demo/xxx1.jpg, /demo/xxx2.jpg"
+                  value={form.gallery}
+                  onChange={handleInputChange('gallery')}
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">文件大小（字节）</label>
+                <Input
+                  placeholder="1024000"
+                  value={form.fileSize}
+                  onChange={handleInputChange('fileSize')}
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">宽度（像素）</label>
+                <Input
+                  placeholder="1920"
+                  value={form.width}
+                  onChange={handleInputChange('width')}
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">高度（像素）</label>
+                <Input
+                  placeholder="1080"
+                  value={form.height}
+                  onChange={handleInputChange('height')}
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">时长（秒）</label>
+                <Input
+                  placeholder="30"
+                  value={form.duration}
+                  onChange={handleInputChange('duration')}
+                  disabled={loading}
+                />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">资源路径</label>
-              <Input
-                placeholder="/demo/xxx.jpg 或完整 CDN 地址"
-                value={form.src}
-                onChange={handleInputChange('src')}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium">画廊（逗号分隔）</label>
-              <Input
-                placeholder="/demo/xxx1.jpg, /demo/xxx2.jpg"
-                value={form.gallery}
-                onChange={handleInputChange('gallery')}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">文件大小（字节）</label>
-              <Input
-                placeholder="1024000"
-                value={form.filesize}
-                onChange={handleInputChange('filesize')}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">宽度（像素）</label>
-              <Input
-                placeholder="1920"
-                value={form.width}
-                onChange={handleInputChange('width')}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">高度（像素）</label>
-              <Input
-                placeholder="1080"
-                value={form.height}
-                onChange={handleInputChange('height')}
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">时长（秒）</label>
-              <Input
-                placeholder="30"
-                value={form.duration}
-                onChange={handleInputChange('duration')}
-                disabled={loading}
-              />
-            </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            {editingMaterialId ? (
-              <>
-                <Button onClick={handleUpdate} disabled={loading || !hasFormChanged}>
-                  {loading ? '更新中...' : hasFormChanged ? '更新素材' : '保存素材'}
-                </Button>
-                <Button variant="outline" onClick={resetForm} disabled={loading}>
-                  取消编辑
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button onClick={handleCreate} disabled={loading}>
-                  {loading ? '提交中...' : '创建素材'}
-                </Button>
-                <Button variant="ghost" onClick={resetForm} disabled={loading}>
-                  重置
-                </Button>
-              </>
-            )}
-            {message && <span className="text-sm text-gray-700">{message}</span>}
+            <div className="flex items-center gap-3">
+              {editingMaterialId ? (
+                <>
+                  <Button onClick={handleUpdate} disabled={loading || !hasFormChanged}>
+                    {loading ? '更新中...' : hasFormChanged ? '更新素材' : '保存素材'}
+                  </Button>
+                  <Button variant="outline" onClick={resetForm} disabled={loading}>
+                    取消编辑
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={handleCreate} disabled={loading}>
+                    {loading ? '提交中...' : '创建素材'}
+                  </Button>
+                  <Button variant="ghost" onClick={resetForm} disabled={loading}>
+                    重置
+                  </Button>
+                </>
+              )}
+              {message && <span className="text-sm text-foreground">{message}</span>}
+            </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* 编辑素材弹窗 */}
@@ -2649,7 +2746,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             <div className="space-y-4 py-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">名称 <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">名称 <span className="text-destructive">*</span></label>
                   <Input
                     placeholder="素材名称"
                     value={editingMaterialInDialog.name}
@@ -2658,7 +2755,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">类型 <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">类型 <span className="text-destructive">*</span></label>
                   <select
                     className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={editingMaterialInDialog.type}
@@ -2673,7 +2770,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">项目 <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">项目 <span className="text-destructive">*</span></label>
                   <select
                     className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={editingMaterialInDialog.project || ''}
@@ -2690,7 +2787,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">标签 <span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">标签 <span className="text-destructive">*</span></label>
                   <select
                     className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={editingMaterialInDialog.tag}
@@ -2705,7 +2802,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   </select>
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-medium">质量（可多选）<span className="text-red-500">*</span></label>
+                  <label className="text-sm font-medium">质量（可多选）<span className="text-destructive">*</span></label>
                   <div className="flex flex-wrap gap-2">
                     {MATERIAL_QUALITIES.map((quality) => {
                       const isSelected = editingMaterialInDialog.quality?.includes(quality as any) || false;
@@ -2750,10 +2847,10 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
-                          
+
                           setEditingDialogUploading(true);
                           setEditingDialogUploadProgress(`正在上传 ${file.name}...`);
-                          
+
                           try {
                             const existingUrl = await checkFileExists(file);
                             if (existingUrl) {
@@ -2765,9 +2862,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                               }
                               return;
                             }
-                            
+
                             const localMetadata = await getLocalMediaMetadata(file);
-                            
+
                             let uploadData: {
                               url: string;
                               originalName: string;
@@ -2778,14 +2875,14 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                               duration?: number;
                               hash?: string;
                             };
-                            
+
                             if (storageMode === 'oss') {
                               const directResult = await uploadFileDirect(file, {
                                 onProgress: (percent) => {
                                   setEditingDialogUploadProgress(`正在上传 ${file.name}... ${percent}%`);
                                 },
                               });
-                              
+
                               uploadData = {
                                 url: directResult.fileUrl,
                                 originalName: file.name,
@@ -2798,17 +2895,17 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                             } else {
                               const formData = new FormData();
                               formData.append('file', file);
-                              
+
                               const response = await fetch('/api/upload', {
                                 method: 'POST',
                                 body: formData,
                               });
-                              
+
                               if (!response.ok) {
                                 const error = await response.json();
                                 throw new Error(error.message || '上传失败');
                               }
-                              
+
                               const responseData = await response.json();
                               uploadData = {
                                 url: responseData.url,
@@ -2821,7 +2918,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                                 hash: responseData.hash,
                               };
                             }
-                            
+
                             const fileHash = uploadData.hash || await calculateFileHash(file);
                             const newFile = {
                               url: uploadData.url,
@@ -2832,23 +2929,23 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                               height: uploadData.height,
                               hash: fileHash,
                             };
-                            
+
                             // 添加到已上传文件列表
                             setEditingDialogUploadedFiles((prev) => [...prev, newFile]);
-                            
+
                             // 直接设置为 thumbnail 和 src（不再自动抽帧）
                             setEditingMaterialInDialog((prev) => prev ? {
                               ...prev,
                               thumbnail: uploadData.url,
                               src: uploadData.url,
-                              gallery: prev.gallery && prev.gallery.length > 0 
+                              gallery: prev.gallery && prev.gallery.length > 0
                                 ? [uploadData.url, ...prev.gallery.filter(url => url !== prev.src && url !== prev.thumbnail)]
                                 : [uploadData.url],
                               width: uploadData.width,
                               height: uploadData.height,
                               duration: uploadData.duration,
                             } : null);
-                            
+
                             setEditingDialogUploadProgress(null);
                             setMessage(`文件上传成功: ${uploadData.originalName}`);
                           } catch (error) {
@@ -2876,7 +2973,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                     {editingDialogUploadProgress && (
                       <p className="text-xs text-muted-foreground">{editingDialogUploadProgress}</p>
                     )}
-                    
+
                     {/* 显示当前预览 */}
                     {editingMaterialInDialog.thumbnail && (() => {
                       const getClientUrl = (url: string): string => {
@@ -2889,16 +2986,16 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                         }
                         return url.startsWith('/') ? url : `/${url}`;
                       };
-                      
+
                       const isVideoUrl = (url: string) => {
                         if (!url) return false;
                         const lower = url.toLowerCase();
                         return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
                       };
-                      
+
                       const previewUrl = getClientUrl(editingMaterialInDialog.thumbnail);
                       const isVideo = isVideoUrl(editingMaterialInDialog.thumbnail);
-                      
+
                       return (
                         <div className="border rounded-md p-2 bg-muted/50">
                           <div className="flex items-center justify-between mb-2">
@@ -2941,7 +3038,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                         </div>
                       );
                     })()}
-                    
+
                     {/* 显示已上传的文件列表 */}
                     {editingDialogUploadedFiles.length > 0 && (
                       <div className="space-y-2">
@@ -2958,17 +3055,16 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                               }
                               return url.startsWith('/') ? url : `/${url}`;
                             };
-                            
+
                             const previewUrl = getClientUrl(file.url);
                             const isVideo = file.type === 'video';
                             const isThumbnail = editingMaterialInDialog.thumbnail === file.url;
-                            
+
                             return (
                               <div
                                 key={index}
-                                className={`relative group border rounded overflow-hidden ${
-                                  isThumbnail ? 'border-primary ring-2 ring-primary' : 'border-border'
-                                }`}
+                                className={`relative group border rounded overflow-hidden ${isThumbnail ? 'border-primary ring-2 ring-primary' : 'border-border'
+                                  }`}
                               >
                                 <div className="aspect-video relative bg-muted">
                                   {isVideo ? (
@@ -3020,7 +3116,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                                         // 删除文件
                                         const newFiles = editingDialogUploadedFiles.filter((_, idx) => idx !== index);
                                         setEditingDialogUploadedFiles(newFiles);
-                                        
+
                                         // 如果删除的是预览图，清空预览图
                                         if (isThumbnail) {
                                           setEditingMaterialInDialog((prev) => prev ? {
@@ -3036,7 +3132,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                                             gallery: prev.gallery?.filter(url => url !== file.url) || [],
                                           } : null);
                                         }
-                                        
+
                                         setMessage(`已删除文件: ${file.originalName}`);
                                       }}
                                       className="p-1 bg-white/90 rounded hover:bg-white"
@@ -3056,7 +3152,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <label className="text-sm font-medium">资源路径</label>
                     <Input
@@ -3156,7 +3252,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   editingDialogUploadedFiles.forEach(file => {
                     if (file.url) allUrls.add(file.url);
                   });
-                  
+
                   const payload: any = {
                     id: editingMaterialInDialog.id,
                     name: editingMaterialInDialog.name.trim(),
@@ -3180,12 +3276,11 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                       payload.height = editingMaterialInDialog.height;
                     }
                   }
-                  
+
                   // 如果有新上传的文件，更新文件大小等信息
                   if (editingDialogUploadedFiles.length > 0) {
                     const latestFile = editingDialogUploadedFiles[editingDialogUploadedFiles.length - 1];
                     if (latestFile.size) {
-                      payload.filesize = latestFile.size;
                       payload.fileSize = latestFile.size;
                     }
                     // 如果新上传的是图片，更新宽高
@@ -3246,10 +3341,10 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             <DialogTitle>确认删除</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-foreground">
               确定要删除素材 <span className="font-semibold">"{materialToDelete?.name}"</span> 吗？
             </p>
-            <p className="text-xs text-gray-500 mt-2">此操作不可恢复。</p>
+            <p className="text-xs text-muted-foreground mt-2">此操作不可恢复。</p>
           </div>
           <DialogFooter>
             <Button
@@ -3281,12 +3376,12 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   setDeleteDialogOpen(false);
                   setMaterialToDelete(null);
                   setMessage('素材已删除');
-                  
+
                   // 如果删除的是正在编辑的素材，重置表单
                   if (editingMaterialId === materialToDelete.id) {
                     resetForm();
                   }
-                  
+
                   // 如果删除的是弹窗中正在编辑的素材，关闭弹窗
                   if (editingMaterialInDialog?.id === materialToDelete.id) {
                     setEditDialogOpen(false);
@@ -3316,24 +3411,24 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             const lower = url.toLowerCase();
             return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.avi') || lower.includes('.mkv');
           };
-          
+
           // 计算位置，确保不超出视窗
           const previewWidth = 400;
           const previewHeight = 400;
           const spacing = 10;
           let left = rect.right + spacing;
           let top = rect.top;
-          
+
           // 如果右侧空间不足，显示在左侧
           if (left + previewWidth > window.innerWidth) {
             left = rect.left - previewWidth - spacing;
           }
-          
+
           // 如果左侧空间也不足，居中显示
           if (left < 0) {
             left = (window.innerWidth - previewWidth) / 2;
           }
-          
+
           // 确保不超出视窗顶部和底部
           if (top + previewHeight > window.innerHeight) {
             top = window.innerHeight - previewHeight - 10;
@@ -3341,7 +3436,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           if (top < 10) {
             top = 10;
           }
-          
+
           return (
             <div
               className="fixed z-50 pointer-events-auto"
@@ -3351,7 +3446,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 maxWidth: `${previewWidth}px`,
                 maxHeight: `${previewHeight}px`,
               }}
-              onMouseEnter={() => {}} // 保持显示
+              onMouseEnter={() => { }} // 保持显示
               onMouseLeave={() => setHoveredPreview(null)}
             >
               <div className="bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-2">
@@ -3359,7 +3454,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   const firstMedia = hoveredPreview.mediaFiles[0];
                   const previewUrl = getPreviewUrl(firstMedia.url);
                   const isVideo = firstMedia.type === 'video' || isVideoUrl(firstMedia.url);
-                  
+
                   return (
                     <div className="relative">
                       {isVideo ? (
@@ -3408,7 +3503,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
       {/* 待确认素材编辑对话框 */}
       {pendingMaterialsDialogOpen && pendingMaterials.length > 0 && editingPendingMaterialIndex !== null && (
-        <Dialog open={true} onOpenChange={() => {}}>
+        <Dialog open={true} onOpenChange={() => { }}>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -3420,7 +3515,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
             </DialogHeader>
             {pendingEditForm && (() => {
               const pendingMaterial = pendingMaterials[editingPendingMaterialIndex!];
-              
+
               // 获取客户端 URL 的辅助函数
               const getClientUrl = (url: string): string => {
                 if (!url) return '';
@@ -3445,7 +3540,6 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                     thumbnail: pendingMaterial.thumbnail,
                     src: pendingMaterial.src,
                     gallery: pendingMaterial.gallery,
-                    filesize: pendingMaterial.filesize,
                     fileSize: pendingMaterial.fileSize,
                     hash: pendingMaterial.hash,
                     width: pendingMaterial.width,
@@ -3468,11 +3562,11 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
 
                   const createdMaterial: Material = await createResponse.json();
                   setMaterials((prev) => [createdMaterial, ...prev]);
-                  
+
                   // 从待确认列表中移除
                   const newPending = pendingMaterials.filter((_, idx) => idx !== editingPendingMaterialIndex);
                   setPendingMaterials(newPending);
-                  
+
                   // 如果还有待确认的素材，继续编辑下一个
                   if (newPending.length > 0) {
                     setEditingPendingMaterialIndex(0);
@@ -3499,7 +3593,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 // 跳过当前素材
                 const newPending = pendingMaterials.filter((_, idx) => idx !== editingPendingMaterialIndex);
                 setPendingMaterials(newPending);
-                
+
                 if (newPending.length > 0) {
                   setEditingPendingMaterialIndex(0);
                 } else {
@@ -3521,7 +3615,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                 <div className="space-y-4 py-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">名称 <span className="text-red-500">*</span></label>
+                      <label className="text-sm font-medium">名称 <span className="text-destructive">*</span></label>
                       <Input
                         value={pendingEditForm.name}
                         onChange={(e) => setPendingEditForm({ ...pendingEditForm, name: e.target.value })}
@@ -3529,7 +3623,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">类型 <span className="text-red-500">*</span></label>
+                      <label className="text-sm font-medium">类型 <span className="text-destructive">*</span></label>
                       <select
                         className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={pendingEditForm.type}
@@ -3544,7 +3638,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">项目 <span className="text-red-500">*</span></label>
+                      <label className="text-sm font-medium">项目 <span className="text-destructive">*</span></label>
                       <select
                         className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={pendingEditForm.project}
@@ -3560,7 +3654,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">标签 <span className="text-red-500">*</span></label>
+                      <label className="text-sm font-medium">标签 <span className="text-destructive">*</span></label>
                       <select
                         className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={pendingEditForm.tag}
@@ -3575,7 +3669,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                       </select>
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <label className="text-sm font-medium">质量（可多选）<span className="text-red-500">*</span></label>
+                      <label className="text-sm font-medium">质量（可多选）<span className="text-destructive">*</span></label>
                       <div className="flex flex-wrap gap-2">
                         {MATERIAL_QUALITIES.map((quality) => {
                           const isSelected = pendingEditForm.quality.includes(quality as any);
@@ -3605,7 +3699,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* 预览 */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium">预览</label>
@@ -3660,9 +3754,9 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           }
           return url.startsWith('/') ? url : `/${url}`;
         };
-        
+
         return (
-          <Dialog open={true} onOpenChange={() => {}}>
+          <Dialog open={true} onOpenChange={() => { }}>
             <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] h-[85vh] flex flex-col overflow-hidden">
               <DialogHeader className="flex-shrink-0">
                 <DialogTitle>待确认素材 ({pendingMaterials.length} 个)</DialogTitle>
@@ -3670,7 +3764,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   上传完成！请逐个编辑确认后创建素材。点击编辑按钮开始。
                 </DialogDescription>
               </DialogHeader>
-              
+
               {/* 预览列表 */}
               <div className="flex-1 overflow-y-auto min-h-0">
                 <div className="space-y-4">
@@ -3708,7 +3802,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                               }}
                             />
                           )}
-                          
+
                           {/* 素材信息 */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
@@ -3749,7 +3843,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                               <div>项目: {material.project}</div>
                               <div>标签: {material.tag}</div>
                             </div>
-                            
+
                             {/* 已上传文件列表 */}
                             {material.uploadData && (
                               <div className="mt-3 space-y-1">
@@ -3758,11 +3852,10 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                                 </label>
                                 <div className="grid grid-cols-3 gap-1">
                                   <div
-                                    className={`relative group border rounded overflow-hidden cursor-pointer ${
-                                      material.thumbnail === material.uploadData.url
-                                        ? 'border-primary ring-2 ring-primary'
-                                        : 'border-border'
-                                    }`}
+                                    className={`relative group border rounded overflow-hidden cursor-pointer ${material.thumbnail === material.uploadData.url
+                                      ? 'border-primary ring-2 ring-primary'
+                                      : 'border-border'
+                                      }`}
                                   >
                                     <div className="aspect-video relative bg-muted">
                                       {material.uploadData.type === 'image' ? (
@@ -3816,7 +3909,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
                   </div>
                 </div>
               </div>
-              
+
               {/* 操作按钮 - 固定在底部 */}
               <div className="flex justify-end gap-2 flex-shrink-0 pt-4 border-t bg-background">
                 <Button variant="outline" onClick={() => {

@@ -3,23 +3,47 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState, useEffect, useRef, type RefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import Link from 'next/link';
 import { MaterialCardGallery } from '@/components/material-card-gallery';
-import { EmptyState } from '@/components/empty-state';
-import { type Material } from '@/data/material.schema';
+import { ModuleEmptyState } from '@/components/empty-states/ModuleEmptyState';
+import { Library, Upload } from 'lucide-react';
+import { type Material, MATERIAL_STATUS_LABELS, MATERIAL_STATUS_COLORS } from '@/data/material.schema';
 import { PAGINATION } from '@/lib/constants';
+import { getProjectDisplayName } from '@/lib/constants';
 
-type ThumbSize = 'compact' | 'expanded';
+type ThumbSize = 'compact' | 'expanded' | 'list';
 
 interface MaterialsListProps {
   materials: Material[];
   thumbSize?: ThumbSize;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  batchMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
-function MaterialsListContent({ materials, thumbSize = 'compact', scrollContainerRef }: MaterialsListProps) {
+function MaterialsListContent({ materials, thumbSize = 'compact', scrollContainerRef, batchMode, selectedIds, onToggleSelect }: MaterialsListProps) {
   // 性能优化：使用虚拟滚动替代分页，支持大量素材
   if (materials.length === 0) {
-    return <EmptyState />;
+    return (
+      <ModuleEmptyState
+        icon={Library}
+        iconColor="text-blue-400/60"
+        title="还没有素材"
+        description="上传你的第一个广告素材，开始管理和优化你的创意资产"
+        actions={[
+          { label: '上传素材', href: '/materials', variant: 'primary' },
+          { label: '体验 AI 创作', href: '/studio', variant: 'secondary' },
+        ]}
+      />
+    );
+  }
+
+  // 列表视图模式
+  if (thumbSize === 'list') {
+    return (
+      <MaterialsListView materials={materials} scrollContainerRef={scrollContainerRef} batchMode={batchMode} selectedIds={selectedIds} onToggleSelect={onToggleSelect} />
+    );
   }
 
   // 根据 thumbSize 计算卡片宽度（与 MaterialCardGallery 中的 actualCardWidth 保持一致）
@@ -177,6 +201,9 @@ function MaterialsListContent({ materials, thumbSize = 'compact', scrollContaine
               material={material}
               priority={globalIndex < PAGINATION.PRIORITY_IMAGES_COUNT}
               thumbSize={thumbSize}
+              batchMode={batchMode}
+              isSelected={selectedIds?.has(material.id)}
+              onToggleSelect={onToggleSelect}
             />
           );
         })}
@@ -214,13 +241,152 @@ function MaterialsListContent({ materials, thumbSize = 'compact', scrollContaine
   );
 }
 
-export function MaterialsList({ materials, thumbSize = 'compact', scrollContainerRef }: MaterialsListProps) {
+// 列表视图组件 - 以表格形式展示素材
+function MaterialsListView({ materials, scrollContainerRef, batchMode, selectedIds, onToggleSelect }: { materials: Material[]; scrollContainerRef?: RefObject<HTMLDivElement | null>; batchMode?: boolean; selectedIds?: Set<string>; onToggleSelect?: (id: string) => void }) {
+  const ROW_HEIGHT = 56;
+
+  const rowVirtualizer = useVirtualizer({
+    count: materials.length,
+    getScrollElement: () => scrollContainerRef?.current ?? null,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10,
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const totalHeight = rowVirtualizer.getTotalSize();
+
+  function formatDate(ts?: number): string {
+    if (!ts) return '-';
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+  }
+
+  function formatSize(bytes?: number): string {
+    if (!bytes) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatConsumption(value?: number): string {
+    if (value === undefined || value === null) return '-';
+    if (value >= 10000) return `${(value / 10000).toFixed(1)}w`;
+    return value.toLocaleString('zh-CN');
+  }
+
+  return (
+    <div className="relative" style={{ minHeight: '60vh' }}>
+      {/* 表头 */}
+      <div className="sticky top-0 z-10 bg-card border-b border-border">
+        <div className="grid grid-cols-[1fr_80px_80px_80px_80px_64px_100px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground">
+          <div>素材名称</div>
+          <div>类型</div>
+          <div>项目</div>
+          <div>标签</div>
+          <div>状态</div>
+          <div className="text-right">消耗</div>
+          <div className="text-right">日期</div>
+        </div>
+      </div>
+      {/* 虚拟列表 */}
+      <div style={{ height: totalHeight, position: 'relative' }}>
+        {virtualRows.map((virtualRow) => {
+          const m = materials[virtualRow.index];
+          const status = (m.status || 'draft') as string;
+          const statusColor = MATERIAL_STATUS_COLORS[status] || 'text-muted-foreground bg-muted';
+          const isSelected = selectedIds?.has(m.id);
+
+          if (batchMode) {
+            return (
+              <div
+                key={m.id}
+                className={`absolute left-0 w-full px-3 flex items-center hover:bg-muted/50 transition-colors border-b border-border/50 group cursor-pointer ${isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''}`}
+                style={{
+                  top: 0,
+                  height: ROW_HEIGHT,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+                onClick={() => onToggleSelect?.(m.id)}
+              >
+                <div className="flex items-center gap-2 w-full">
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground/40'}`}>
+                    {isSelected && <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                  </div>
+                  <div className="grid grid-cols-[1fr_80px_80px_80px_80px_64px_100px] gap-2 flex-1 items-center text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {m.thumbnail && (
+                        <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0 bg-muted">
+                          <img src={m.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        </div>
+                      )}
+                      <span className="truncate text-foreground">{m.name}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">{m.type}</div>
+                    <div className="text-xs text-muted-foreground truncate">{getProjectDisplayName(m.project) || m.project}</div>
+                    <div className="text-xs text-muted-foreground truncate">{m.tag}</div>
+                    <div>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusColor}`}>
+                        {MATERIAL_STATUS_LABELS[status] || status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground text-right">{formatConsumption(m.consumption)}</div>
+                    <div className="text-xs text-muted-foreground text-right">{formatDate(m.createdAt)}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <Link
+              key={m.id}
+              href={`/materials/${m.id}`}
+              className="absolute left-0 w-full px-3 flex items-center hover:bg-muted/50 transition-colors border-b border-border/50 group"
+              style={{
+                top: 0,
+                height: ROW_HEIGHT,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <div className="grid grid-cols-[1fr_80px_80px_80px_80px_64px_100px] gap-2 w-full items-center text-sm">
+                <div className="flex items-center gap-2 min-w-0">
+                  {m.thumbnail && (
+                    <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0 bg-muted">
+                      <img src={m.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                  )}
+                  <span className="truncate text-foreground group-hover:text-primary transition-colors">{m.name}</span>
+                </div>
+                <div className="text-xs text-muted-foreground truncate">{m.type}</div>
+                <div className="text-xs text-muted-foreground truncate">{getProjectDisplayName(m.project) || m.project}</div>
+                <div className="text-xs text-muted-foreground truncate">{m.tag}</div>
+                <div>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusColor}`}>
+                    {MATERIAL_STATUS_LABELS[status] || status}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground text-right">{formatConsumption(m.consumption)}</div>
+                <div className="text-xs text-muted-foreground text-right">{formatDate(m.createdAt)}</div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function MaterialsList({ materials, thumbSize = 'compact', scrollContainerRef, batchMode, selectedIds, onToggleSelect }: MaterialsListProps) {
   return (
     <Suspense fallback={<div>加载中...</div>}>
-      <MaterialsListContent 
-        materials={materials} 
+      <MaterialsListContent
+        materials={materials}
         thumbSize={thumbSize}
         scrollContainerRef={scrollContainerRef}
+        batchMode={batchMode}
+        selectedIds={selectedIds}
+        onToggleSelect={onToggleSelect}
       />
     </Suspense>
   );

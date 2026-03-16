@@ -94,7 +94,7 @@ export function SearchBox({ project, className, iconClassName }: SearchBoxProps 
       )} />
       <Input
         type="search"
-        placeholder="搜索..."
+        placeholder="搜索...  ⌘K"
         value={searchValue}
         onChange={handleChange}
         onKeyDown={handleKeyDown}

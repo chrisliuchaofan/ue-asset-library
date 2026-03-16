@@ -62,6 +62,7 @@ export async function POST(request: Request) {
 
     const material = await createMaterial({
       name: parsed.data.name,
+      source: parsed.data.source,
       type: parsed.data.type,
       project: parsed.data.project,
       tag: parsed.data.tag,
@@ -69,9 +70,8 @@ export async function POST(request: Request) {
       thumbnail: parsed.data.thumbnail,
       src: parsed.data.src,
       gallery: parsed.data.gallery,
-      filesize: parsed.data.filesize,
-      fileSize: parsed.data.fileSize, // 统一命名：文件大小（字节数）
-      hash: parsed.data.hash, // 文件内容的 SHA256 哈希值，用于重复检测
+      fileSize: parsed.data.fileSize,
+      hash: parsed.data.hash,
       width: parsed.data.width,
       height: parsed.data.height,
       duration: parsed.data.duration,

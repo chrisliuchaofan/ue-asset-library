@@ -4,10 +4,10 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Library, Box, Grid } from 'lucide-react';
+import { Library, Box, Grid, Search, SearchX } from 'lucide-react';
 import { AssetCardGallery } from '@/components/asset-card-gallery';
 import { MaterialCardGallery } from '@/components/material-card-gallery';
-import { EmptyState } from '@/components/empty-state';
+import { ModuleEmptyState } from '@/components/empty-states/ModuleEmptyState';
 import type { Asset } from '@/data/manifest.schema';
 import type { Material } from '@/data/material.schema';
 
@@ -154,18 +154,30 @@ function SearchContent() {
       {/* 搜索结果 */}
       <div className="mx-auto max-w-7xl px-2 sm:px-4 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
         {!keyword.trim() ? (
-          <EmptyState
+          <ModuleEmptyState
+            icon={Search}
+            iconColor="text-primary/50"
             title="开始搜索"
-            description="在搜索框中输入关键词，搜索资产和素材"
+            description="在搜索框中输入关键词，搜索资产和素材。也可以按 ⌘K 快速导航"
+            actions={[
+              { label: '浏览素材库', href: '/materials', variant: 'secondary' },
+              { label: '浏览资产库', href: '/assets', variant: 'secondary' },
+            ]}
           />
         ) : loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-muted-foreground">搜索中...</div>
           </div>
         ) : showEmpty ? (
-          <EmptyState
+          <ModuleEmptyState
+            icon={SearchX}
+            iconColor="text-muted-foreground/40"
             title="未找到结果"
-            description={`没有找到与"${keyword}"相关的内容`}
+            description={`没有找到与"${keyword}"相关的内容，试试其他关键词`}
+            actions={[
+              { label: '浏览素材库', href: '/materials', variant: 'secondary' },
+              { label: '浏览资产库', href: '/assets', variant: 'secondary' },
+            ]}
           />
         ) : (
           <div className="space-y-8">

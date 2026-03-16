@@ -1415,7 +1415,6 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
             // 添加 hash 和 fileSize 字段，用于重复检测
             hash: mainFileHash || undefined,
             fileSize: mainFileSize || undefined,
-            filesize: mainFileSize || undefined, // 保留兼容性
           };
 
           // 验证必填字段
@@ -1979,7 +1978,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
                           {asset.source && <div>来源: {asset.source}</div>}
                           {asset.engineVersion && <div>版本: {asset.engineVersion}</div>}
                           {(hasError || hasCreateError) && (
-                            <div className="text-red-600 dark:text-red-400 font-medium mt-2">
+                            <div className="text-destructive font-medium mt-2">
                               错误: {(asset as any)._error || (asset as any)._createError}
                             </div>
                           )}
@@ -2084,7 +2083,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
             {/* 项目选择 */}
             <div className="space-y-2 border-t pt-4">
               <Label htmlFor="batch-project-select" className="text-sm font-medium">
-                选择项目 <span className="text-red-500">*</span>
+                选择项目 <span className="text-destructive">*</span>
               </Label>
               <select
                 id="batch-project-select"
@@ -2147,7 +2146,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
           {/* 项目选择 - 优先选择 */}
           <div className="space-y-2 p-4 border rounded-lg bg-blue-50/50">
             <Label htmlFor="batch-project-select" className="text-sm font-medium">
-              选择项目 <span className="text-red-500">*</span>
+              选择项目 <span className="text-destructive">*</span>
             </Label>
             <select
               id="batch-project-select"
@@ -2171,7 +2170,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
               ))}
             </select>
             {!selectedProject && (
-              <p className="text-xs text-red-500 mt-1">请先选择项目才能继续上传</p>
+              <p className="text-xs text-destructive mt-1">请先选择项目才能继续上传</p>
             )}
           </div>
 
@@ -2240,7 +2239,7 @@ export function BatchUploadDialog({ open, onOpenChange, onSuccess, assets = [] }
               <FileArchive className="h-8 w-8 text-muted-foreground" />
               <div className="text-sm text-muted-foreground w-full">
                 {!selectedProject ? (
-                  <div className="text-center text-red-500">请先选择项目</div>
+                  <div className="text-center text-destructive">请先选择项目</div>
                 ) : uploading ? (
                   <div className="space-y-3 w-full">
                     <div className="text-center">{progress || '上传中...'}</div>
@@ -2615,7 +2614,7 @@ function EditAssetDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>名称 <span className="text-red-500">*</span></Label>
+              <Label>名称 <span className="text-destructive">*</span></Label>
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -2624,7 +2623,7 @@ function EditAssetDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>类型 <span className="text-red-500">*</span></Label>
+              <Label>类型 <span className="text-destructive">*</span></Label>
               <select
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
@@ -2662,7 +2661,7 @@ function EditAssetDialog({
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label>标签（逗号分隔，至少1个）<span className="text-red-500">*</span></Label>
+              <Label>标签（逗号分隔，至少1个）<span className="text-destructive">*</span></Label>
               <Input
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
@@ -2672,7 +2671,7 @@ function EditAssetDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>来源 <span className="text-red-500">*</span></Label>
+              <Label>来源 <span className="text-destructive">*</span></Label>
               <Input
                 value={formData.source}
                 onChange={(e) => setFormData({ ...formData, source: e.target.value })}
@@ -2688,7 +2687,7 @@ function EditAssetDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>版本 <span className="text-red-500">*</span></Label>
+              <Label>版本 <span className="text-destructive">*</span></Label>
               <Input
                 value={formData.engineVersion}
                 onChange={(e) => setFormData({ ...formData, engineVersion: e.target.value })}
@@ -2723,7 +2722,7 @@ function EditAssetDialog({
           </div>
 
           <div className="text-xs text-muted-foreground">
-            <span className="text-red-500">*</span> 广州NAS和深圳NAS至少需要填写一个
+            <span className="text-destructive">*</span> 广州NAS和深圳NAS至少需要填写一个
           </div>
 
           {(asset as any)._error || (asset as any)._createError ? (

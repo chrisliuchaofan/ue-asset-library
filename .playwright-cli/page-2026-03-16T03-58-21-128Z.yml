@@ -1,0 +1,37 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - button "爆款分析" [ref=e5] [cursor=pointer]
+        - button "AI 创作台" [ref=e6] [cursor=pointer]
+        - button "智能审核" [ref=e7] [cursor=pointer]
+        - button "灵感广场" [ref=e8] [cursor=pointer]
+        - button "素材库" [ref=e9] [cursor=pointer]
+      - generic [ref=e16]:
+        - heading "爆款分析" [level=3] [ref=e17]
+        - paragraph [ref=e18]: 拆解竞品广告结构，提取可复用的爆款公式
+    - generic [ref=e20]:
+      - heading "欢迎来到 爆款工坊" [level=1] [ref=e21]:
+        - text: 欢迎来到
+        - text: 爆款工坊
+      - paragraph [ref=e22]:
+        - text: 没有账号？
+        - link "免费注册" [ref=e23] [cursor=pointer]:
+          - /url: /auth/register
+      - generic [ref=e24]:
+        - generic [ref=e25]:
+          - generic [ref=e26]: 用户名或邮箱
+          - textbox "请输入用户名" [active] [ref=e27]
+        - generic [ref=e28]:
+          - generic [ref=e29]: 密码
+          - textbox "请输入密码" [ref=e30]
+        - button "登录" [ref=e31] [cursor=pointer]
+      - generic [ref=e34]: 或
+      - generic [ref=e36]:
+        - button "使用 Google 登录" [ref=e37] [cursor=pointer]:
+          - img [ref=e38]
+          - text: 使用 Google 登录
+        - button "使用 GitHub 登录" [ref=e43] [cursor=pointer]:
+          - img [ref=e44]
+          - text: 使用 GitHub 登录
+  - alert [ref=e46]

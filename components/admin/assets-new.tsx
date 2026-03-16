@@ -42,7 +42,7 @@ interface FormState {
   width: string;
   height: string;
   duration: string;
-  filesize: string;
+  fileSize: string;
 }
 
 const initialFormState: FormState = {
@@ -62,7 +62,7 @@ const initialFormState: FormState = {
   width: '',
   height: '',
   duration: '',
-  filesize: '',
+  fileSize: '',
 };
 
 export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated }: AssetsNewProps) {
@@ -211,7 +211,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
         gallery: galleryUrls.join(','),
         width: firstFile.width ? String(firstFile.width) : prev.width,
         height: firstFile.height ? String(firstFile.height) : prev.height,
-        filesize: firstFile.size ? String(firstFile.size) : prev.filesize,
+        fileSize: firstFile.size ? String(firstFile.size) : prev.fileSize,
       };
     });
   }, [storageMode, normalizedCdnBase]);
@@ -790,7 +790,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               gallery: galleryUrls.join(','),
               width: firstFile.width ? String(firstFile.width) : prevForm.width,
               height: firstFile.height ? String(firstFile.height) : prevForm.height,
-              filesize: firstFile.size ? String(firstFile.size) : prevForm.filesize,
+              fileSize: firstFile.size ? String(firstFile.size) : prevForm.fileSize,
             };
           });
         } else {
@@ -956,7 +956,6 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
         // 添加 hash 和 fileSize 字段，用于重复检测
         hash: mainFileHash || undefined,
         fileSize: mainFileSize || undefined,
-        filesize: mainFileSize || undefined, // 保留兼容性
       };
 
       const response = await fetch('/api/assets', {
@@ -989,10 +988,10 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
 
   return (
     <div className="space-y-4 h-full flex flex-col">
-      <div className="border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+      <div className="border border-border bg-white">
+        <div className="border-b border-border bg-muted/50 px-4 py-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">新增资产</h3>
+            <h3 className="text-sm font-semibold text-foreground">新增资产</h3>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
@@ -1026,13 +1025,13 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               htmlFor="file-upload"
               className="cursor-pointer flex flex-col items-center gap-2"
             >
-              <Upload className="h-8 w-8 text-gray-400" />
-              <div className="text-sm text-gray-700 w-full">
+              <Upload className="h-8 w-8 text-muted-foreground" />
+              <div className="text-sm text-foreground w-full">
                 {uploading ? (
                   <div className="space-y-2 w-full">
                     <div className="text-center">{uploadProgress || '上传中...'}</div>
                     {uploadProgressPercent > 0 && (
-                      <div className="w-full rounded-full h-2 bg-gray-200">
+                      <div className="w-full rounded-full h-2 bg-muted">
                         <div
                           className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                           style={{ width: `${uploadProgressPercent}%` }}
@@ -1053,7 +1052,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
 
           {/* 预览区域 */}
           {previewUrls.length > 0 && (
-            <div className="relative border border-gray-300 rounded-lg p-4 bg-gray-50">
+            <div className="relative border border-gray-300 rounded-lg p-4 bg-muted/50">
               <div className="flex items-start justify-between mb-2">
                 <span className="text-sm font-medium">
                   预览 ({currentPreviewIndex + 1}/{previewUrls.length})
@@ -1070,7 +1069,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-gray-100">
+              <div className="relative aspect-video w-full max-w-md mx-auto rounded overflow-hidden bg-muted">
                 {previewUrls[currentPreviewIndex] && (
                   <>
                     {(() => {
@@ -1130,7 +1129,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               {/* 视频抽帧缩略图列表 */}
               {uploadedFiles.some(f => f.type === 'video') && previewUrls.length > 1 && (
                 <div className="mt-2">
-                  <p className="text-xs text-gray-600 mb-2">点击选择预览图（用于 AI 分析和资产预览图）：</p>
+                  <p className="text-xs text-muted-foreground mb-2">点击选择预览图（用于 AI 分析和资产预览图）：</p>
                   <div className="flex gap-2 overflow-x-auto pb-2">
                     {previewUrls.map((url, index) => {
                       const isSelected = index === currentPreviewIndex;
@@ -1190,7 +1189,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
                   return (
                     <div
                       key={index}
-                      className="relative group border border-gray-300 rounded-lg overflow-hidden bg-gray-50"
+                      className="relative group border border-gray-300 rounded-lg overflow-hidden bg-muted/50"
                     >
                       <div className="aspect-video relative">
                         {file.type === 'image' ? (
@@ -1212,7 +1211,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
                         <p className="text-xs truncate" title={file.originalName}>
                           {file.originalName}
                         </p>
-                        <p className="text-xs text-gray-600">
+                        <p className="text-xs text-muted-foreground">
                           {(file.size / 1024).toFixed(1)} KB
                         </p>
                       </div>
@@ -1259,7 +1258,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">类型（可新增）<span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">类型（可新增）<span className="text-destructive">*</span></label>
               <div className="space-y-1">
                 <Input
                   placeholder="选择或输入新类型"
@@ -1291,7 +1290,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">项目<span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">项目<span className="text-destructive">*</span></label>
               <div className="space-y-1">
                 <Input
                   placeholder="请选择项目"
@@ -1329,7 +1328,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
             </div>
             <div className="space-y-2 md:col-span-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-red-500">*</span></label>
+                <label className="text-sm font-medium">标签（逗号分隔，至少1个）<span className="text-destructive">*</span></label>
                 <Button
                   type="button"
                   variant="outline"
@@ -1355,7 +1354,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               )}
               {aiRecommendedTags.length > 0 && (
                 <div className="space-y-2 pt-2">
-                  <p className="text-sm font-medium text-gray-700">AI 推荐标签</p>
+                  <p className="text-sm font-medium text-foreground">AI 推荐标签</p>
                   <div className="flex flex-wrap gap-2">
                     {aiRecommendedTags.map((tag) => {
                       const isSelected = isRecommendedTagSelected(tag);
@@ -1387,7 +1386,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">来源（可新增）<span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">来源（可新增）<span className="text-destructive">*</span></label>
               <div className="space-y-1">
                 <Input
                   placeholder="内部"
@@ -1405,7 +1404,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">版本（可新增）<span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">版本（可新增）<span className="text-destructive">*</span></label>
               <div className="space-y-1">
                 <Input
                   placeholder="UE5.5"
@@ -1423,7 +1422,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">广州NAS路径 <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">广州NAS路径 <span className="text-destructive">*</span></label>
               <Input
                 placeholder="例如：/nas/guangzhou/assets/xxx.jpg"
                 value={form.guangzhouNas}
@@ -1432,14 +1431,14 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">深圳NAS路径 <span className="text-red-500">*</span></label>
+              <label className="text-sm font-medium">深圳NAS路径 <span className="text-destructive">*</span></label>
               <Input
                 placeholder="例如：/nas/shenzhen/assets/xxx.jpg"
                 value={form.shenzhenNas}
                 onChange={handleInputChange('shenzhenNas')}
                 disabled={loading}
               />
-              <p className="text-xs text-gray-600">注意：广州NAS和深圳NAS至少需要填写一个</p>
+              <p className="text-xs text-muted-foreground">注意：广州NAS和深圳NAS至少需要填写一个</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">封面路径</label>
@@ -1468,7 +1467,7 @@ export function AssetsNew({ initialAssets, storageMode, cdnBase, onAssetCreated 
             <Button variant="ghost" onClick={resetForm} disabled={loading}>
               重置
             </Button>
-            {message && <span className="text-sm text-gray-700">{message}</span>}
+            {message && <span className="text-sm text-foreground">{message}</span>}
           </div>
         </div>
       </div>

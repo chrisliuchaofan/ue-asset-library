@@ -1,11 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    <linearGradient id="brand" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7C3AED;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F97316;stop-opacity:1" />
     </linearGradient>
   </defs>
-  <rect width="100" height="100" rx="20" fill="url(#grad)"/>
-  <text x="50" y="70" font-family="Arial, sans-serif" font-size="60" font-weight="bold" fill="white" text-anchor="middle">UE</text>
+  <rect width="100" height="100" rx="20" fill="url(#brand)"/>
+  <!-- Clapperboard / Film slate icon -->
+  <rect x="22" y="28" width="56" height="8" rx="2" fill="rgba(255,255,255,0.95)" transform="rotate(-8 50 32)"/>
+  <rect x="22" y="38" width="56" height="38" rx="4" fill="rgba(255,255,255,0.95)"/>
+  <!-- Clapperboard stripes -->
+  <rect x="26" y="26" width="6" height="12" rx="1" fill="#7C3AED" transform="rotate(-8 29 32)"/>
+  <rect x="36" y="25" width="6" height="12" rx="1" fill="#7C3AED" transform="rotate(-8 39 31)"/>
+  <rect x="46" y="24" width="6" height="12" rx="1" fill="#7C3AED" transform="rotate(-8 49 30)"/>
+  <rect x="56" y="23" width="6" height="12" rx="1" fill="#7C3AED" transform="rotate(-8 59 29)"/>
+  <rect x="66" y="22" width="6" height="12" rx="1" fill="#7C3AED" transform="rotate(-8 69 28)"/>
+  <!-- Play triangle -->
+  <polygon points="43,48 43,66 60,57" fill="#7C3AED"/>
+  <!-- Sparkle / AI dot -->
+  <circle cx="68" cy="46" r="3" fill="#F97316"/>
 </svg>
-

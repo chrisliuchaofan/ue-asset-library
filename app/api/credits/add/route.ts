@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createStandardError, ErrorCode } from '@/lib/errors/error-handler';
 import { randomUUID } from 'crypto';
@@ -13,14 +13,9 @@ import { randomUUID } from 'crypto';
  */
 export async function POST(request: Request) {
   try {
-    // 检查登录状态
-    const session = await getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        createStandardError(ErrorCode.AUTH_REQUIRED, '未登录，请先登录'),
-        { status: 401 }
-      );
-    }
+    // 检查登录状态 + 团队上下文
+    const ctx = await requireTeamAccess();
+    if (isErrorResponse(ctx)) return ctx;
 
     // 仅允许开发环境使用
     if (process.env.NODE_ENV === 'production') {
@@ -40,8 +35,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const email = session.user.email;
-    const userId = session.user.id || email;
+    const email = ctx.email;
+    const userId = ctx.userId;
 
     // 使用 Supabase RPC 函数增加积分
     const { data: newBalance, error: rpcError } = await (supabaseAdmin.rpc as any)(
@@ -59,7 +54,7 @@ export async function POST(request: Request) {
       const { data: profile } = await supabaseAdmin
         .from('profiles')
         .select('credits')
-        .eq('id', userId)
+        .eq('email', userId)
         .single();
 
       if (!profile) {
@@ -75,7 +70,7 @@ export async function POST(request: Request) {
       const { error: updateError } = await ((supabaseAdmin
         .from('profiles') as any)
         .update({ credits: updatedCredits, updated_at: new Date().toISOString() })
-        .eq('id', userId));
+        .eq('email', userId));
 
       if (updateError) {
         throw updateError;
@@ -85,6 +80,7 @@ export async function POST(request: Request) {
       await (supabaseAdmin.from('credit_transactions') as any).insert({
         id: randomUUID(),
         user_id: userId,
+        team_id: ctx.teamId,
         amount,
         type: 'RECHARGE',
         description: `开发环境充值：${amount} 积分`,
@@ -102,6 +98,7 @@ export async function POST(request: Request) {
     await (supabaseAdmin.from('credit_transactions') as any).insert({
       id: randomUUID(),
       user_id: userId,
+      team_id: ctx.teamId,
       amount,
       type: 'RECHARGE',
       description: `开发环境充值：${amount} 积分`,

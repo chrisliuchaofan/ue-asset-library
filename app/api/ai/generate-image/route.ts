@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { aiService } from '@/lib/ai/ai-service';
 import { z } from 'zod';
 import { handleApiError } from '@/lib/error-handler';
-import { getSession } from '@/lib/auth';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { shouldCallRealAI, getUserModeInfo, createDryRunMockResponse } from '@/lib/ai/dry-run-check';
 import { createStandardError, ErrorCode } from '@/lib/errors/error-handler';
 import { consumeCredits } from '@/lib/credits';
@@ -22,14 +22,9 @@ const GenerateImageSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    // ✅ 检查登录状态
-    const session = await getSession();
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { message: '未登录，请先登录' },
-        { status: 401 }
-      );
-    }
+    // ✅ 验证团队访问权限
+    const ctx = await requireTeamAccess();
+    if (isErrorResponse(ctx)) return ctx;
 
     const body = await request.json();
     const parsed = GenerateImageSchema.safeParse(body);
@@ -79,7 +74,7 @@ export async function POST(request: Request) {
     // 估算费用（可以根据实际情况调整）
     const estimatedCost = 2; // 每次图像生成消耗 2 积分
     
-    const userId = session.user.id || session.user.email!;
+    const userId = ctx.userId;
     
     try {
       // 检查余额是否充足
