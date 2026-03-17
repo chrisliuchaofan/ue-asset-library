@@ -81,30 +81,42 @@ export const authOptions: NextAuthConfig = {
             const bcrypt = await import('bcryptjs');
 
             // 尝试通过 email 或 username 查找用户
-            const { data: profile } = await (supabaseAdmin.from('profiles') as any)
+            const { data: profile, error: queryError } = await (supabaseAdmin.from('profiles') as any)
               .select('id, email, username, password_hash, is_active')
               .or(`email.eq.${loginEmail},username.eq.${username}`)
               .limit(1)
               .single();
 
-            if (profile && profile.password_hash && profile.is_active !== false) {
+            if (queryError) {
+              console.error('[Auth] DB查询错误:', queryError.message, '| 输入:', loginEmail, username);
+            }
+
+            if (!profile) {
+              console.error('[Auth] 未找到用户 | email:', loginEmail, '| username:', username);
+            } else if (!profile.password_hash) {
+              console.error('[Auth] 用户无密码哈希 | email:', profile.email);
+            } else if (profile.is_active === false) {
+              console.error('[Auth] 用户已停用 | email:', profile.email);
+            } else {
               const passwordValid = await bcrypt.compare(password, profile.password_hash);
               if (passwordValid) {
-                console.log('[Auth] ✅ Supabase 密码验证成功:', profile.email);
+                console.error('[Auth] 密码验证成功:', profile.email);
                 return {
                   id: profile.email || profile.id,
                   name: profile.username || profile.email,
                   email: profile.email,
                 };
+              } else {
+                console.error('[Auth] 密码不匹配 | email:', profile.email);
               }
             }
-          } catch (dbError) {
-            // Supabase 查询失败不影响 fallback
-            console.warn('[Auth] Supabase 查询失败，回退到环境变量:', dbError);
+          } catch (dbError: any) {
+            console.error('[Auth] Supabase异常:', dbError?.message || dbError);
           }
 
           // === 方式2: 环境变量 ADMIN_USERS 验证（向后兼容） ===
           const adminUsers = getAdminUsers();
+          console.error('[Auth] ADMIN_USERS 数量:', adminUsers.length);
           const user = adminUsers.find((u) => {
             const usernameMatch = u.username === credentials.username;
             const emailMatch = u.email === credentials.username || u.email === loginEmail;
@@ -113,7 +125,7 @@ export const authOptions: NextAuthConfig = {
           });
 
           if (user) {
-            console.log('[Auth] ✅ 环境变量验证成功:', user.email);
+            console.error('[Auth] 环境变量验证成功:', user.email);
             return {
               id: user.email || user.username,
               name: user.username,
@@ -121,6 +133,7 @@ export const authOptions: NextAuthConfig = {
             };
           }
 
+          console.error('[Auth] 所有验证方式均失败 | 输入用户名:', username);
           return null;
         } catch (error: any) {
           console.error('[Auth] Unexpected error:', error.message);
