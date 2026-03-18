@@ -18,9 +18,9 @@ interface VideoControlsProps {
 }
 
 const S = {
-    border6: { borderTop: '1px solid rgba(255,255,255,0.06)' },
-    bg5border8: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' } as React.CSSProperties,
-    progressTrack: { background: 'rgba(255,255,255,0.06)' },
+    border6: { borderTop: '1px solid hsl(var(--border))' },
+    bg5border8: { background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' } as React.CSSProperties,
+    progressTrack: { background: 'hsl(var(--border))' },
 } as const;
 
 export function VideoControls({

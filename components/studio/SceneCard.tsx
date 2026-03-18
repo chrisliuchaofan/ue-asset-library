@@ -22,12 +22,12 @@ interface SceneCardProps {
 }
 
 const S = {
-    card: { border: '1px solid rgba(255,255,255,0.06)' },
-    textarea: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' } as React.CSSProperties,
-    badge: { background: 'rgba(255,255,255,0.06)' },
-    durationBorder: { borderBottom: '1px solid rgba(255,255,255,0.08)' },
-    statusBox: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' } as React.CSSProperties,
-    dashedBox: { border: '1px dashed rgba(255,255,255,0.08)' },
+    card: { border: '1px solid hsl(var(--border))' },
+    textarea: { background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' } as React.CSSProperties,
+    badge: { background: 'hsl(var(--border))' },
+    durationBorder: { borderBottom: '1px solid hsl(var(--border))' },
+    statusBox: { background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' } as React.CSSProperties,
+    dashedBox: { border: '1px dashed hsl(var(--border))' },
 } as const;
 
 const textareaClass = 'w-full rounded-lg px-3 py-2 text-sm text-white/80 placeholder-white/20 focus:outline-none resize-none transition-colors';

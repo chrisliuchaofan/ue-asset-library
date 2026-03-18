@@ -61,7 +61,7 @@ const S = {
     userName: {
         fontSize: 12,
         fontWeight: 500 as const,
-        color: 'rgba(255,255,255,0.7)',
+        color: 'hsl(var(--muted-foreground))',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap' as const,
@@ -70,8 +70,8 @@ const S = {
         position: 'fixed' as const,
         zIndex: 9999,
         minWidth: 220,
-        background: '#1a1a1a',
-        border: '1px solid rgba(255,255,255,0.1)',
+        background: 'hsl(var(--popover))',
+        border: '1px solid hsl(var(--border))',
         borderRadius: 10,
         boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
         overflow: 'hidden',
@@ -80,7 +80,7 @@ const S = {
     sectionLabel: {
         fontSize: 10,
         fontWeight: 500 as const,
-        color: 'rgba(255,255,255,0.25)',
+        color: 'hsl(var(--muted-foreground) / 0.3)',
         textTransform: 'uppercase' as const,
         letterSpacing: '0.08em',
         padding: '8px 12px 4px',
@@ -94,8 +94,8 @@ const S = {
         padding: '8px 12px',
         border: 'none',
         borderRadius: 0,
-        background: hovered ? 'rgba(255,255,255,0.06)' : 'transparent',
-        color: hovered ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.55)',
+        background: hovered ? 'hsl(var(--border))' : 'transparent',
+        color: hovered ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
         cursor: 'pointer',
         fontSize: 12,
         transition: 'all 0.12s ease',
@@ -108,7 +108,7 @@ const S = {
     },
     divider: {
         height: 1,
-        background: 'rgba(255,255,255,0.06)',
+        background: 'hsl(var(--border))',
         margin: '4px 0',
     },
     teamItem: (active: boolean, hovered: boolean) => ({
@@ -119,8 +119,8 @@ const S = {
         padding: '6px 12px',
         border: 'none',
         borderRadius: 0,
-        background: hovered ? 'rgba(255,255,255,0.06)' : 'transparent',
-        color: active ? 'rgba(255,255,255,0.9)' : hovered ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.45)',
+        background: hovered ? 'hsl(var(--border))' : 'transparent',
+        color: active ? 'hsl(var(--foreground))' : hovered ? 'hsl(var(--muted-foreground))' : 'hsl(var(--muted-foreground) / 0.7)',
         cursor: 'pointer',
         fontSize: 12,
         transition: 'all 0.12s ease',
@@ -242,7 +242,7 @@ export function UserAvatarDropdown({ session, expanded }: UserAvatarDropdownProp
                 onMouseLeave={() => setTriggerHovered(false)}
                 style={{
                     ...S.trigger(expanded),
-                    background: triggerHovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+                    background: triggerHovered ? 'hsl(var(--muted))' : 'transparent',
                 }}
                 title={user?.email || user?.name || ''}
             >
@@ -270,10 +270,10 @@ export function UserAvatarDropdown({ session, expanded }: UserAvatarDropdownProp
                             <span style={S.avatarText}>{initial}</span>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.85)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: 'hsl(var(--foreground))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {user?.name || '用户'}
                             </div>
-                            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground) / 0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {user?.email || ''}
                             </div>
                         </div>
@@ -342,7 +342,7 @@ export function UserAvatarDropdown({ session, expanded }: UserAvatarDropdownProp
                         onMouseLeave={() => setHovered(null)}
                         style={{
                             ...S.menuItem(hovered === 'logout'),
-                            color: hovered === 'logout' ? '#f87171' : 'rgba(255,255,255,0.45)',
+                            color: hovered === 'logout' ? '#f87171' : 'hsl(var(--muted-foreground) / 0.7)',
                         }}
                     >
                         <PowerIcon style={S.menuIcon} />

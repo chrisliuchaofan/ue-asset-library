@@ -285,7 +285,7 @@ function StepStart({ onComplete }: { onComplete: () => void }) {
             <Link
               href={option.href}
               onClick={onComplete}
-              className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-background/50 hover:bg-accent/50 hover:bg-white/[0.03] transition-all group"
+              className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-background/50 hover:bg-accent/50 transition-all group"
             >
               <div className={`w-10 h-10 rounded-lg ${option.bg} flex items-center justify-center flex-shrink-0`}>
                 <option.icon className={`w-5 h-5 ${option.color}`} />

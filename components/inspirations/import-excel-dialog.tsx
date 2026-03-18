@@ -37,10 +37,10 @@ const S = {
     width: '100%',
     maxWidth: 600,
     margin: '0 16px',
-    background: '#111',
+    background: 'hsl(var(--popover))',
     borderWidth: 1,
     borderStyle: 'solid' as const,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'hsl(var(--border))',
     borderRadius: 16,
     boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
     maxHeight: '85vh',
@@ -52,12 +52,12 @@ const S = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '14px 20px',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    borderBottom: '1px solid hsl(var(--border))',
   },
-  title: { fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)' },
+  title: { fontSize: 15, fontWeight: 600, color: 'hsl(var(--foreground))' },
   closeBtn: {
     padding: 4, borderRadius: 6, border: 'none',
-    background: 'transparent', color: 'rgba(255,255,255,0.4)', cursor: 'pointer',
+    background: 'transparent', color: 'hsl(var(--muted-foreground) / 0.6)', cursor: 'pointer',
   },
   body: {
     flex: 1, overflowY: 'auto' as const, padding: 20,
@@ -70,7 +70,7 @@ const S = {
     justifyContent: 'center',
     gap: 12,
     padding: 32,
-    border: '2px dashed rgba(255,255,255,0.1)',
+    border: '2px dashed hsl(var(--border))',
     borderRadius: 12,
     cursor: 'pointer',
     transition: 'border-color 0.2s ease, background 0.2s ease',
@@ -83,15 +83,15 @@ const S = {
   th: {
     padding: '8px 10px',
     textAlign: 'left' as const,
-    color: 'rgba(255,255,255,0.5)',
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
+    color: 'hsl(var(--muted-foreground))',
+    borderBottom: '1px solid hsl(var(--border))',
     fontSize: 11,
     fontWeight: 500 as const,
   },
   td: {
     padding: '6px 10px',
-    color: 'rgba(255,255,255,0.6)',
-    borderBottom: '1px solid rgba(255,255,255,0.04)',
+    color: 'hsl(var(--muted-foreground))',
+    borderBottom: '1px solid hsl(var(--muted))',
     maxWidth: 150,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -103,12 +103,12 @@ const S = {
     justifyContent: 'space-between',
     gap: 8,
     padding: '12px 20px',
-    borderTop: '1px solid rgba(255,255,255,0.06)',
+    borderTop: '1px solid hsl(var(--border))',
   },
   btnCancel: {
-    padding: '8px 16px', fontSize: 13, color: 'rgba(255,255,255,0.6)',
-    background: 'rgba(255,255,255,0.05)', borderWidth: 1, borderStyle: 'solid' as const,
-    borderColor: 'rgba(255,255,255,0.1)', borderRadius: 8, cursor: 'pointer',
+    padding: '8px 16px', fontSize: 13, color: 'hsl(var(--muted-foreground))',
+    background: 'hsl(var(--muted))', borderWidth: 1, borderStyle: 'solid' as const,
+    borderColor: 'hsl(var(--border))', borderRadius: 8, cursor: 'pointer',
   },
   btnImport: {
     display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -212,19 +212,19 @@ export function ImportExcelDialog({ open, onClose, onImported }: ImportExcelDial
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-                e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                e.currentTarget.style.borderColor = 'hsl(var(--muted-foreground) / 0.25)';
+                e.currentTarget.style.background = 'hsl(var(--muted))';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                e.currentTarget.style.borderColor = 'hsl(var(--border))';
                 e.currentTarget.style.background = 'transparent';
               }}
             >
-              <Upload style={{ width: 28, height: 28, color: 'rgba(255,255,255,0.3)' }} />
-              <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+              <Upload style={{ width: 28, height: 28, color: 'hsl(var(--muted-foreground) / 0.4)' }} />
+              <div style={{ color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>
                 点击或拖拽上传 Excel 文件
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>
+              <div style={{ color: 'hsl(var(--muted-foreground) / 0.3)', fontSize: 11 }}>
                 支持 .xlsx / .xls / .csv，列：标题 / 内容 / 标签 / 参考链接
               </div>
             </div>
@@ -235,8 +235,8 @@ export function ImportExcelDialog({ open, onClose, onImported }: ImportExcelDial
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                 <FileSpreadsheet style={{ width: 16, height: 16, color: '#22C55E' }} />
-                <span style={{ color: 'rgba(255,255,255,0.7)' }}>{fileName}</span>
-                <span style={{ color: 'rgba(255,255,255,0.3)' }}>— {rows.length} 条有效记录</span>
+                <span style={{ color: 'hsl(var(--muted-foreground))' }}>{fileName}</span>
+                <span style={{ color: 'hsl(var(--muted-foreground) / 0.4)' }}>— {rows.length} 条有效记录</span>
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={S.previewTable}>
@@ -262,7 +262,7 @@ export function ImportExcelDialog({ open, onClose, onImported }: ImportExcelDial
                   </tbody>
                 </table>
                 {rows.length > 10 && (
-                  <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.3)', padding: 8 }}>
+                  <div style={{ textAlign: 'center', fontSize: 11, color: 'hsl(var(--muted-foreground) / 0.4)', padding: 8 }}>
                     ... 还有 {rows.length - 10} 条
                   </div>
                 )}
@@ -276,14 +276,14 @@ export function ImportExcelDialog({ open, onClose, onImported }: ImportExcelDial
               {result.success > 0 ? (
                 <>
                   <CheckCircle2 style={{ width: 40, height: 40, color: '#22C55E', margin: '0 auto 12px' }} />
-                  <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'hsl(var(--foreground))' }}>
                     成功导入 {result.success}/{result.total} 条
                   </div>
                 </>
               ) : (
                 <>
                   <AlertCircle style={{ width: 40, height: 40, color: '#ef4444', margin: '0 auto 12px' }} />
-                  <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.88)' }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'hsl(var(--foreground))' }}>
                     导入失败
                   </div>
                 </>
@@ -305,7 +305,7 @@ export function ImportExcelDialog({ open, onClose, onImported }: ImportExcelDial
         </div>
 
         <div style={S.footer}>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>
+          <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground) / 0.3)' }}>
             {rows.length > 0 && !result ? `${rows.length} 条待导入` : ''}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>

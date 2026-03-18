@@ -11,10 +11,10 @@ import type { NamingFields } from '@/lib/naming/naming-rules';
 
 const S = {
   card: {
-    background: 'rgba(255,255,255,0.02)',
+    background: 'hsl(var(--muted))',
     borderWidth: 1,
     borderStyle: 'solid' as const,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'hsl(var(--border))',
     borderRadius: 10,
     padding: 20,
   },
@@ -27,7 +27,7 @@ const S = {
   title: {
     fontSize: 15,
     fontWeight: 600,
-    color: 'rgba(255,255,255,0.9)',
+    color: 'hsl(var(--foreground))',
     display: 'flex',
     alignItems: 'center',
     gap: 8,
@@ -44,7 +44,7 @@ const S = {
   },
   noNaming: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.4)',
+    color: 'hsl(var(--muted-foreground) / 0.6)',
     fontStyle: 'italic' as const,
     padding: '8px 0',
   },
@@ -72,8 +72,8 @@ const S = {
     background: 'transparent',
     borderWidth: 1,
     borderStyle: 'solid' as const,
-    borderColor: 'rgba(255,255,255,0.15)',
-    color: 'rgba(255,255,255,0.7)',
+    borderColor: 'hsl(var(--border))',
+    color: 'hsl(var(--muted-foreground))',
   },
   btnSuccess: {
     background: 'rgba(34,197,94,0.1)',
@@ -98,7 +98,7 @@ const S = {
   },
   saving: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
+    color: 'hsl(var(--muted-foreground) / 0.6)',
     marginTop: 8,
   },
 } as const;

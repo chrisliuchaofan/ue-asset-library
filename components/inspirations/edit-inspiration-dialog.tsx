@@ -28,10 +28,10 @@ const S = {
     width: '100%',
     maxWidth: 520,
     margin: '0 16px',
-    background: '#111',
+    background: 'hsl(var(--popover))',
     borderWidth: 1,
     borderStyle: 'solid' as const,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'hsl(var(--border))',
     borderRadius: 16,
     boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
     maxHeight: '85vh',
@@ -43,19 +43,19 @@ const S = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '14px 20px',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    borderBottom: '1px solid hsl(var(--border))',
   },
   title: {
     fontSize: 15,
     fontWeight: 600,
-    color: 'rgba(255,255,255,0.88)',
+    color: 'hsl(var(--foreground))',
   },
   closeBtn: {
     padding: 4,
     borderRadius: 6,
     border: 'none',
     background: 'transparent',
-    color: 'rgba(255,255,255,0.4)',
+    color: 'hsl(var(--muted-foreground) / 0.6)',
     cursor: 'pointer',
   },
   body: {
@@ -73,7 +73,7 @@ const S = {
     outline: 'none',
     fontSize: 16,
     fontWeight: 500,
-    color: 'rgba(255,255,255,0.88)',
+    color: 'hsl(var(--foreground))',
     padding: 0,
   },
   textarea: {
@@ -82,7 +82,7 @@ const S = {
     border: 'none',
     outline: 'none',
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'hsl(var(--muted-foreground))',
     lineHeight: 1.6,
     resize: 'none' as const,
     padding: 0,
@@ -105,15 +105,15 @@ const S = {
     padding: '3px 10px',
     borderRadius: 100,
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
-    background: 'rgba(255,255,255,0.06)',
+    color: 'hsl(var(--muted-foreground))',
+    background: 'hsl(var(--border))',
     border: 'none',
   },
   tagRemoveBtn: {
     padding: 0,
     border: 'none',
     background: 'transparent',
-    color: 'rgba(255,255,255,0.3)',
+    color: 'hsl(var(--muted-foreground) / 0.4)',
     cursor: 'pointer',
     display: 'flex',
   },
@@ -128,7 +128,7 @@ const S = {
     border: 'none',
     outline: 'none',
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'hsl(var(--muted-foreground))',
     padding: 0,
   },
   tagAddBtn: {
@@ -145,16 +145,16 @@ const S = {
     justifyContent: 'flex-end',
     gap: 8,
     padding: '12px 20px',
-    borderTop: '1px solid rgba(255,255,255,0.06)',
+    borderTop: '1px solid hsl(var(--border))',
   },
   btnCancel: {
     padding: '8px 16px',
     fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
-    background: 'rgba(255,255,255,0.05)',
+    color: 'hsl(var(--muted-foreground))',
+    background: 'hsl(var(--muted))',
     borderWidth: 1,
     borderStyle: 'solid' as const,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'hsl(var(--border))',
     borderRadius: 8,
     cursor: 'pointer',
   },
@@ -279,22 +279,22 @@ export function EditInspirationDialog({
             placeholder="参考链接（可选）"
             value={referenceUrl}
             onChange={e => setReferenceUrl(e.target.value)}
-            style={{ ...S.input, fontSize: 13, color: 'rgba(255,255,255,0.6)' }}
+            style={{ ...S.input, fontSize: 13, color: 'hsl(var(--muted-foreground))' }}
           />
 
           {/* 状态 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>状态</span>
+            <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground) / 0.6)' }}>状态</span>
             <select
               value={status}
               onChange={e => setStatus(e.target.value)}
               style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'hsl(var(--border))',
+                border: '1px solid hsl(var(--border))',
                 borderRadius: 6,
                 padding: '4px 8px',
                 fontSize: 12,
-                color: 'rgba(255,255,255,0.7)',
+                color: 'hsl(var(--muted-foreground))',
                 outline: 'none',
               }}
             >

@@ -410,8 +410,8 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
                 border: 'none',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
-                background: active ? '#fff' : 'rgba(255,255,255,0.06)',
-                color: active ? '#000' : 'rgba(255,255,255,0.5)',
+                background: active ? '#fff' : 'hsl(var(--border))',
+                color: active ? '#000' : 'hsl(var(--muted-foreground))',
               }}
             >
               {s === 'all' ? '全部' : MATERIAL_STATUS_LABELS[s]}
@@ -431,13 +431,13 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
       </div>
 
       <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', flexShrink: 0, minWidth: 0, overflow: 'hidden' }}>
+        <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground) / 0.6)', flexShrink: 0, minWidth: 0, overflow: 'hidden' }}>
           <span style={{ whiteSpace: 'nowrap' }}>找到 {String(sortedDisplayMaterials.length)} 个素材</span>
           {summary.total > 0 && !hasServerFilters && (
-            <span style={{ marginLeft: 8, fontSize: 12, color: 'rgba(255,255,255,0.25)', whiteSpace: 'nowrap' }}>共 {String(summary.total)} 个</span>
+            <span style={{ marginLeft: 8, fontSize: 12, color: 'hsl(var(--muted-foreground) / 0.3)', whiteSpace: 'nowrap' }}>共 {String(summary.total)} 个</span>
           )}
           {filterDuration !== null && (
-            <span style={{ marginLeft: 8, fontSize: 12, color: 'rgba(255,255,255,0.25)', whiteSpace: 'nowrap' }}>
+            <span style={{ marginLeft: 8, fontSize: 12, color: 'hsl(var(--muted-foreground) / 0.3)', whiteSpace: 'nowrap' }}>
               ({String(Math.round(filterDuration))} ms)
             </span>
           )}
@@ -455,7 +455,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
                   padding: '6px 10px',
                   fontSize: 12,
                   fontWeight: 500,
-                  color: 'rgba(255,255,255,0.6)',
+                  color: 'hsl(var(--muted-foreground))',
                   background: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
@@ -478,7 +478,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
                 )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" style={{ width: 176, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <DropdownMenuContent align="start" style={{ width: 176, background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))' }}>
               <DropdownMenuRadioGroup
                 value={sortBy}
                 onValueChange={(value) => {
@@ -537,8 +537,8 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
               borderRadius: 6,
               cursor: 'pointer',
               transition: 'all 0.15s',
-              background: batchMode ? '#fff' : 'rgba(255,255,255,0.06)',
-              color: batchMode ? '#000' : 'rgba(255,255,255,0.5)',
+              background: batchMode ? '#fff' : 'hsl(var(--border))',
+              color: batchMode ? '#000' : 'hsl(var(--muted-foreground))',
             }}
           >
             <CheckSquare style={{ width: 14, height: 14 }} />
@@ -572,8 +572,8 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
                     borderRadius: 6,
                     cursor: 'pointer',
                     transition: 'all 0.15s',
-                    background: active ? '#fff' : 'rgba(255,255,255,0.06)',
-                    color: active ? '#000' : 'rgba(255,255,255,0.4)',
+                    background: active ? '#fff' : 'hsl(var(--border))',
+                    color: active ? '#000' : 'hsl(var(--muted-foreground) / 0.6)',
                   }}
                 >
                   {item.icon}

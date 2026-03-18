@@ -322,8 +322,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                             style={{
                                                 ...NAV.navItemExpanded(isActive),
                                                 ...(isHovered && !isActive ? {
-                                                    background: 'rgba(255,255,255,0.05)',
-                                                    color: 'rgba(255,255,255,0.7)',
+                                                    background: 'hsl(var(--accent))',
+                                                    color: 'hsl(var(--foreground))',
                                                 } : {}),
                                             }}
                                             onMouseEnter={() => setHoveredNav(item.href)}
@@ -348,8 +348,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                     style={{
                                         ...NAV.navItemCollapsed(isActive),
                                         ...(isHovered && !isActive ? {
-                                            background: 'rgba(255,255,255,0.05)',
-                                            color: 'rgba(255,255,255,0.7)',
+                                            background: 'hsl(var(--accent))',
+                                            color: 'hsl(var(--foreground))',
                                         } : {}),
                                     }}
                                     onMouseEnter={() => setHoveredNav(item.href)}
@@ -376,7 +376,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             onMouseLeave={() => setToggleHovered(false)}
                             style={{
                                 ...NAV.toggleBtn,
-                                color: toggleHovered ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)',
+                                color: toggleHovered ? 'hsl(var(--foreground) / 0.6)' : 'hsl(var(--muted-foreground) / 0.5)',
                             }}
                             title="折叠侧栏"
                         >
@@ -488,7 +488,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             <div style={{ width: 20, height: 20, borderRadius: 4, background: 'linear-gradient(135deg, #7C3AED, #F97316)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <ClapperboardIcon style={{ width: 12, height: 12, color: '#fff' }} />
                             </div>
-                            <span style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.88)' }}>{tc('appName')}</span>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: 'hsl(var(--foreground))' }}>{tc('appName')}</span>
                         </div>
                     </div>
                 )}

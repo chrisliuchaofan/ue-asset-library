@@ -77,7 +77,7 @@ function ThumbSizeSelector({ thumbSize, onThumbSizeChange }: { thumbSize: ThumbS
               cursor: 'pointer',
               transition: 'all 0.15s',
               background: active ? '#fff' : 'transparent',
-              color: active ? '#000' : 'rgba(255,255,255,0.4)',
+              color: active ? '#000' : 'hsl(var(--muted-foreground) / 0.6)',
             }}
           >
             {s.label}
@@ -587,7 +587,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
     <div style={{ display: 'flex', height: '100%', flexDirection: 'column' }}>
       <div style={{ padding: '0' }}>
         <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
+          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground) / 0.6)' }}>
             {useMemo(() => {
               if (sortedDisplayAssets.length === 0) {
                 return getDescription('assetsCountZero');
@@ -615,8 +615,8 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
                       borderRadius: 6,
                       cursor: 'pointer',
                       transition: 'all 0.15s',
-                      background: active ? '#fff' : 'rgba(255,255,255,0.06)',
-                      color: active ? '#000' : 'rgba(255,255,255,0.4)',
+                      background: active ? '#fff' : 'hsl(var(--border))',
+                      color: active ? '#000' : 'hsl(var(--muted-foreground) / 0.6)',
                     }}
                   >
                     {option.icon}
@@ -643,7 +643,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
                     padding: '6px 10px',
                     fontSize: 12,
                     fontWeight: 500,
-                    color: 'rgba(255,255,255,0.6)',
+                    color: 'hsl(var(--muted-foreground))',
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
@@ -664,7 +664,7 @@ export function AssetsListWithSelection({ assets, optimisticFilters }: AssetsLis
                   )}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" style={{ width: 176, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <DropdownMenuContent align="start" style={{ width: 176, background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))' }}>
                 <DropdownMenuRadioGroup
                   value={sortBy}
                   onValueChange={(value) => {

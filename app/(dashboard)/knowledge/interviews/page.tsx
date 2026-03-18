@@ -31,7 +31,7 @@ const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> =
   pending: { label: '待开始', color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
   in_progress: { label: '进行中', color: '#3B82F6', bg: 'rgba(59,130,246,0.1)' },
   completed: { label: '已完成', color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
-  archived: { label: '已归档', color: 'rgba(255,255,255,0.35)', bg: 'rgba(255,255,255,0.05)' },
+  archived: { label: '已归档', color: 'hsl(var(--muted-foreground) / 0.5)', bg: 'hsl(var(--muted))' },
 };
 
 export default function InterviewsPage() {

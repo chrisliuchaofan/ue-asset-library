@@ -184,7 +184,7 @@ function LoginForm() {
                 fontSize: 15,
                 fontWeight: 600,
                 color: '#fff',
-                background: '#111',
+                background: 'hsl(var(--popover))',
                 border: 'none',
                 borderRadius: 8,
                 cursor: loading ? 'not-allowed' : 'pointer',

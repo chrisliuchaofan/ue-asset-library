@@ -34,7 +34,7 @@ export function CrossModuleActions({ actions, title = '下一步' }: CrossModule
             <Link
               key={action.href}
               href={action.href}
-              className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border/60 hover:bg-white/[0.03] hover:bg-accent/30 transition-all text-sm"
+              className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border/60 hover:bg-accent/50 transition-all text-sm"
             >
               <Icon className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
               <span className="text-foreground/80 group-hover:text-foreground transition-colors">

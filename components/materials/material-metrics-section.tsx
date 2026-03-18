@@ -30,12 +30,12 @@ const S = {
   title: {
     fontSize: 15,
     fontWeight: 600 as const,
-    color: 'rgba(255,255,255,0.88)',
+    color: 'hsl(var(--foreground))',
     margin: 0,
   },
   period: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.3)',
+    color: 'hsl(var(--muted-foreground) / 0.4)',
     marginLeft: 'auto',
   },
   grid: {
@@ -45,8 +45,8 @@ const S = {
   },
   card: {
     padding: '14px 16px',
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.06)',
+    background: 'hsl(var(--muted))',
+    border: '1px solid hsl(var(--border))',
     borderRadius: 10,
   },
   cardLabel: {
@@ -54,19 +54,19 @@ const S = {
     alignItems: 'center',
     gap: 6,
     fontSize: 12,
-    color: 'rgba(255,255,255,0.4)',
+    color: 'hsl(var(--muted-foreground) / 0.6)',
     marginBottom: 8,
   },
   cardValue: {
     fontSize: 18,
     fontWeight: 600 as const,
-    color: 'rgba(255,255,255,0.9)',
+    color: 'hsl(var(--foreground))',
     margin: 0,
   },
   empty: {
     padding: '32px 0',
     textAlign: 'center' as const,
-    color: 'rgba(255,255,255,0.25)',
+    color: 'hsl(var(--muted-foreground) / 0.3)',
     fontSize: 13,
   },
 } as const;
@@ -98,7 +98,7 @@ export function MaterialMetricsSection(props: MaterialMetricsSectionProps) {
     return (
       <div style={S.section}>
         <div style={S.header}>
-          <BarChart3 style={{ width: 18, height: 18, color: 'rgba(255,255,255,0.4)' }} />
+          <BarChart3 style={{ width: 18, height: 18, color: 'hsl(var(--muted-foreground) / 0.6)' }} />
           <h3 style={S.title}>投放数据</h3>
         </div>
         <div style={S.empty}>暂无投放数据，上传周报后自动匹配回填</div>

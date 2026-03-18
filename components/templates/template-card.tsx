@@ -23,7 +23,7 @@ export function TemplateCard({ template, className }: TemplateCardProps) {
     <Link
       href={`/templates/${template.id}`}
       className={cn(
-        'group block rounded-xl border border-border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:bg-white/[0.03] hover:-translate-y-0.5',
+        'group block rounded-xl border border-border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:bg-accent/50 hover:-translate-y-0.5',
         className
       )}
     >

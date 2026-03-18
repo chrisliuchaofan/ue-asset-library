@@ -446,21 +446,4 @@
   transform: scaleX(1);
 }
 
-/* ── Turbopack workaround: bg-white/[0.XX] 不生效，手写 utility ── */
-.bg-w3  { background: rgba(255,255,255,0.03) }
-.bg-w4  { background: rgba(255,255,255,0.04) }
-.bg-w5  { background: rgba(255,255,255,0.05) }
-.bg-w6  { background: rgba(255,255,255,0.06) }
-.bg-w8  { background: rgba(255,255,255,0.08) }
-.bg-w10 { background: rgba(255,255,255,0.10) }
-.border-w6  { border-color: rgba(255,255,255,0.06) }
-.border-w8  { border-color: rgba(255,255,255,0.08) }
-.border-w10 { border-color: rgba(255,255,255,0.10) }
-.border-w15 { border-color: rgba(255,255,255,0.15) }
-.border-w20 { border-color: rgba(255,255,255,0.20) }
-.hover-bg-w4:hover  { background: rgba(255,255,255,0.04) }
-.hover-bg-w8:hover  { background: rgba(255,255,255,0.08) }
-.hover-bg-w10:hover { background: rgba(255,255,255,0.10) }
-
-
-/* cache-bust: 1742212800 */
+/* cache-bust: 1742299200 */

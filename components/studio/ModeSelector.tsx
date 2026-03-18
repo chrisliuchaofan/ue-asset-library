@@ -45,7 +45,7 @@ export function ModeSelector({ value, onChange }: ModeSelectorProps) {
                                 ? 'bg-white text-black'
                                 : 'text-white/50 hover:text-white/70',
                         )}
-                        style={isSelected ? undefined : { background: 'rgba(255,255,255,0.05)' }}
+                        style={isSelected ? undefined : { background: 'hsl(var(--muted))' }}
                     >
                         <div>{mode.label}</div>
                         <div className={cn(

@@ -62,7 +62,7 @@ export function MaterialsPageShell({ materials, summary }: MaterialsPageShellPro
           />
         </div>
 
-        <Suspense fallback={<div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>加载中...</div>}>
+        <Suspense fallback={<div style={{ color: 'hsl(var(--muted-foreground) / 0.4)', fontSize: 13 }}>加载中...</div>}>
           <MaterialsListWithHeader
             materials={filteredMaterials}
             summary={filteredSummary}

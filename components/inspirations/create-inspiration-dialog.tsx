@@ -32,8 +32,8 @@ const S = {
     width: '100%',
     maxWidth: 520,
     margin: '0 16px',
-    background: '#111',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'hsl(var(--popover))',
+    border: '1px solid hsl(var(--border))',
     borderRadius: 16,
     boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
     maxHeight: '85vh',
@@ -45,12 +45,12 @@ const S = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '14px 20px',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    borderBottom: '1px solid hsl(var(--border))',
   },
   dialogTitle: {
     fontSize: 15,
     fontWeight: 600 as const,
-    color: 'rgba(255,255,255,0.88)',
+    color: 'hsl(var(--foreground))',
     margin: 0,
   },
   closeBtn: {
@@ -58,7 +58,7 @@ const S = {
     borderRadius: 6,
     border: 'none',
     background: 'transparent',
-    color: 'rgba(255,255,255,0.4)',
+    color: 'hsl(var(--muted-foreground) / 0.6)',
     cursor: 'pointer',
     transition: 'color 0.15s ease',
   },
@@ -77,7 +77,7 @@ const S = {
     outline: 'none',
     fontSize: 16,
     fontWeight: 500 as const,
-    color: 'rgba(255,255,255,0.88)',
+    color: 'hsl(var(--foreground))',
     padding: 0,
   },
   textarea: {
@@ -86,7 +86,7 @@ const S = {
     border: 'none',
     outline: 'none',
     fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'hsl(var(--muted-foreground))',
     lineHeight: 1.6,
     resize: 'none' as const,
     padding: 0,
@@ -102,7 +102,7 @@ const S = {
     aspectRatio: '1',
     borderRadius: 8,
     overflow: 'hidden',
-    background: 'rgba(255,255,255,0.04)',
+    background: 'hsl(var(--muted))',
   },
   mediaRemoveBtn: {
     position: 'absolute' as const,
@@ -155,8 +155,8 @@ const S = {
     gap: 10,
     padding: '8px 12px',
     borderRadius: 10,
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.06)',
+    background: 'hsl(var(--muted))',
+    border: '1px solid hsl(var(--border))',
   },
   tagWrap: {
     display: 'flex',
@@ -175,15 +175,15 @@ const S = {
     padding: '3px 10px',
     borderRadius: 100,
     fontSize: 12,
-    color: 'rgba(255,255,255,0.6)',
-    background: 'rgba(255,255,255,0.06)',
+    color: 'hsl(var(--muted-foreground))',
+    background: 'hsl(var(--border))',
     border: 'none',
   },
   tagRemoveBtn: {
     padding: 0,
     border: 'none',
     background: 'transparent',
-    color: 'rgba(255,255,255,0.3)',
+    color: 'hsl(var(--muted-foreground) / 0.4)',
     cursor: 'pointer',
     display: 'flex',
   },
@@ -193,7 +193,7 @@ const S = {
     border: 'none',
     outline: 'none',
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'hsl(var(--muted-foreground))',
     padding: 0,
   },
   tagAddBtn: {
@@ -210,7 +210,7 @@ const S = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '12px 20px',
-    borderTop: '1px solid rgba(255,255,255,0.06)',
+    borderTop: '1px solid hsl(var(--border))',
   },
   toolBtnGroup: {
     display: 'flex',
@@ -222,7 +222,7 @@ const S = {
     borderRadius: 8,
     border: 'none',
     background: 'transparent',
-    color: 'rgba(255,255,255,0.35)',
+    color: 'hsl(var(--muted-foreground) / 0.5)',
     cursor: 'pointer',
     transition: 'color 0.15s ease, background 0.15s ease',
   },
@@ -234,7 +234,7 @@ const S = {
     fontSize: 13,
     fontWeight: 600 as const,
     color: disabled ? 'rgba(0,0,0,0.4)' : '#000',
-    background: disabled ? 'rgba(255,255,255,0.3)' : '#fff',
+    background: disabled ? 'hsl(var(--muted-foreground) / 0.4)' : '#fff',
     border: 'none',
     borderRadius: 8,
     cursor: disabled ? 'not-allowed' : 'pointer',
@@ -397,8 +397,8 @@ export function CreateInspirationDialog({ open, onClose, onCreated }: CreateInsp
           <button
             onClick={handleClose}
             style={S.closeBtn}
-            onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'hsl(var(--muted-foreground))'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'hsl(var(--muted-foreground) / 0.6)'; }}
           >
             <X style={{ width: 18, height: 18 }} />
           </button>
@@ -484,13 +484,13 @@ export function CreateInspirationDialog({ open, onClose, onCreated }: CreateInsp
           {/* 语音预览 */}
           {voiceRecorder.state === 'stopped' && voiceRecorder.audioUrl && (
             <div style={S.audioBar}>
-              <Mic style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }} />
+              <Mic style={{ width: 14, height: 14, color: 'hsl(var(--muted-foreground) / 0.6)', flexShrink: 0 }} />
               <audio src={voiceRecorder.audioUrl} controls style={{ flex: 1, height: 28 }} />
               <button
                 onClick={voiceRecorder.reset}
                 style={{ ...S.closeBtn, padding: 4 }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.4)'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'hsl(var(--muted-foreground))'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'hsl(var(--muted-foreground) / 0.6)'; }}
               >
                 <X style={{ width: 14, height: 14 }} />
               </button>
@@ -509,7 +509,7 @@ export function CreateInspirationDialog({ open, onClose, onCreated }: CreateInsp
               border: 'none',
               outline: 'none',
               fontSize: 13,
-              color: 'rgba(255,255,255,0.6)',
+              color: 'hsl(var(--muted-foreground))',
               padding: 0,
             }}
           />
@@ -560,11 +560,11 @@ export function CreateInspirationDialog({ open, onClose, onCreated }: CreateInsp
                 style={S.toolBtn}
                 title="语音录制"
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                  e.currentTarget.style.color = 'hsl(var(--muted-foreground))';
+                  e.currentTarget.style.background = 'hsl(var(--border))';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = 'rgba(255,255,255,0.35)';
+                  e.currentTarget.style.color = 'hsl(var(--muted-foreground) / 0.5)';
                   e.currentTarget.style.background = 'transparent';
                 }}
               >
@@ -576,11 +576,11 @@ export function CreateInspirationDialog({ open, onClose, onCreated }: CreateInsp
               style={S.toolBtn}
               title="拍摄"
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.color = 'hsl(var(--muted-foreground))';
+                e.currentTarget.style.background = 'hsl(var(--border))';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'rgba(255,255,255,0.35)';
+                e.currentTarget.style.color = 'hsl(var(--muted-foreground) / 0.5)';
                 e.currentTarget.style.background = 'transparent';
               }}
             >
@@ -591,11 +591,11 @@ export function CreateInspirationDialog({ open, onClose, onCreated }: CreateInsp
               style={S.toolBtn}
               title="上传图片/视频"
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.color = 'hsl(var(--muted-foreground))';
+                e.currentTarget.style.background = 'hsl(var(--border))';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'rgba(255,255,255,0.35)';
+                e.currentTarget.style.color = 'hsl(var(--muted-foreground) / 0.5)';
                 e.currentTarget.style.background = 'transparent';
               }}
             >

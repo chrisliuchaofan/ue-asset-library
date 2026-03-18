@@ -12,25 +12,26 @@ interface InspirationCardProps {
   onEdit?: (inspiration: Inspiration) => void;
 }
 
-/* ── 样式常量 ── */
+/* ── 样式常量（全部使用 CSS 变量，支持亮色/暗色主题） ── */
 
 const S = {
   card: {
     position: 'relative' as const,
-    background: 'rgba(255,255,255,0.02)',
+    background: 'hsl(var(--card))',
     borderWidth: 1,
     borderStyle: 'solid',
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'hsl(var(--border))',
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
     breakInside: 'avoid' as const,
-    transition: 'background 0.2s ease, border-color 0.2s ease',
+    transition: 'background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
     cursor: 'default',
   },
   cardHover: {
-    background: 'rgba(255,255,255,0.04)',
-    borderColor: 'rgba(255,255,255,0.1)',
+    background: 'hsl(var(--accent) / 0.5)',
+    borderColor: 'hsl(var(--border))',
+    boxShadow: '0 2px 8px hsl(var(--foreground) / 0.04)',
   },
   metaRow: {
     display: 'flex',
@@ -43,14 +44,14 @@ const S = {
     alignItems: 'center',
     gap: 6,
     fontSize: 11,
-    color: 'rgba(255,255,255,0.3)',
+    color: 'hsl(var(--muted-foreground) / 0.6)',
   },
   menuBtn: {
     padding: 4,
     borderRadius: 6,
     border: 'none',
     background: 'transparent',
-    color: 'rgba(255,255,255,0.3)',
+    color: 'hsl(var(--muted-foreground) / 0.5)',
     cursor: 'pointer',
     transition: 'opacity 0.15s ease, background 0.15s ease',
   },
@@ -60,10 +61,10 @@ const S = {
     top: '100%',
     marginTop: 4,
     zIndex: 20,
-    background: '#1a1a1a',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'hsl(var(--popover))',
+    border: '1px solid hsl(var(--border))',
     borderRadius: 8,
-    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+    boxShadow: '0 8px 24px hsl(var(--foreground) / 0.12)',
     padding: '4px 0',
     minWidth: 120,
   },
@@ -74,7 +75,7 @@ const S = {
     width: '100%',
     padding: '8px 12px',
     fontSize: 13,
-    color: '#ef4444',
+    color: 'hsl(var(--destructive))',
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
@@ -83,7 +84,7 @@ const S = {
   title: {
     fontSize: 14,
     fontWeight: 600 as const,
-    color: 'rgba(255,255,255,0.88)',
+    color: 'hsl(var(--foreground))',
     lineHeight: 1.4,
     marginBottom: 8,
     display: '-webkit-box' as const,
@@ -93,7 +94,7 @@ const S = {
   },
   content: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.45)',
+    color: 'hsl(var(--muted-foreground))',
     lineHeight: 1.6,
     marginBottom: 14,
     whiteSpace: 'pre-wrap' as const,
@@ -112,7 +113,7 @@ const S = {
     aspectRatio: '1',
     borderRadius: 8,
     overflow: 'hidden',
-    background: 'rgba(255,255,255,0.04)',
+    background: 'hsl(var(--muted))',
   },
   mediaPlaceholder: {
     position: 'absolute' as const,
@@ -124,13 +125,13 @@ const S = {
   mediaOverlay: {
     position: 'absolute' as const,
     inset: 0,
-    background: 'rgba(0,0,0,0.6)',
+    background: 'hsl(var(--overlay) / 0.6)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: 13,
     fontWeight: 500 as const,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'hsl(var(--overlay-foreground))',
   },
   voiceBar: {
     display: 'flex',
@@ -139,8 +140,8 @@ const S = {
     marginBottom: 12,
     padding: '8px 12px',
     borderRadius: 8,
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.06)',
+    background: 'hsl(var(--muted))',
+    border: '1px solid hsl(var(--border))',
   },
   tagRow: {
     display: 'flex',
@@ -154,9 +155,9 @@ const S = {
     padding: '3px 8px',
     borderRadius: 100,
     fontSize: 11,
-    color: 'rgba(255,255,255,0.4)',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.06)',
+    color: 'hsl(var(--muted-foreground) / 0.7)',
+    background: 'hsl(var(--muted))',
+    border: '1px solid hsl(var(--border))',
   },
   statusBadge: {
     display: 'inline-flex',
@@ -174,9 +175,9 @@ const S = {
     padding: '3px 8px',
     borderRadius: 6,
     fontSize: 11,
-    color: '#60A5FA',
-    background: 'rgba(96,165,250,0.08)',
-    border: '1px solid rgba(96,165,250,0.15)',
+    color: 'hsl(var(--info))',
+    background: 'hsl(var(--info) / 0.08)',
+    border: '1px solid hsl(var(--info) / 0.15)',
     textDecoration: 'none',
     cursor: 'pointer',
     transition: 'background 0.15s ease',
@@ -187,7 +188,7 @@ const S = {
 const STATUS_STYLES: Record<string, { color: string; bg: string; label: string; icon: string }> = {
   new: { color: '#F97316', bg: 'rgba(249,115,22,0.12)', label: '想法', icon: '💡' },
   used: { color: '#22C55E', bg: 'rgba(34,197,94,0.12)', label: '已落地', icon: '🎬' },
-  archived: { color: 'rgba(255,255,255,0.35)', bg: 'rgba(255,255,255,0.05)', label: '归档', icon: '📦' },
+  archived: { color: 'hsl(var(--muted-foreground))', bg: 'hsl(var(--muted))', label: '归档', icon: '📦' },
 };
 
 export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCardProps) {
@@ -243,7 +244,7 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
           {inspiration.source === 'camera' && <ImageIcon style={{ width: 12, height: 12 }} />}
           <span>{formatDate(inspiration.created_at)}</span>
           {sourceLabel() && (
-            <span style={{ color: 'rgba(255,255,255,0.2)' }}>{sourceLabel()}</span>
+            <span style={{ color: 'hsl(var(--muted-foreground) / 0.4)' }}>{sourceLabel()}</span>
           )}
           {inspiration.status && STATUS_STYLES[inspiration.status] && (
             <span style={{
@@ -279,9 +280,9 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
                     onEdit?.(inspiration);
                     setShowMenu(false);
                   }}
-                  style={{ ...S.dropdownItem, color: 'rgba(255,255,255,0.7)' }}
+                  style={{ ...S.dropdownItem, color: 'hsl(var(--foreground) / 0.7)' }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                    e.currentTarget.style.background = 'hsl(var(--accent))';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
@@ -300,7 +301,7 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
                   }}
                   style={{ ...S.dropdownItem, color: '#F97316' }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                    e.currentTarget.style.background = 'hsl(var(--accent))';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
@@ -316,7 +317,7 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
                   }}
                   style={S.dropdownItem}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                    e.currentTarget.style.background = 'hsl(var(--accent))';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
@@ -350,11 +351,11 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
               <div key={i} style={S.mediaItem}>
                 {isVideo ? (
                   <div style={S.mediaPlaceholder}>
-                    <Video style={{ width: 28, height: 28, color: 'rgba(255,255,255,0.2)' }} />
+                    <Video style={{ width: 28, height: 28, color: 'hsl(var(--muted-foreground) / 0.3)' }} />
                   </div>
                 ) : imageError.has(url) ? (
                   <div style={S.mediaPlaceholder}>
-                    <ImageIcon style={{ width: 28, height: 28, color: 'rgba(255,255,255,0.2)' }} />
+                    <ImageIcon style={{ width: 28, height: 28, color: 'hsl(var(--muted-foreground) / 0.3)' }} />
                   </div>
                 ) : (
                   <Image
@@ -380,7 +381,7 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
       {/* 语音指示 */}
       {hasVoice && (
         <div style={S.voiceBar}>
-          <Mic style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }} />
+          <Mic style={{ width: 14, height: 14, color: 'hsl(var(--muted-foreground) / 0.6)', flexShrink: 0 }} />
           <audio
             src={inspiration.voice_url!}
             controls
@@ -397,8 +398,8 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
             target="_blank"
             rel="noopener noreferrer"
             style={S.refLink}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(96,165,250,0.15)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(96,165,250,0.08)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'hsl(var(--info) / 0.15)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'hsl(var(--info) / 0.08)'; }}
           >
             <ExternalLink style={{ width: 11, height: 11 }} />
             参考链接
@@ -416,7 +417,7 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
             </span>
           ))
         ) : (
-          <span style={{ ...S.tag, color: 'rgba(255,255,255,0.2)' }}>
+          <span style={{ ...S.tag, color: 'hsl(var(--muted-foreground) / 0.4)' }}>
             <Tag style={{ width: 10, height: 10 }} />
             未分类
           </span>

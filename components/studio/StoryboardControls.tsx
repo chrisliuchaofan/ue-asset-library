@@ -28,11 +28,11 @@ const ASPECT_RATIOS = [
 ];
 
 const S = {
-    border6: { border: '1px solid rgba(255,255,255,0.06)' },
-    border8: { border: '1px solid rgba(255,255,255,0.08)' },
-    bg5border8: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' },
-    bg6border8: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' },
-    progressTrack: { background: 'rgba(255,255,255,0.06)' },
+    border6: { border: '1px solid hsl(var(--border))' },
+    border8: { border: '1px solid hsl(var(--border))' },
+    bg5border8: { background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' },
+    bg6border8: { background: 'hsl(var(--border))', border: '1px solid hsl(var(--border))' },
+    progressTrack: { background: 'hsl(var(--border))' },
 } as const;
 
 export function StoryboardControls({

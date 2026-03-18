@@ -21,7 +21,7 @@ interface ScriptInputFormProps {
 }
 
 const S = {
-    input: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' } as React.CSSProperties,
+    input: { background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' } as React.CSSProperties,
 } as const;
 
 const inputClass = 'w-full rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none transition-colors';

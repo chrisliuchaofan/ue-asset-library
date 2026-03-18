@@ -2299,7 +2299,7 @@ export function AdminMaterialsDashboard({ initialMaterials, storageMode, cdnBase
           <div className="space-y-4 px-4 py-4">
             {/* 文件上传区域 */}
             <div
-              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center transition-colors hover:bg-white/[0.03]"
+              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center transition-colors hover:bg-accent/50"
               onDrop={handleDrop}
               onDragOver={handleDragOver}
             >
