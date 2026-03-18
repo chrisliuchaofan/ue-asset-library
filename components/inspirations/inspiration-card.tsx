@@ -184,10 +184,10 @@ const S = {
   },
 } as const;
 
-const STATUS_STYLES: Record<string, { color: string; bg: string; label: string }> = {
-  new: { color: '#F97316', bg: 'rgba(249,115,22,0.12)', label: '新' },
-  used: { color: '#22C55E', bg: 'rgba(34,197,94,0.12)', label: '已用' },
-  archived: { color: 'rgba(255,255,255,0.35)', bg: 'rgba(255,255,255,0.05)', label: '归档' },
+const STATUS_STYLES: Record<string, { color: string; bg: string; label: string; icon: string }> = {
+  new: { color: '#F97316', bg: 'rgba(249,115,22,0.12)', label: '想法', icon: '💡' },
+  used: { color: '#22C55E', bg: 'rgba(34,197,94,0.12)', label: '已落地', icon: '🎬' },
+  archived: { color: 'rgba(255,255,255,0.35)', bg: 'rgba(255,255,255,0.05)', label: '归档', icon: '📦' },
 };
 
 export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCardProps) {
@@ -250,7 +250,9 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
               ...S.statusBadge,
               color: STATUS_STYLES[inspiration.status].color,
               background: STATUS_STYLES[inspiration.status].bg,
+              gap: 3,
             }}>
+              <span style={{ fontSize: 10 }}>{STATUS_STYLES[inspiration.status].icon}</span>
               {STATUS_STYLES[inspiration.status].label}
             </span>
           )}

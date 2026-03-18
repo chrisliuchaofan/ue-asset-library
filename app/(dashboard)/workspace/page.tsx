@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FileTextIcon, LightbulbIcon, FolderIcon, ClockIcon,
     FilmIcon, ImageIcon, Loader2Icon, RefreshCwIcon, type LucideIcon,
 } from 'lucide-react';
-import T from '@/lib/theme';
 
 type Tab = 'all' | 'scripts' | 'inspirations' | 'materials';
 type WorkspaceItemType = 'script' | 'inspiration' | 'material';
@@ -46,7 +45,7 @@ const TYPE_CONFIG: Record<WorkspaceItemType, { label: string; color: string; ico
     material: { label: '素材', color: '#22c55e', icon: FilmIcon },
 };
 
-/* ── 样式 ── */
+/* ── 样式（使用 CSS 变量，支持亮色/暗色主题） ── */
 const S = {
     page: {
         padding: '24px 32px',
@@ -57,12 +56,12 @@ const S = {
     title: {
         fontSize: 20,
         fontWeight: 600,
-        color: T.text.primary,
+        color: 'hsl(var(--foreground))',
         marginBottom: 4,
     } as React.CSSProperties,
     subtitle: {
         fontSize: 13,
-        color: T.text.tertiary,
+        color: 'hsl(var(--muted-foreground))',
     } as React.CSSProperties,
     statsRow: {
         display: 'flex',
@@ -72,40 +71,40 @@ const S = {
     statCard: {
         flex: '0 0 auto', width: 120,
         padding: '14px 16px',
-        background: T.bg.surface,
-        borderRadius: T.radius.lg,
-        border: `1px solid ${T.border}`,
+        background: 'hsl(var(--card))',
+        borderRadius: 12,
+        border: '1px solid hsl(var(--border))',
     } as React.CSSProperties,
     statNum: {
         fontSize: 22,
         fontWeight: 700,
-        color: T.text.primary,
+        color: 'hsl(var(--foreground))',
     } as React.CSSProperties,
     statLabel: {
         fontSize: 11,
-        color: T.text.tertiary,
+        color: 'hsl(var(--muted-foreground))',
         marginTop: 2,
     } as React.CSSProperties,
     tabBar: {
         display: 'flex',
         gap: 4,
         marginBottom: 20,
-        borderBottom: `1px solid ${T.border}`,
+        borderBottom: '1px solid hsl(var(--border))',
         paddingBottom: 0,
     } as React.CSSProperties,
     tab: (active: boolean) => ({
         padding: '8px 16px',
         fontSize: 13,
         fontWeight: active ? 600 : 400,
-        color: active ? T.text.primary : T.text.tertiary,
+        color: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
         background: 'transparent',
         border: 'none',
-        borderBottom: active ? '2px solid #fff' : '2px solid transparent',
+        borderBottom: active ? '2px solid hsl(var(--foreground))' : '2px solid transparent',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        transition: T.transition.fast,
+        transition: 'all 0.15s ease',
         marginBottom: -1,
     }) as React.CSSProperties,
     grid: {
@@ -114,20 +113,20 @@ const S = {
         gap: 12,
     } as React.CSSProperties,
     card: {
-        background: T.bg.surface,
-        borderRadius: T.radius.lg,
-        border: `1px solid ${T.border}`,
+        background: 'hsl(var(--card))',
+        borderRadius: 12,
+        border: '1px solid hsl(var(--border))',
         padding: 16,
         cursor: 'pointer',
-        transition: T.transition.fast,
+        transition: 'all 0.15s ease',
     } as React.CSSProperties,
     cardHover: {
-        borderColor: T.borderStrong,
+        borderColor: 'hsl(var(--foreground) / 0.2)',
     } as React.CSSProperties,
     cardTitle: {
         fontSize: 14,
         fontWeight: 500,
-        color: T.text.primary,
+        color: 'hsl(var(--foreground))',
         marginBottom: 6,
         overflow: 'hidden',
         textOverflow: 'ellipsis',
@@ -135,7 +134,7 @@ const S = {
     } as React.CSSProperties,
     cardMeta: {
         fontSize: 11,
-        color: T.text.tertiary,
+        color: 'hsl(var(--muted-foreground))',
         display: 'flex',
         alignItems: 'center',
         gap: 4,
@@ -143,7 +142,7 @@ const S = {
     cardBadge: (color: string) => ({
         fontSize: 10,
         padding: '2px 6px',
-        borderRadius: T.radius.sm,
+        borderRadius: 4,
         background: `${color}18`,
         color: color,
         fontWeight: 500,
@@ -152,14 +151,14 @@ const S = {
         width: '100%',
         height: 120,
         objectFit: 'cover' as const,
-        borderRadius: T.radius.md,
+        borderRadius: 8,
         marginBottom: 10,
-        background: 'rgba(255,255,255,0.03)',
+        background: 'hsl(var(--muted))',
     } as React.CSSProperties,
     empty: {
         textAlign: 'center' as const,
         padding: '60px 20px',
-        color: T.text.disabled,
+        color: 'hsl(var(--muted-foreground) / 0.5)',
         fontSize: 14,
     } as React.CSSProperties,
     loading: {
@@ -167,16 +166,19 @@ const S = {
         alignItems: 'center',
         justifyContent: 'center',
         padding: 60,
-        color: T.text.tertiary,
+        color: 'hsl(var(--muted-foreground))',
         gap: 8,
     } as React.CSSProperties,
 };
 
 function formatDate(dateStr: string) {
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '未知时间';
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
+    if (diffMs < 0) return '刚刚';
     const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return '刚刚';
     if (diffMin < 60) return `${diffMin} 分钟前`;
     const diffH = Math.floor(diffMin / 60);
     if (diffH < 24) return `${diffH} 小时前`;
@@ -190,13 +192,18 @@ export default function WorkspacePage() {
     const [tab, setTab] = useState<Tab>('all');
     const [data, setData] = useState<WorkspaceData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const fetchData = useCallback(async (t: Tab) => {
         setLoading(true);
+        setError(null);
         try {
             const res = await fetch(`/api/workspace?tab=${t}`);
-            if (res.ok) setData(await res.json());
-        } catch { /* ignore */ }
+            if (!res.ok) throw new Error(`请求失败 (${res.status})`);
+            setData(await res.json());
+        } catch (err) {
+            setError(err instanceof Error ? err.message : '加载失败，请稍后重试');
+        }
         setLoading(false);
     }, []);
 
@@ -204,22 +211,22 @@ export default function WorkspacePage() {
 
     const handleTabChange = (t: Tab) => setTab(t);
 
-    const allItems: WorkspaceItem[] = data ? [
+    const allItems = useMemo<WorkspaceItem[]>(() => data ? [
         ...data.scripts.map(s => ({ ...s, _type: 'script' as const })),
         ...data.inspirations.map(s => ({ ...s, _type: 'inspiration' as const })),
         ...data.materials.map(s => ({ ...s, _type: 'material' as const })),
-    ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()) : [];
+    ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()) : [], [data]);
 
-    const displayItems: WorkspaceItem[] = tab === 'all' ? allItems :
+    const displayItems = useMemo<WorkspaceItem[]>(() => tab === 'all' ? allItems :
         tab === 'scripts' ? data?.scripts.map(s => ({ ...s, _type: 'script' as const })) || [] :
         tab === 'inspirations' ? data?.inspirations.map(s => ({ ...s, _type: 'inspiration' as const })) || [] :
-        data?.materials.map(s => ({ ...s, _type: 'material' as const })) || [];
+        data?.materials.map(s => ({ ...s, _type: 'material' as const })) || [], [tab, allItems, data]);
 
-    const navigateTo = (item: WorkspaceItem) => {
-        if (item._type === 'script') router.push('/studio');
-        else if (item._type === 'inspiration') router.push('/inspirations');
+    const navigateTo = useCallback((item: WorkspaceItem) => {
+        if (item._type === 'script') router.push(`/studio?scriptId=${item.id}`);
+        else if (item._type === 'inspiration') router.push(`/inspirations?id=${item.id}`);
         else router.push(`/materials/${item.id}`);
-    };
+    }, [router]);
 
     return (
         <div style={S.page}>
@@ -231,10 +238,19 @@ export default function WorkspacePage() {
                     </div>
                     <button
                         onClick={() => fetchData(tab)}
-                        style={{ background: 'transparent', border: 'none', color: T.text.tertiary, cursor: 'pointer', padding: 6 }}
+                        disabled={loading}
+                        style={{
+                            background: 'transparent', border: 'none',
+                            color: 'hsl(var(--muted-foreground))', cursor: loading ? 'not-allowed' : 'pointer',
+                            padding: 6, opacity: loading ? 0.5 : 1, transition: 'opacity 0.15s',
+                        }}
                         title="刷新"
+                        aria-label="刷新列表"
                     >
-                        <RefreshCwIcon style={{ width: 16, height: 16 }} />
+                        <RefreshCwIcon style={{
+                            width: 16, height: 16,
+                            animation: loading ? 'spin 1s linear infinite' : 'none',
+                        }} />
                     </button>
                 </div>
             </div>
@@ -258,10 +274,12 @@ export default function WorkspacePage() {
             )}
 
             {/* Tabs */}
-            <div style={S.tabBar}>
+            <div style={S.tabBar} role="tablist" aria-label="内容分类">
                 {TABS.map(t => (
                     <button
                         key={t.key}
+                        role="tab"
+                        aria-selected={tab === t.key}
                         onClick={() => handleTabChange(t.key)}
                         style={S.tab(tab === t.key)}
                     >
@@ -277,9 +295,74 @@ export default function WorkspacePage() {
                     <Loader2Icon style={{ width: 18, height: 18, animation: 'spin 1s linear infinite' }} />
                     加载中...
                 </div>
+            ) : error ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+                    <div style={{ fontSize: 14, color: 'hsl(var(--destructive))', marginBottom: 12 }}>
+                        {error}
+                    </div>
+                    <button
+                        onClick={() => fetchData(tab)}
+                        style={{
+                            padding: '8px 20px', fontSize: 13, fontWeight: 500,
+                            color: 'hsl(var(--foreground))', background: 'hsl(var(--muted))',
+                            border: '1px solid hsl(var(--border))', borderRadius: 8, cursor: 'pointer',
+                        }}
+                    >
+                        重新加载
+                    </button>
+                </div>
             ) : displayItems.length === 0 ? (
-                <div style={S.empty}>
-                    暂无内容，去创作你的第一个作品吧
+                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                    <div style={{ fontSize: 18, fontWeight: 600, color: 'hsl(var(--foreground))', marginBottom: 8 }}>
+                        开始你的创作之旅
+                    </div>
+                    <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', marginBottom: 32, maxWidth: 400, margin: '0 auto 32px' }}>
+                        从一个灵感开始，经过 AI 加工，变成可投放的爆款素材
+                    </p>
+                    <div style={{
+                        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: 12, maxWidth: 800, margin: '0 auto',
+                    }}>
+                        {[
+                            { step: '1', title: '记录灵感', desc: '随手记下创意想法', href: '/inspirations', color: '#F97316', icon: LightbulbIcon },
+                            { step: '2', title: '匹配模版', desc: '找到适合的爆款结构', href: '/templates', color: '#60A5FA', icon: FolderIcon },
+                            { step: '3', title: 'AI 创作', desc: '一键生成脚本和分镜', href: '/studio', color: '#A855F7', icon: FilmIcon },
+                            { step: '4', title: '审核投放', desc: 'AI 质检后直接投放', href: '/review', color: '#22C55E', icon: FileTextIcon },
+                        ].map(item => (
+                            <button
+                                key={item.step}
+                                onClick={() => router.push(item.href)}
+                                aria-label={`${item.title} — ${item.desc}`}
+                                style={{
+                                    background: 'hsl(var(--card))', borderRadius: 12,
+                                    border: '1px solid hsl(var(--border))', padding: 20,
+                                    cursor: 'pointer', transition: 'all 0.15s ease',
+                                    textAlign: 'left',
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = item.color; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'hsl(var(--border))'; }}
+                                onFocus={(e) => { e.currentTarget.style.borderColor = item.color; e.currentTarget.style.outline = `2px solid ${item.color}`; e.currentTarget.style.outlineOffset = '2px'; }}
+                                onBlur={(e) => { e.currentTarget.style.borderColor = 'hsl(var(--border))'; e.currentTarget.style.outline = 'none'; }}
+                            >
+                                <div style={{
+                                    width: 36, height: 36, borderRadius: 10,
+                                    background: `${item.color}15`, display: 'flex',
+                                    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+                                }}>
+                                    <item.icon style={{ width: 18, height: 18, color: item.color }} />
+                                </div>
+                                <div style={{ fontSize: 11, color: item.color, fontWeight: 600, marginBottom: 4 }}>
+                                    步骤 {item.step}
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: 'hsl(var(--foreground))', marginBottom: 4 }}>
+                                    {item.title}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
+                                    {item.desc}
+                                </div>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             ) : (
                 <div style={S.grid}>
@@ -292,7 +375,7 @@ export default function WorkspacePage() {
     );
 }
 
-function WorkspaceCard({ item, onClick }: { item: WorkspaceItem; onClick: () => void }) {
+const WorkspaceCard = React.memo(function WorkspaceCard({ item, onClick }: { item: WorkspaceItem; onClick: () => void }) {
     const [hovered, setHovered] = useState(false);
 
     const typeConfig = TYPE_CONFIG[item._type];
@@ -301,18 +384,21 @@ function WorkspaceCard({ item, onClick }: { item: WorkspaceItem; onClick: () => 
     const thumbnail = item.thumbnail || item.thumbnail_url || (item.media_urls?.[0]);
 
     return (
-        <div
-            style={{ ...S.card, ...(hovered ? S.cardHover : {}) }}
+        <button
+            style={{ ...S.card, ...(hovered ? S.cardHover : {}), width: '100%', textAlign: 'left' as const }}
             onClick={onClick}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
+            onFocus={() => setHovered(true)}
+            onBlur={() => setHovered(false)}
+            aria-label={`${typeConfig.label}: ${title}`}
         >
             {thumbnail && (
-                <img src={thumbnail} alt="" style={S.thumbnail} loading="lazy" />
+                <img src={thumbnail} alt={title} style={S.thumbnail} loading="lazy" />
             )}
             {!thumbnail && (
                 <div style={{ ...S.thumbnail, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <ImageIcon style={{ width: 24, height: 24, color: T.text.disabled }} />
+                    <ImageIcon style={{ width: 24, height: 24, color: 'hsl(var(--muted-foreground) / 0.5)' }} />
                 </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -326,6 +412,6 @@ function WorkspaceCard({ item, onClick }: { item: WorkspaceItem; onClick: () => 
                 <ClockIcon style={{ width: 11, height: 11 }} />
                 {formatDate(item.updated_at)}
             </div>
-        </div>
+        </button>
     );
-}
+});

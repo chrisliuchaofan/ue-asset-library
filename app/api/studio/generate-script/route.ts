@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateScript } from '@/lib/studio/script-generator';
+import { dbIncrementTemplateUsage } from '@/lib/templates/templates-db';
 import type { ScriptGenerateRequest } from '@/lib/studio/types';
 
 export const maxDuration = 60;
@@ -26,6 +27,13 @@ export async function POST(req: Request) {
             templateStructure: body.templateStructure,
             templateName: body.templateName,
         });
+
+        // 模版使用计数 +1
+        if (body.templateId) {
+            dbIncrementTemplateUsage(body.templateId).catch(err =>
+                console.error('[Studio] 模版使用计数更新失败:', err)
+            );
+        }
 
         return NextResponse.json(script);
     } catch (error: any) {

@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import dynamic from 'next/dynamic';
-// Removed BottomNavigation import
 import { FileUpload } from '@/components/weekly-report/file-upload';
 import { ReportSummary } from '@/components/weekly-report/report-summary';
 import { ReportTable } from '@/components/weekly-report/report-table';
@@ -15,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, AlertCircle, Sparkles, Settings, BarChart3, SearchIcon, ArrowRight, LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { PageLoading } from '@/components/page-loading';
-import { ModuleEmptyState } from '@/components/empty-states/ModuleEmptyState';
 import { PageHeader } from '@/components/page-header';
 import type { WeeklyReport, ReportMaterial } from '@/types/weekly-report';
 import { parseExcelFile } from '@/lib/weekly-report/material-analyzer';
@@ -29,7 +26,6 @@ import type { FilterRule } from '@/lib/weekly-report/rule-library';
 export default function WeeklyReportsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [weekStartDate, setWeekStartDate] = useState('');
   const [weekEndDate, setWeekEndDate] = useState('');
@@ -39,6 +35,7 @@ export default function WeeklyReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [reports, setReports] = useState<WeeklyReport[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 新增：本地数据处理状态
   const [cleanedMaterials, setCleanedMaterials] = useState<ReportMaterial[]>([]);
@@ -61,11 +58,20 @@ export default function WeeklyReportsPage() {
   }, [status, router]);
 
   useEffect(() => {
-    setMounted(true);
     if (session?.user) {
       loadReports();
     }
   }, [session]);
+
+  // 组件卸载时清理轮询 interval
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   const loadReports = useCallback(async () => {
     setLoadingReports(true);
@@ -239,6 +245,8 @@ export default function WeeklyReportsPage() {
 
         // 如果 AI 总结还在生成中，轮询检查更新
         if (data.message?.includes('正在生成')) {
+          // 清理之前的轮询
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
           let attempts = 0;
           const maxAttempts = 10;
           const checkInterval = setInterval(async () => {
@@ -252,19 +260,24 @@ export default function WeeklyReportsPage() {
                 if (newSummary !== currentSummary && newSummary.length > currentSummary.length) {
                   setCurrentReport(checkData.data);
                   clearInterval(checkInterval);
+                  pollingIntervalRef.current = null;
                 } else if (attempts >= maxAttempts) {
                   clearInterval(checkInterval);
+                  pollingIntervalRef.current = null;
                 }
               } else if (attempts >= maxAttempts) {
                 clearInterval(checkInterval);
+                pollingIntervalRef.current = null;
               }
             } catch (err) {
               console.error('检查 AI 总结失败:', err);
               if (attempts >= maxAttempts) {
                 clearInterval(checkInterval);
+                pollingIntervalRef.current = null;
               }
             }
           }, 3000);
+          pollingIntervalRef.current = checkInterval;
         }
       } else {
         throw new Error(data.message || '生成失败');
@@ -563,15 +576,34 @@ export default function WeeklyReportsPage() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : reports.length === 0 ? (
-                <ModuleEmptyState
-                  icon={BarChart3}
-                  iconColor="text-info/60"
-                  title="暂无历史报告"
-                  description="上传 Excel 周报数据，AI 自动生成消耗分析与趋势洞察"
-                  actions={[
-                    { label: '浏览素材库', href: '/materials', variant: 'secondary' },
-                  ]}
-                />
+                <div className="py-10 text-center space-y-4">
+                  <BarChart3 className="w-10 h-10 mx-auto text-muted-foreground/40" />
+                  <div>
+                    <p className="text-base font-medium text-foreground">上传第一份消耗数据</p>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                      上传广告平台导出的 Excel 文件，AI 自动清洗数据、关联素材库并生成消耗洞察
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground pt-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">1</span>
+                      上传 Excel
+                    </div>
+                    <ArrowRight className="w-3 h-3" />
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">2</span>
+                      AI 清洗匹配
+                    </div>
+                    <ArrowRight className="w-3 h-3" />
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">3</span>
+                      生成洞察报告
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/60 pt-1">
+                    支持格式：.xlsx / .xls · 需包含素材名称和消耗金额列
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {reports.map((report) => (

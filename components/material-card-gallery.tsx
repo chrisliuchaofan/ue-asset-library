@@ -11,6 +11,7 @@ import { type Material, MATERIAL_STATUS_LABELS, MATERIAL_STATUS_COLORS } from '@
 import { cn, highlightText, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, X, Eye, BarChart3, Loader2, RefreshCw } from 'lucide-react';
 import { MaterialDetailDialog } from '@/components/material-detail-dialog';
+import { useIsMobile } from '@/lib/hooks/use-is-mobile';
 
 type ThumbSize = 'compact' | 'expanded';
 
@@ -42,6 +43,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [videoThumbnail, setVideoThumbnail] = useState<string | null>(null);
   const [videoThumbnails, setVideoThumbnails] = useState<string[]>([]); // 多帧预览图
+  const [videoLoadError, setVideoLoadError] = useState(false);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const router = useRouter();
   const nameRef = useRef<HTMLHeadingElement>(null);
@@ -50,33 +52,8 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
   const extractingFrameRef = useRef(false);
   const lastVideoUrlRef = useRef<string | null>(null);
   
-  // 检测是否为移动端
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-    checkMobile();
-    
-    // 性能优化：使用防抖处理 resize 事件，避免频繁触发
-    let timeoutId: NodeJS.Timeout | null = null;
-    const debouncedCheckMobile = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      timeoutId = setTimeout(() => {
-        checkMobile();
-      }, 150); // 150ms 防抖延迟
-    };
-    
-    window.addEventListener('resize', debouncedCheckMobile, { passive: true });
-    return () => {
-      window.removeEventListener('resize', debouncedCheckMobile);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, []);
+  // 共享 resize listener — 全局只注册一个（替代 per-card listener）
+  const isMobile = useIsMobile();
   
   // AI 分析相关状态
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -507,7 +484,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
   return (
     <>
       <Card
-        className={`group overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 flex flex-col relative border ${batchMode && isSelected ? 'border-primary ring-1 ring-primary/30' : 'hover:bg-white/[0.03]'} ${batchMode ? 'cursor-pointer' : ''}`}
+        className={`group overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 flex flex-col relative border ${batchMode && isSelected ? 'border-primary ring-1 ring-primary/30' : 'hover:bg-muted/50'} ${batchMode ? 'cursor-pointer' : ''}`}
         style={{
           width: actualCardWidth,
           height: totalCardHeight
@@ -578,9 +555,19 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
               <span className="sr-only">查看详情</span>
             </Button>
           </div>
+          {/* 视频加载中的底层占位（视频帧加载后会被覆盖） */}
+          {hasVideo && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted text-muted-foreground z-[5] gap-1.5">
+              <svg className="w-8 h-8 opacity-25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="23 7 16 12 23 17 23 7" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              </svg>
+              <span className="text-[10px] opacity-40">视频加载中</span>
+            </div>
+          )}
           {/* 简化逻辑：每个素材卡只显示一个内容，优先视频 */}
           {/* 1. 如果有视频，只显示视频（不显示缩略图） */}
-          {hasVideo && currentVideoUrl && (
+          {hasVideo && currentVideoUrl && !videoLoadError && (
             <video
               key={`video-${currentIndex}`}
               ref={(el) => {
@@ -592,6 +579,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
               muted
               loop
               playsInline
+              onError={() => setVideoLoadError(true)}
               onLoadedMetadata={() => {
                 // 视频元数据加载完成后，确保在首帧并暂停
                 const video = videoRefs.current[currentIndex];
@@ -638,10 +626,15 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
             />
           )}
           
-          {/* 3. 无预览内容 */}
-          {!hasVideo && !hasImage && (
-            <div className="flex items-center justify-center h-full bg-muted text-muted-foreground z-10">
-              <span className="text-sm">无预览图</span>
+          {/* 3. 无预览内容（含视频加载失败回退） */}
+          {((!hasVideo && !hasImage) || (hasVideo && videoLoadError && !hasImage)) && (
+            <div className="flex flex-col items-center justify-center h-full bg-muted text-muted-foreground z-10 gap-1.5">
+              <svg className="w-8 h-8 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+              <span className="text-[11px] opacity-50">暂无预览</span>
             </div>
           )}
           
@@ -689,13 +682,21 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
                   <ChevronRight className="h-3 w-3" />
                 </Button>
               </div>
-              <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1">
+              <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1" role="tablist" aria-label="预览切换">
                 {allUrls.map((_, index) => (
-                  <div
+                  <button
                     key={index}
-                    className={`h-1 rounded-full transition-all ${
+                    role="tab"
+                    aria-selected={index === validIndex}
+                    aria-label={`第 ${index + 1} 张`}
+                    className={`h-1 rounded-full transition-all border-0 p-0 cursor-pointer ${
                       index === validIndex ? 'w-3 bg-primary' : 'w-1 bg-background/50'
                     }`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCurrentIndex(index);
+                    }}
                   />
                 ))}
               </div>
@@ -734,6 +735,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
           <Link href={`/materials/${material.id}`} className="block flex-shrink-0 mb-1">
             <h3
               ref={nameRef}
+              title={material.name}
               className="font-medium leading-tight hover:text-primary transition-colors cursor-pointer whitespace-nowrap overflow-x-auto scrollbar-hide text-xs"
               dangerouslySetInnerHTML={{ __html: highlightedName }}
             />
@@ -758,6 +760,20 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
                 style={{ borderColor: MATERIAL_STATUS_COLORS[material.status as keyof typeof MATERIAL_STATUS_COLORS], color: MATERIAL_STATUS_COLORS[material.status as keyof typeof MATERIAL_STATUS_COLORS] }}
               >
                 {MATERIAL_STATUS_LABELS[material.status as keyof typeof MATERIAL_STATUS_LABELS]}
+              </Badge>
+            )}
+            {material.reviewStatus && (
+              <Badge
+                variant="outline"
+                className={`rounded-full font-normal text-[10px] px-1.5 py-0.5 ${
+                  material.reviewStatus === 'passed' ? 'border-green-500/40 text-green-400 bg-green-500/10' :
+                  material.reviewStatus === 'failed' ? 'border-red-500/40 text-red-400 bg-red-500/10' :
+                  'border-yellow-500/40 text-yellow-400 bg-yellow-500/10'
+                }`}
+              >
+                {material.reviewStatus === 'passed' ? '审核通过' :
+                 material.reviewStatus === 'failed' ? '审核拦截' :
+                 material.reviewStatus === 'pending_human' ? '待人审' : '审核中'}
               </Badge>
             )}
             {material.quality.slice(0, 2).map((q) => (
@@ -800,7 +816,13 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
       {enlarged && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="放大预览"
           onClick={() => setEnlarged(false)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setEnlarged(false); }}
+          tabIndex={-1}
+          ref={(el) => el?.focus()}
           onDoubleClick={(e) => {
             if (!hasVideo) {
               e.stopPropagation();

@@ -4,6 +4,7 @@ import { ProjectSelector } from '@/components/project-selector';
 import { MaterialsPageShell } from '@/components/materials-page-shell';
 import { UploadMaterialButton } from '@/components/materials/upload-material-button';
 import { getAllMaterials, getMaterialsSummary, getMaterialsCount, type MaterialsSummary } from '@/lib/materials-data';
+import { getReviewStatusMap } from '@/lib/review/review-data';
 import type { Material } from '@/data/material.schema';
 import type { Metadata } from 'next';
 
@@ -24,12 +25,20 @@ export default async function MaterialsPage() {
     allMaterials = [];
     summary = { total: 0, types: {}, tags: {}, qualities: {}, projects: {} };
   } else {
-    allMaterials = await getAllMaterials();
+    const [mats, reviewMap] = await Promise.all([
+      getAllMaterials(),
+      getReviewStatusMap(),
+    ]);
+    // 注入审核状态到素材对象
+    allMaterials = mats.map(m => ({
+      ...m,
+      reviewStatus: (reviewMap[m.id] as Material['reviewStatus']) || undefined,
+    }));
     summary = getMaterialsSummary(allMaterials);
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#000' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'hsl(var(--background))' }}>
       {/* Header */}
       <header style={{
         display: 'flex',
@@ -38,12 +47,12 @@ export default async function MaterialsPage() {
         height: 56,
         padding: '0 24px',
         flexShrink: 0,
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        borderBottom: '1px solid hsl(var(--border))',
       }}>
         <h1 style={{
           fontSize: 16,
           fontWeight: 600,
-          color: 'rgba(255,255,255,0.88)',
+          color: 'hsl(var(--foreground))',
           margin: 0,
           whiteSpace: 'nowrap' as const,
         }}>

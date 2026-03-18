@@ -87,6 +87,8 @@ export const MaterialSchema = z.object({
   firstDayPayCount: z.number().optional(), // 首日付费数
   firstDayPayCost: z.number().optional(), // 首日付费成本
   reportPeriod: z.string().optional(), // 最近匹配的报表周期
+  // 审核状态 (运行时注入，不存储)
+  reviewStatus: z.enum(['passed', 'failed', 'pending', 'pending_human']).optional(),
 });
 
 export const MaterialsManifestSchema = z.object({

@@ -8,12 +8,32 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { type Asset } from '@/data/manifest.schema';
 import { highlightText, cn, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check, Maximize2, Minimize2, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, FolderOpen, Plus, Eye, Check, Maximize2, Minimize2, Star, User, Landmark, Clapperboard, Sparkles, Palette, Blocks, Layout } from 'lucide-react';
 import { type OfficeLocation } from '@/lib/nas-utils';
 import { createPortal } from 'react-dom';
 import { AssetDetailDialog } from '@/components/asset-detail-dialog';
 
 type ThumbSize = 'small' | 'medium' | 'large';
+
+const ASSET_TYPE_ICONS: Record<string, typeof User> = {
+  '角色': User,
+  '场景': Landmark,
+  '动画': Clapperboard,
+  '特效': Sparkles,
+  '材质': Palette,
+  '蓝图': Blocks,
+  'UI': Layout,
+};
+
+function AssetNoPreview({ type, className }: { type?: string; className?: string }) {
+  const Icon = (type && ASSET_TYPE_ICONS[type]) || FolderOpen;
+  return (
+    <div className={cn("flex flex-col items-center justify-center gap-1 bg-muted text-muted-foreground", className)}>
+      <Icon className="w-5 h-5 opacity-40" />
+      <span className="text-[10px] opacity-50">{type || '无预览'}</span>
+    </div>
+  );
+}
 
 interface AssetCardGalleryProps {
   asset: Asset;
@@ -1397,9 +1417,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                         </>
                       ) : (
                         // 如果没有缩略图 URL，显示占位符
-                        <div className="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs">
-                          无预览
-                        </div>
+                        <AssetNoPreview type={asset.type} className="absolute inset-0" />
                       )}
                     </div>
                   );
@@ -1579,12 +1597,9 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
             )}
 
             {!currentUrl && !currentIsVideo && (
-              <div className={cn(
-                "flex items-center justify-center text-xs text-muted-foreground",
+              <AssetNoPreview type={asset.type} className={cn(
                 viewMode === 'thumbnail' ? thumbSizeClass[thumbSize] : "h-full w-full"
-              )}>
-                无预览
-              </div>
+              )} />
             )}
             
             {/* 主预览图悬停预览弹出框 - 显示完整内容 */}
@@ -1961,9 +1976,7 @@ export const AssetCardGallery = memo(function AssetCardGallery({ asset, keyword,
                         </>
                       ) : (
                         // 如果没有缩略图 URL，显示占位符
-                        <div className="absolute inset-0 flex items-center justify-center bg-muted text-muted-foreground text-xs">
-                          无预览
-                        </div>
+                        <AssetNoPreview type={asset.type} className="absolute inset-0" />
                       )}
                     </div>
                   );

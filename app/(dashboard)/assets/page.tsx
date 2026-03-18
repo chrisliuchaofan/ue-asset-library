@@ -177,7 +177,7 @@ export default async function AssetsPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#000' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'hsl(var(--background))' }}>
       {/* Header */}
       <header style={{
         display: 'flex',
@@ -186,12 +186,12 @@ export default async function AssetsPage() {
         height: 56,
         padding: '0 24px',
         flexShrink: 0,
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        borderBottom: '1px solid hsl(var(--border))',
       }}>
         <h1 style={{
           fontSize: 16,
           fontWeight: 600,
-          color: 'rgba(255,255,255,0.88)',
+          color: 'hsl(var(--foreground))',
           margin: 0,
         }}>
           UE 资产

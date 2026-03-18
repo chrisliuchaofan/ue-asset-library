@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type StudioStep = 'mode' | 'input' | 'script' | 'storyboard' | 'video' | 'export';
@@ -32,33 +33,56 @@ export function StepIndicator({ currentStep, onStepClick }: StepIndicatorProps) 
     const currentIdx = stepOrder[currentStep];
 
     return (
-        <nav aria-label="创作步骤" className="flex items-center gap-6 overflow-x-auto pb-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <nav aria-label="创作步骤" className="flex items-center gap-0 overflow-x-auto pb-2 px-1">
             {STEPS.map((step, idx) => {
                 const isCompleted = idx < currentIdx;
                 const isCurrent = idx === currentIdx;
-                const isClickable = idx <= currentIdx && onStepClick;
+                const isClickable = idx <= currentIdx && !!onStepClick;
 
                 return (
-                    <button
-                        key={step.key}
-                        onClick={() => isClickable && onStepClick(step.key)}
-                        disabled={!isClickable}
-                        aria-current={isCurrent ? 'step' : undefined}
-                        aria-label={`${step.label}${isCompleted ? '（已完成）' : isCurrent ? '（当前）' : ''}`}
-                        className={cn(
-                            'relative pb-3 text-sm whitespace-nowrap transition-colors flex-shrink-0',
-                            'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-                            isCurrent && 'text-white font-medium',
-                            isCompleted && 'text-white/50 hover:text-white/70',
-                            !isCurrent && !isCompleted && 'text-white/25',
-                            isClickable ? 'cursor-pointer' : 'cursor-default',
+                    <React.Fragment key={step.key}>
+                        <button
+                            onClick={() => isClickable && onStepClick?.(step.key)}
+                            disabled={!isClickable}
+                            aria-current={isCurrent ? 'step' : undefined}
+                            aria-label={`${step.label}${isCompleted ? '（已完成）' : isCurrent ? '（当前）' : ''}`}
+                            className={cn(
+                                'flex items-center gap-2 flex-shrink-0 transition-colors',
+                                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                                isClickable ? 'cursor-pointer' : 'cursor-default',
+                            )}
+                        >
+                            {/* 圆形指示器 */}
+                            <div className={cn(
+                                'w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold transition-all flex-shrink-0',
+                                isCompleted && 'bg-green-500/20 text-green-400',
+                                isCurrent && 'bg-orange-500/20 text-orange-400 ring-2 ring-orange-500/30',
+                                !isCurrent && !isCompleted && 'bg-muted text-muted-foreground/40',
+                            )}>
+                                {isCompleted ? (
+                                    <Check className="w-3.5 h-3.5" />
+                                ) : (
+                                    <span>{idx + 1}</span>
+                                )}
+                            </div>
+                            {/* 标签 */}
+                            <span className={cn(
+                                'text-xs whitespace-nowrap transition-colors',
+                                isCurrent && 'text-foreground font-medium',
+                                isCompleted && 'text-muted-foreground',
+                                !isCurrent && !isCompleted && 'text-muted-foreground/40',
+                            )}>
+                                {step.label}
+                            </span>
+                        </button>
+                        {/* 连接线 */}
+                        {idx < STEPS.length - 1 && (
+                            <div className={cn(
+                                'flex-1 min-w-[16px] max-w-[40px] h-px mx-2',
+                                idx < currentIdx ? 'bg-green-500/30' : 'bg-border',
+                            )} />
                         )}
-                    >
-                        {step.label}
-                        {isCurrent && (
-                            <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-full" />
-                        )}
-                    </button>
+                    </React.Fragment>
                 );
             })}
         </nav>

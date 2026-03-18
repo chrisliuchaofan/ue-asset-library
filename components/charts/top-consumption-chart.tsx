@@ -58,9 +58,16 @@ export function TopConsumptionChart({ materials, maxItems = 5 }: TopConsumptionC
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-1">
-            <DollarSign className="w-5 h-5 opacity-50" />
+          <div className="flex flex-col items-center justify-center py-6 text-muted-foreground gap-2">
+            <DollarSign className="w-6 h-6 opacity-30" />
             <span className="text-sm">暂无消耗数据</span>
+            <p className="text-xs text-muted-foreground/60 text-center max-w-[200px]">上传周报数据后，这里将展示消耗 Top 素材</p>
+            <Button variant="outline" size="sm" asChild className="mt-1 text-xs">
+              <Link href="/weekly-reports">
+                上传数据
+                <ArrowRight className="w-3 h-3 ml-1" />
+              </Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

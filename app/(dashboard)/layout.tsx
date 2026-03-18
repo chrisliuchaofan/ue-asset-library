@@ -58,8 +58,8 @@ interface NavGroup {
 const NAV = {
     sidebar: (expanded: boolean) => ({
         width: expanded ? EXPANDED_W : COLLAPSED_W,
-        background: T.bg.panel,
-        borderRight: `1px solid ${T.border}`,
+        background: 'hsl(var(--card))',
+        borderRight: '1px solid hsl(var(--border))',
         display: 'flex',
         flexDirection: 'column' as const,
         flexShrink: 0,
@@ -90,7 +90,7 @@ const NAV = {
     logoText: {
         fontSize: T.fontSize.md,
         fontWeight: T.fontWeight.bold,
-        color: 'rgba(255,255,255,0.88)',
+        color: 'hsl(var(--foreground))',
         letterSpacing: '-0.01em',
         whiteSpace: 'nowrap' as const,
         overflow: 'hidden' as const,
@@ -106,7 +106,7 @@ const NAV = {
     groupLabel: {
         fontSize: T.fontSize['2xs'],
         fontWeight: T.fontWeight.medium,
-        color: T.text.disabled,
+        color: 'hsl(var(--muted-foreground))',
         textTransform: 'uppercase' as const,
         letterSpacing: '0.08em',
         padding: '12px 16px 4px',
@@ -126,8 +126,8 @@ const NAV = {
         cursor: 'pointer',
         transition: T.transition.fast,
         textDecoration: 'none' as const,
-        background: active ? T.bg.selected : 'transparent',
-        color: active ? T.text.primary : T.text.disabled,
+        background: active ? 'hsl(var(--accent))' : 'transparent',
+        color: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
         margin: '1px auto',
     }),
     navIconSmall: { width: 18, height: 18 },
@@ -148,8 +148,8 @@ const NAV = {
         cursor: 'pointer',
         transition: T.transition.fast,
         textDecoration: 'none' as const,
-        background: active ? T.bg.selected : 'transparent',
-        color: active ? T.text.primary : T.text.tertiary,
+        background: active ? 'hsl(var(--accent))' : 'transparent',
+        color: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
         fontWeight: active ? T.fontWeight.semibold : T.fontWeight.normal,
         fontSize: T.fontSize.base,
         whiteSpace: 'nowrap' as const,
@@ -163,7 +163,7 @@ const NAV = {
         alignItems: expanded ? 'stretch' : 'center',
         gap: 4,
         flexShrink: 0,
-        borderTop: `1px solid ${T.border}`,
+        borderTop: '1px solid hsl(var(--border))',
     }),
     toggleBtn: {
         width: 28,
@@ -174,7 +174,7 @@ const NAV = {
         border: 'none',
         borderRadius: T.radius.md,
         background: 'transparent',
-        color: T.text.disabled,
+        color: 'hsl(var(--muted-foreground))',
         cursor: 'pointer',
         transition: T.transition.fast,
         flexShrink: 0,
@@ -184,8 +184,8 @@ const NAV = {
         alignItems: 'center',
         height: T.layout.headerHeight,
         padding: '0 12px',
-        borderBottom: `1px solid ${T.border}`,
-        background: T.bg.panel,
+        borderBottom: '1px solid hsl(var(--border))',
+        background: 'hsl(var(--card))',
         flexShrink: 0,
     },
     mobileMenuBtn: {
@@ -197,7 +197,7 @@ const NAV = {
         borderRadius: T.radius.md,
         border: 'none',
         background: 'transparent',
-        color: T.text.tertiary,
+        color: 'hsl(var(--muted-foreground))',
         cursor: 'pointer',
     },
 } as const;
@@ -393,17 +393,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const MobileSidebar = (
         <>
             {/* Logo */}
-            <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ height: 56, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid hsl(var(--border))' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ ...NAV.logoBadge }}>
-                        <ClapperboardIcon style={{ width: 16, height: 16, color: T.text.primary }} />
+                        <ClapperboardIcon style={{ width: 16, height: 16, color: 'hsl(var(--foreground))' }} />
                     </div>
-                    <span style={{ fontSize: 15, fontWeight: T.fontWeight.bold, color: 'rgba(255,255,255,0.88)', letterSpacing: '-0.01em' }}>{tc('appName')}</span>
+                    <span style={{ fontSize: 15, fontWeight: T.fontWeight.bold, color: 'hsl(var(--foreground))', letterSpacing: '-0.01em' }}>{tc('appName')}</span>
                 </div>
             </div>
 
             {/* Team selector */}
-            <div style={{ padding: '8px', borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ padding: '8px', borderBottom: '1px solid hsl(var(--border))' }}>
                 <TeamSelector />
             </div>
 
@@ -427,8 +427,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                                 fontSize: T.fontSize.base,
                                                 cursor: 'pointer',
                                                 transition: T.transition.fast,
-                                                background: isActive ? T.bg.selected : 'transparent',
-                                                color: isActive ? T.text.primary : T.text.tertiary,
+                                                background: isActive ? 'hsl(var(--accent))' : 'transparent',
+                                                color: isActive ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
                                                 fontWeight: isActive ? T.fontWeight.semibold : T.fontWeight.normal,
                                             }}>
                                                 <item.icon style={{ width: 18, height: 18, flexShrink: 0, opacity: isActive ? 1 : 0.5 }} />
@@ -444,7 +444,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
 
             {/* Bottom: user avatar dropdown */}
-            <div style={{ borderTop: `1px solid ${T.border}`, padding: '8px' }}>
+            <div style={{ borderTop: '1px solid hsl(var(--border))', padding: '8px' }}>
                 <UserAvatarDropdown session={session} expanded={true} />
             </div>
         </>
@@ -454,7 +454,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <TeamProvider>
         <OnboardingProvider>
         <PostHogProvider>
-        <div style={{ display: 'flex', height: '100vh', background: T.bg.page, color: T.text.primary, fontFamily: 'var(--font-sans, system-ui, -apple-system, sans-serif)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', height: '100vh', background: 'hsl(var(--background))', color: 'hsl(var(--foreground))', fontFamily: 'var(--font-sans, system-ui, -apple-system, sans-serif)', overflow: 'hidden' }}>
             {/* Desktop Sidebar */}
             {isDesktop && (
                 <aside style={NAV.sidebar(sidebarExpanded)}>
@@ -464,7 +464,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Mobile Sidebar Sheet */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-                <SheetContent side="left" className="w-[260px] p-0 flex flex-col" style={{ background: T.bg.panel, borderRight: `1px solid ${T.border}` }}>
+                <SheetContent side="left" className="w-[260px] p-0 flex flex-col" style={{ background: 'hsl(var(--card))', borderRight: '1px solid hsl(var(--border))' }}>
                     <VisuallyHidden.Root>
                         <SheetTitle>{tc('appName')}</SheetTitle>
                     </VisuallyHidden.Root>
@@ -473,7 +473,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Sheet>
 
             {/* Main Content Area */}
-            <main style={{ flex: 1, display: 'flex', flexDirection: 'column', background: T.bg.page, overflow: 'hidden', position: 'relative' }}>
+            <main style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'hsl(var(--background))', overflow: 'hidden', position: 'relative' }}>
                 {/* Mobile Header Bar */}
                 {!isDesktop && (
                     <div style={NAV.mobileBar}>

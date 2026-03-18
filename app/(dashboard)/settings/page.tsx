@@ -167,24 +167,23 @@ export default function SettingsPage() {
                     <p className="text-xs text-muted-foreground mb-1.5">当前余额</p>
                     <p className="text-3xl font-bold text-primary tabular-nums">{userInfo.balance}</p>
                   </div>
-                  <div className="flex gap-6">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1.5">计费模式</p>
-                      <p className={`text-sm font-semibold ${
-                        userInfo.billingMode === 'DRY_RUN' ? 'text-warning' : 'text-success'
-                      }`}>
-                        {userInfo.billingMode === 'DRY_RUN' ? '模拟模式' : '正式模式'}
-                      </p>
+                  {/* 计费模式 - 正式上线后启用 */}
+                  {userInfo.billingMode !== 'DRY_RUN' && (
+                    <div className="flex gap-6">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1.5">计费模式</p>
+                        <p className="text-sm font-semibold text-success">正式模式</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1.5">模型模式</p>
+                        <p className={`text-sm font-semibold ${
+                          userInfo.modelMode === 'DRY_RUN' ? 'text-warning' : 'text-success'
+                        }`}>
+                          {userInfo.modelMode === 'DRY_RUN' ? '测试中' : '正式模式'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1.5">模型模式</p>
-                      <p className={`text-sm font-semibold ${
-                        userInfo.modelMode === 'DRY_RUN' ? 'text-warning' : 'text-success'
-                      }`}>
-                        {userInfo.modelMode === 'DRY_RUN' ? '模拟模式' : '正式模式'}
-                      </p>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
 

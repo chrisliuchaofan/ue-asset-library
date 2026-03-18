@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "NODE_OPTIONS='--no-deprecation' next dev",
+    "dev:clean": "rm -rf .next && NODE_OPTIONS='--no-deprecation' next dev",
+    "clean": "rm -rf .next",
     "build": "next build",
     "start": "NODE_OPTIONS='--no-deprecation' next start",
     "lint": "tsc --noEmit",

@@ -1,16 +1,18 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Loader2, ArrowRight, Wand2 } from 'lucide-react';
+import { Sparkles, Loader2, ArrowRight, Wand2, FolderOpen } from 'lucide-react';
 import { AnalysisReport, AnalysisTaskState } from './types';
+import { MaterialPickerDialog } from './MaterialPickerDialog';
 
 export function BreakdownBoard() {
   const router = useRouter();
   const [scriptText, setScriptText] = useState('');
+  const [showMaterialPicker, setShowMaterialPicker] = useState(false);
   const [taskState, setTaskState] = useState<AnalysisTaskState>({
     status: 'idle',
     progress: 0,
@@ -19,7 +21,7 @@ export function BreakdownBoard() {
     error: null,
   });
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = useCallback(async () => {
     if (!scriptText.trim()) return;
 
     setTaskState({
@@ -49,10 +51,19 @@ export function BreakdownBoard() {
 
       let report: AnalysisReport;
       if (result.text) {
-        // extract json from markdown
-        const match = result.text.match(/\\{[\s\S]*\\}/);
-        const jsonStr = match ? match[0] : result.text;
-        report = JSON.parse(jsonStr);
+        // 用平衡括号提取第一个完整 JSON 对象
+        const extractJson = (text: string): string => {
+          const start = text.indexOf('{');
+          if (start === -1) return text;
+          let depth = 0;
+          for (let i = start; i < text.length; i++) {
+            if (text[i] === '{') depth++;
+            else if (text[i] === '}') depth--;
+            if (depth === 0) return text.slice(start, i + 1);
+          }
+          return text.slice(start); // fallback
+        };
+        report = JSON.parse(extractJson(result.text));
       } else {
         report = result;
       }
@@ -73,7 +84,7 @@ export function BreakdownBoard() {
         error: err.message || '未知错误',
       });
     }
-  };
+  }, [scriptText]);
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -81,8 +92,20 @@ export function BreakdownBoard() {
         {/* 输入区 */}
         <div className="lg:col-span-5 space-y-4">
           <Card className="bg-card border-border p-5">
-            <h3 className="text-base font-medium text-foreground mb-3">输入素材脚本内容</h3>
+            <div className="flex items-center justify-between mb-3">
+              <label htmlFor="script-textarea" className="text-base font-medium text-foreground">输入素材脚本内容</label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMaterialPicker(true)}
+                className="text-xs"
+              >
+                <FolderOpen className="w-3.5 h-3.5 mr-1.5" />
+                从素材库选择
+              </Button>
+            </div>
             <textarea
+              id="script-textarea"
               value={scriptText}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setScriptText(e.target.value)}
               placeholder="请粘贴短视频文案或分镜画面描述..."
@@ -135,7 +158,7 @@ export function BreakdownBoard() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-muted p-4 rounded-md border border-border">
                     <h4 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">执行建议</h4>
                     <p className="text-sm text-foreground">{taskState.report.aesthetic_verdict || "无额外执行建议"}</p>
@@ -205,6 +228,13 @@ export function BreakdownBoard() {
           )}
         </div>
       </div>
-    </div >
+      <MaterialPickerDialog
+        open={showMaterialPicker}
+        onClose={() => setShowMaterialPicker(false)}
+        onSelect={(material) => {
+          setScriptText(prev => prev ? `${prev}\n\n素材：${material.name}` : `素材：${material.name}`);
+        }}
+      />
+    </div>
   );
 }

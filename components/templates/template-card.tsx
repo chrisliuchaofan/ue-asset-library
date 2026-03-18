@@ -42,6 +42,14 @@ export function TemplateCard({ template, className }: TemplateCardProps) {
 
       {/* 结构时间线（紧凑模式） */}
       <div className="mb-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] text-muted-foreground/60 font-medium uppercase tracking-wider">场景结构</span>
+          {template.structure.length > 0 && template.structure.reduce((sum, s) => sum + (s.durationSec || 0), 0) > 0 && (
+            <span className="text-[10px] text-muted-foreground/50">
+              {template.structure.reduce((sum, s) => sum + (s.durationSec || 0), 0)}s
+            </span>
+          )}
+        </div>
         <TemplateStructureTimeline scenes={template.structure} compact />
       </div>
 
@@ -81,7 +89,7 @@ export function TemplateCard({ template, className }: TemplateCardProps) {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
             <BarChart3 className="w-3 h-3" />
-            {template.usageCount}次
+            {template.usageCount > 0 ? `${template.usageCount}次` : '新模版'}
           </span>
           <span className="flex items-center gap-0.5">
             {Array.from({ length: 5 }).map((_, i) => (

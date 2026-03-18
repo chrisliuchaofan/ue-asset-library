@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Lightbulb, Loader2, FileSpreadsheet } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, Search, Lightbulb, Loader2, FileSpreadsheet, Sparkles, ArrowRight, Send } from 'lucide-react';
 import { InspirationCard } from '@/components/inspirations/inspiration-card';
 import { CreateInspirationDialog } from '@/components/inspirations/create-inspiration-dialog';
 import { EditInspirationDialog } from '@/components/inspirations/edit-inspiration-dialog';
 import { ImportExcelDialog } from '@/components/inspirations/import-excel-dialog';
 import type { Inspiration } from '@/data/inspiration.schema';
 
-/* ── 样式常量 ── */
+/* ── 样式常量（使用 CSS 变量，支持亮色/暗色主题） ── */
 
 const S = {
   page: {
@@ -16,7 +16,7 @@ const S = {
     display: 'flex',
     flexDirection: 'column' as const,
     overflow: 'hidden',
-    background: '#000',
+    background: 'hsl(var(--background))',
   },
   header: {
     display: 'flex',
@@ -25,7 +25,7 @@ const S = {
     height: 56,
     padding: '0 24px',
     flexShrink: 0,
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    borderBottom: '1px solid hsl(var(--border))',
   },
   headerLeft: {
     display: 'flex',
@@ -36,13 +36,13 @@ const S = {
   headerIcon: {
     width: 20,
     height: 20,
-    color: 'rgba(255,255,255,0.6)',
+    color: 'hsl(var(--muted-foreground))',
     flexShrink: 0,
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: 600 as const,
-    color: 'rgba(255,255,255,0.88)',
+    color: 'hsl(var(--foreground))',
     margin: 0,
     whiteSpace: 'nowrap' as const,
   },
@@ -53,8 +53,8 @@ const S = {
     padding: '7px 14px',
     fontSize: 13,
     fontWeight: 500 as const,
-    color: '#000',
-    background: '#fff',
+    color: 'hsl(var(--primary-foreground))',
+    background: 'hsl(var(--foreground))',
     border: 'none',
     borderRadius: 6,
     cursor: 'pointer',
@@ -63,7 +63,7 @@ const S = {
   },
   filterBar: {
     padding: '12px 24px',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    borderBottom: '1px solid hsl(var(--border))',
     flexShrink: 0,
   },
   searchWrap: {
@@ -76,7 +76,7 @@ const S = {
     transform: 'translateY(-50%)',
     width: 16,
     height: 16,
-    color: 'rgba(255,255,255,0.25)',
+    color: 'hsl(var(--muted-foreground) / 0.5)',
     pointerEvents: 'none' as const,
   },
   searchInput: {
@@ -85,11 +85,11 @@ const S = {
     paddingLeft: 36,
     paddingRight: 16,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
-    background: 'rgba(255,255,255,0.04)',
+    color: 'hsl(var(--foreground))',
+    background: 'hsl(var(--muted))',
     borderWidth: 1,
     borderStyle: 'solid',
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'hsl(var(--border))',
     borderRadius: 8,
     outline: 'none',
     transition: 'border-color 0.15s ease, background 0.15s ease',
@@ -104,9 +104,9 @@ const S = {
     padding: '5px 12px',
     fontSize: 12,
     fontWeight: 500 as const,
-    color: active ? '#000' : 'rgba(255,255,255,0.4)',
-    background: active ? '#fff' : 'rgba(255,255,255,0.04)',
-    border: active ? 'none' : '1px solid rgba(255,255,255,0.06)',
+    color: active ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
+    background: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted))',
+    border: active ? 'none' : '1px solid hsl(var(--border))',
     borderRadius: 100,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
@@ -128,48 +128,97 @@ const S = {
     flexDirection: 'column' as const,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 80,
+    paddingTop: 48,
     paddingBottom: 80,
     textAlign: 'center' as const,
   },
-  emptyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    background: 'rgba(255,255,255,0.04)',
+  emptyIllustration: {
+    width: 200,
+    height: 160,
+    marginBottom: 24,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    position: 'relative' as const,
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: 600 as const,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'hsl(var(--foreground))',
     margin: 0,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   emptyDesc: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.3)',
-    maxWidth: 320,
-    lineHeight: 1.5,
+    fontSize: 14,
+    color: 'hsl(var(--muted-foreground))',
+    maxWidth: 400,
+    lineHeight: 1.6,
     margin: 0,
+    marginBottom: 32,
   },
-  emptyCTA: {
+  quickInputWrap: {
+    display: 'flex',
+    gap: 8,
+    width: '100%',
+    maxWidth: 520,
+    marginBottom: 24,
+  },
+  quickInput: {
+    flex: 1,
+    height: 44,
+    padding: '0 16px',
+    fontSize: 14,
+    color: 'hsl(var(--foreground))',
+    background: 'hsl(var(--muted))',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: 10,
+    outline: 'none',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+  },
+  quickSubmitBtn: {
     display: 'inline-flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    marginTop: 24,
-    padding: '10px 20px',
-    fontSize: 13,
+    padding: '0 20px',
+    height: 44,
+    fontSize: 14,
     fontWeight: 600 as const,
-    color: '#000',
-    background: '#fff',
+    color: '#fff',
+    background: '#F97316',
     border: 'none',
-    borderRadius: 8,
+    borderRadius: 10,
     cursor: 'pointer',
-    transition: 'opacity 0.15s ease',
+    transition: 'opacity 0.15s ease, transform 0.1s ease',
+    flexShrink: 0,
+  },
+  emptySteps: {
+    display: 'flex',
+    gap: 16,
+    marginTop: 12,
+    flexWrap: 'wrap' as const,
+    justifyContent: 'center',
+  },
+  emptyStepCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    padding: '12px 16px',
+    background: 'hsl(var(--muted))',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: 10,
+    fontSize: 13,
+    color: 'hsl(var(--muted-foreground))',
+  },
+  emptyStepIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 14,
+    flexShrink: 0,
   },
   pagination: {
     display: 'flex',
@@ -178,31 +227,33 @@ const S = {
     gap: 12,
     marginTop: 24,
     paddingTop: 16,
-    borderTop: '1px solid rgba(255,255,255,0.06)',
+    borderTop: '1px solid hsl(var(--border))',
   },
   pageBtn: (disabled: boolean) => ({
     padding: '6px 14px',
     fontSize: 13,
     fontWeight: 500 as const,
-    color: disabled ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.6)',
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.06)',
+    color: disabled ? 'hsl(var(--muted-foreground) / 0.3)' : 'hsl(var(--muted-foreground))',
+    background: 'hsl(var(--muted))',
+    border: '1px solid hsl(var(--border))',
     borderRadius: 6,
     cursor: disabled ? 'not-allowed' : 'pointer',
     transition: 'all 0.15s ease',
   }),
   pageInfo: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.3)',
+    color: 'hsl(var(--muted-foreground) / 0.6)',
   },
 } as const;
 
-/* ── 响应式 CSS（瀑布流列数） ── */
+/* ── 响应式 CSS（瀑布流列数 + 动画） ── */
 
 const MASONRY_CSS = `
 .insp-masonry{column-count:1;column-gap:16px}
 @media(min-width:640px){.insp-masonry{column-count:2}}
 @media(min-width:1024px){.insp-masonry{column-count:3}}
+@keyframes insp-spin{to{transform:rotate(360deg)}}
+@keyframes insp-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 `;
 
 export default function InspirationsPage() {
@@ -216,6 +267,38 @@ export default function InspirationsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [editingInspiration, setEditingInspiration] = useState<Inspiration | null>(null);
+  const [quickText, setQuickText] = useState('');
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
+  const [quickError, setQuickError] = useState<string | null>(null);
+
+  // 标记是否初次加载（避免 debounce useEffect 和初始 useEffect 双重触发）
+  const isInitialMount = useRef(true);
+
+  // 快速创建灵感
+  const handleQuickCreate = useCallback(async () => {
+    const text = quickText.trim();
+    if (!text || quickSubmitting) return;
+    setQuickError(null);
+    try {
+      setQuickSubmitting(true);
+      const res = await fetch('/api/inspirations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: text, description: '', tags: [] }),
+      });
+      if (res.ok) {
+        setQuickText('');
+        fetchInspirations(true);
+      } else {
+        setQuickError('创建失败，请重试');
+      }
+    } catch {
+      setQuickError('网络错误，请检查连接');
+    } finally {
+      setQuickSubmitting(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quickText, quickSubmitting]);
 
   // 获取所有标签
   const allTags = Array.from(
@@ -249,12 +332,18 @@ export default function InspirationsPage() {
     }
   }, [page, search, activeTag, activeStatus]);
 
+  // 初始加载 + page 变化时获取数据
   useEffect(() => {
     fetchInspirations();
-  }, [fetchInspirations]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
-  // 搜索 debounce
+  // 搜索/筛选 debounce（跳过初次加载，避免与上方 useEffect 双重触发）
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     const timer = setTimeout(() => {
       fetchInspirations(true);
     }, 300);
@@ -263,7 +352,7 @@ export default function InspirationsPage() {
   }, [search, activeTag, activeStatus]);
 
   // 删除灵感
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/inspirations/${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -272,7 +361,7 @@ export default function InspirationsPage() {
     } catch (error) {
       console.error('删除失败:', error);
     }
-  };
+  }, []);
 
   const isFiltering = !!(search || activeTag || activeStatus);
 
@@ -290,13 +379,15 @@ export default function InspirationsPage() {
           <button
             style={{
               ...S.addBtn,
-              color: 'rgba(255,255,255,0.6)',
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'hsl(var(--muted-foreground))',
+              background: 'hsl(var(--muted))',
+              border: '1px solid hsl(var(--border))',
             }}
             onClick={() => setShowImport(true)}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'hsl(var(--accent))'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'hsl(var(--muted))'; }}
+            onFocus={(e) => { e.currentTarget.style.outline = '2px solid hsl(var(--ring))'; e.currentTarget.style.outlineOffset = '2px'; }}
+            onBlur={(e) => { e.currentTarget.style.outline = 'none'; }}
           >
             <FileSpreadsheet style={{ width: 14, height: 14 }} />
             导入
@@ -306,6 +397,8 @@ export default function InspirationsPage() {
             onClick={() => setShowCreate(true)}
             onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
             onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            onFocus={(e) => { e.currentTarget.style.outline = '2px solid hsl(var(--ring))'; e.currentTarget.style.outlineOffset = '2px'; }}
+            onBlur={(e) => { e.currentTarget.style.outline = 'none'; }}
           >
             <Plus style={{ width: 14, height: 14 }} />
             记录灵感
@@ -320,22 +413,23 @@ export default function InspirationsPage() {
           <input
             type="text"
             placeholder="搜索灵感..."
+            aria-label="搜索灵感"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={S.searchInput}
             onFocus={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
-              e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+              e.currentTarget.style.borderColor = 'hsl(var(--ring))';
+              e.currentTarget.style.boxShadow = '0 0 0 2px hsl(var(--ring) / 0.2)';
             }}
             onBlur={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
-              e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+              e.currentTarget.style.borderColor = 'hsl(var(--border))';
+              e.currentTarget.style.boxShadow = 'none';
             }}
           />
         </div>
 
         {/* 状态筛选 */}
-        <div style={{ ...S.tagRow, marginTop: 10 }}>
+        <div style={{ ...S.tagRow, marginTop: 10 }} role="tablist" aria-label="状态筛选">
           {[
             { key: null, label: '全部' },
             { key: 'new', label: '新' },
@@ -344,6 +438,8 @@ export default function InspirationsPage() {
           ].map(({ key, label }) => (
             <button
               key={label}
+              role="tab"
+              aria-selected={activeStatus === key}
               onClick={() => setActiveStatus(key)}
               style={S.tagPill(activeStatus === key)}
             >
@@ -353,8 +449,10 @@ export default function InspirationsPage() {
         </div>
 
         {allTags.length > 0 && (
-          <div style={S.tagRow}>
+          <div style={S.tagRow} role="tablist" aria-label="标签筛选">
             <button
+              role="tab"
+              aria-selected={!activeTag}
               onClick={() => setActiveTag(null)}
               style={S.tagPill(!activeTag)}
             >
@@ -363,6 +461,8 @@ export default function InspirationsPage() {
             {allTags.map(tag => (
               <button
                 key={tag}
+                role="tab"
+                aria-selected={activeTag === tag}
                 onClick={() => setActiveTag(activeTag === tag ? null : tag)}
                 style={S.tagPill(activeTag === tag)}
               >
@@ -377,32 +477,174 @@ export default function InspirationsPage() {
       <div style={S.content}>
         {loading ? (
           <div style={S.loader}>
-            <Loader2 style={{ width: 24, height: 24, color: 'rgba(255,255,255,0.2)', animation: 'spin 1s linear infinite' }} />
+            <Loader2 style={{ width: 24, height: 24, color: 'hsl(var(--muted-foreground) / 0.4)', animation: 'insp-spin 1s linear infinite' }} />
           </div>
         ) : inspirations.length === 0 ? (
           <div style={S.emptyState}>
-            <div style={S.emptyIcon}>
-              <Lightbulb style={{ width: 28, height: 28, color: 'rgba(255,255,255,0.2)' }} />
-            </div>
-            <h3 style={S.emptyTitle}>
-              {isFiltering ? '未找到匹配的灵感' : '还没有灵感记录'}
-            </h3>
-            <p style={S.emptyDesc}>
-              {isFiltering ? '试试其他搜索词或标签' : '随时记录你的创意灵感，文字、语音、图片都可以'}
-            </p>
-            {!isFiltering && (
-              <button
-                style={S.emptyCTA}
-                onClick={() => setShowCreate(true)}
-                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-              >
-                记录第一个灵感
-              </button>
+            {isFiltering ? (
+              <>
+                <Lightbulb style={{ width: 48, height: 48, color: 'hsl(var(--muted-foreground) / 0.2)', marginBottom: 20 }} />
+                <h3 style={S.emptyTitle}>未找到匹配的灵感</h3>
+                <p style={S.emptyDesc}>试试其他搜索词或标签</p>
+              </>
+            ) : (
+              <>
+                {/* 灵动插画区域 */}
+                <div style={S.emptyIllustration}>
+                  <div style={{
+                    width: 80, height: 80, borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(249,115,22,0.15) 0%, rgba(249,115,22,0.03) 70%, transparent 100%)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    position: 'relative',
+                  }}>
+                    <Sparkles style={{ width: 36, height: 36, color: '#F97316', opacity: 0.8 }} />
+                    <div style={{
+                      position: 'absolute', top: -8, right: -16,
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: 'rgba(249,115,22,0.12)',
+                      animation: 'insp-float 3s ease-in-out infinite',
+                    }} />
+                    <div style={{
+                      position: 'absolute', bottom: -4, left: -20,
+                      width: 14, height: 14, borderRadius: '50%',
+                      background: 'rgba(249,115,22,0.08)',
+                      animation: 'insp-float 3s ease-in-out 1.5s infinite',
+                    }} />
+                  </div>
+                </div>
+
+                <h3 style={S.emptyTitle}>记录你的每一个灵感火花</h3>
+                <p style={S.emptyDesc}>
+                  好创意稍纵即逝 — 在这里随手记录，看着它们一步步变成爆款素材
+                </p>
+
+                {/* 快速输入框 */}
+                <div style={S.quickInputWrap}>
+                  <input
+                    type="text"
+                    placeholder="脑海里闪过什么想法？先记下来..."
+                    aria-label="快速记录灵感"
+                    value={quickText}
+                    onChange={(e) => { setQuickText(e.target.value); setQuickError(null); }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleQuickCreate()}
+                    style={S.quickInput}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#F97316';
+                      e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'hsl(var(--border))';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  />
+                  <button
+                    style={{
+                      ...S.quickSubmitBtn,
+                      opacity: quickText.trim() ? 1 : 0.5,
+                      cursor: quickText.trim() ? 'pointer' : 'default',
+                    }}
+                    onClick={handleQuickCreate}
+                    disabled={!quickText.trim() || quickSubmitting}
+                    onMouseEnter={(e) => { if (quickText.trim()) e.currentTarget.style.opacity = '0.9'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = quickText.trim() ? '1' : '0.5'; }}
+                  >
+                    {quickSubmitting ? (
+                      <Loader2 style={{ width: 16, height: 16, animation: 'insp-spin 1s linear infinite' }} />
+                    ) : (
+                      <Send style={{ width: 16, height: 16 }} />
+                    )}
+                    记录
+                  </button>
+                </div>
+
+                {/* 错误提示 */}
+                {quickError && (
+                  <div style={{ color: 'hsl(var(--destructive))', fontSize: 13, marginBottom: 16 }}>
+                    {quickError}
+                  </div>
+                )}
+
+                {/* 或者详细记录 */}
+                <button
+                  style={{
+                    background: 'none', border: 'none', color: 'hsl(var(--muted-foreground) / 0.6)',
+                    fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                    marginBottom: 32, transition: 'color 0.15s',
+                  }}
+                  onClick={() => setShowCreate(true)}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = '#F97316'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'hsl(var(--muted-foreground) / 0.6)'; }}
+                >
+                  <Plus style={{ width: 14, height: 14 }} />
+                  想详细记录？点这里添加标签和描述
+                </button>
+
+                {/* 流程引导 */}
+                <div style={S.emptySteps}>
+                  {[
+                    { icon: '💡', label: '记录灵感', bg: 'rgba(249,115,22,0.1)' },
+                    { icon: '📋', label: '匹配模版', bg: 'rgba(96,165,250,0.1)' },
+                    { icon: '🎬', label: 'AI 创作', bg: 'rgba(168,85,247,0.1)' },
+                    { icon: '🚀', label: '审核投放', bg: 'rgba(34,197,94,0.1)' },
+                  ].map((step, i) => (
+                    <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={S.emptyStepCard}>
+                        <div style={{ ...S.emptyStepIcon, background: step.bg }}>
+                          {step.icon}
+                        </div>
+                        {step.label}
+                      </div>
+                      {i < 3 && <ArrowRight style={{ width: 14, height: 14, color: 'hsl(var(--muted-foreground) / 0.2)' }} />}
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         ) : (
           <>
+            {/* 快速输入 - 列表视图也有 */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input
+                type="text"
+                placeholder="快速记录一个灵感..."
+                aria-label="快速记录灵感"
+                value={quickText}
+                onChange={(e) => { setQuickText(e.target.value); setQuickError(null); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleQuickCreate()}
+                style={{
+                  flex: 1, height: 40, padding: '0 14px', fontSize: 13,
+                  color: 'hsl(var(--foreground))', background: 'hsl(var(--muted))',
+                  border: '1px solid hsl(var(--border))', borderRadius: 8, outline: 'none',
+                  transition: 'border-color 0.2s ease',
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#F97316'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'hsl(var(--border))'; }}
+              />
+              <button
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '0 14px', height: 40, fontSize: 13, fontWeight: 500,
+                  color: '#fff', background: quickText.trim() ? '#F97316' : 'hsl(var(--muted))',
+                  border: 'none', borderRadius: 8, cursor: quickText.trim() ? 'pointer' : 'default',
+                  transition: 'all 0.15s ease',
+                }}
+                onClick={handleQuickCreate}
+                disabled={!quickText.trim() || quickSubmitting}
+              >
+                {quickSubmitting ? (
+                  <Loader2 style={{ width: 14, height: 14, animation: 'insp-spin 1s linear infinite' }} />
+                ) : (
+                  <Send style={{ width: 14, height: 14 }} />
+                )}
+              </button>
+            </div>
+            {/* 错误提示 */}
+            {quickError && (
+              <div style={{ color: 'hsl(var(--destructive))', fontSize: 13, marginBottom: 12 }}>
+                {quickError}
+              </div>
+            )}
             <div className="insp-masonry">
               {inspirations.map(inspiration => (
                 <InspirationCard
@@ -466,9 +708,6 @@ export default function InspirationsPage() {
         onClose={() => setShowImport(false)}
         onImported={() => fetchInspirations(true)}
       />
-
-      {/* Spin animation */}
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }

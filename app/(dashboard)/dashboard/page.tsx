@@ -2,8 +2,9 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   CreditCard, Sparkles, Users, Upload, Search,
   Video, BarChart3, ArrowRight, CheckCircle2,
@@ -14,8 +15,25 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
 import { PageLoading } from '@/components/page-loading';
 import { getProjectDisplayName } from '@/lib/constants';
-import { TopConsumptionChart } from '@/components/charts/top-consumption-chart';
 import type { Material } from '@/data/material.schema';
+
+// 动态导入 Recharts 图表组件，减少首屏 bundle ~300KB
+const TopConsumptionChart = dynamic(
+  () => import('@/components/charts/top-consumption-chart').then(m => ({ default: m.TopConsumptionChart })),
+  {
+    loading: () => (
+      <Card>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">加载图表...</span>
+          </div>
+        </CardContent>
+      </Card>
+    ),
+    ssr: false,
+  }
+);
 
 interface DashboardSummary {
   balance: number;
@@ -97,26 +115,31 @@ export default function DashboardPage() {
 
   const loadSummary = async () => {
     try {
-      const [summaryRes, materialsRes] = await Promise.all([
-        fetch('/api/dashboard/summary'),
-        fetch('/api/materials/query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        }),
-      ]);
+      // 先加载 summary（轻量），让关键数据最先展示
+      const summaryRes = await fetch('/api/dashboard/summary');
       if (summaryRes.ok) {
         const data = await summaryRes.json();
         setSummary(data);
       }
+    } catch (err) {
+      console.error('[Dashboard] summary 加载失败:', err);
+    } finally {
+      setLoading(false);
+    }
+
+    // materials 延后加载（仅用于 Top 消耗图表，非关键路径）
+    try {
+      const materialsRes = await fetch('/api/materials/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
       if (materialsRes.ok) {
         const data = await materialsRes.json();
         setMaterials(data.materials || []);
       }
     } catch (err) {
-      console.error('[Dashboard] 加载数据失败:', err);
-    } finally {
-      setLoading(false);
+      console.error('[Dashboard] materials 加载失败:', err);
     }
   };
 
