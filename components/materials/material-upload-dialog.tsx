@@ -299,7 +299,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
             className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
               isDragOver
                 ? 'border-primary bg-primary/5'
-                : 'border-muted-foreground/20 hover:bg-accent/50'
+                : 'border-muted-foreground/20 hover:bg-muted'
             }`}
             onClick={() => fileInputRef.current?.click()}
             onDragOver={onDragOver}

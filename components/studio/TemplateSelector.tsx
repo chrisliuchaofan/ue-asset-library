@@ -205,7 +205,7 @@ export function TemplateSelector({
                             <button
                                 key={template.id}
                                 onClick={() => onSelect(template)}
-                                className="w-full text-left bg-card border border-border rounded-lg p-3 hover:bg-accent/50 transition-all space-y-2 focus-visible:outline-2 focus-visible:outline-primary"
+                                className="w-full text-left bg-card border border-border rounded-lg p-3 hover:bg-muted transition-all space-y-2 focus-visible:outline-2 focus-visible:outline-primary"
                             >
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium text-foreground line-clamp-1">

@@ -29,9 +29,9 @@ const S = {
     cursor: 'default',
   },
   cardHover: {
-    background: 'hsl(var(--accent) / 0.5)',
-    borderColor: 'hsl(var(--border))',
-    boxShadow: '0 2px 8px hsl(var(--foreground) / 0.04)',
+    background: 'hsl(var(--muted))',
+    borderColor: 'hsl(var(--ring) / 0.3)',
+    boxShadow: '0 2px 8px hsl(var(--foreground) / 0.06)',
   },
   metaRow: {
     display: 'flex',
@@ -282,7 +282,7 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
                   }}
                   style={{ ...S.dropdownItem, color: 'hsl(var(--foreground) / 0.7)' }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'hsl(var(--accent))';
+                    e.currentTarget.style.background = 'hsl(var(--muted))';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
@@ -301,7 +301,7 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
                   }}
                   style={{ ...S.dropdownItem, color: '#F97316' }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'hsl(var(--accent))';
+                    e.currentTarget.style.background = 'hsl(var(--muted))';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
@@ -317,7 +317,7 @@ export function InspirationCard({ inspiration, onDelete, onEdit }: InspirationCa
                   }}
                   style={S.dropdownItem}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'hsl(var(--accent))';
+                    e.currentTarget.style.background = 'hsl(var(--muted))';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';

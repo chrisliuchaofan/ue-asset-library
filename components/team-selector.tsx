@@ -57,7 +57,7 @@ export function TeamSelector() {
       {/* 当前团队按钮 */}
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-accent/50 transition-colors text-left"
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-md hover:bg-muted transition-colors text-left"
       >
         <div className="w-6 h-6 rounded bg-primary/20 flex items-center justify-center flex-shrink-0">
           <UsersIcon className="w-3.5 h-3.5 text-primary" />
@@ -95,7 +95,7 @@ export function TeamSelector() {
                     }
                     setOpen(false);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent/50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted transition-colors"
                 >
                   <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
                     <UsersIcon className="w-3 h-3 text-primary" />
@@ -140,7 +140,7 @@ export function TeamSelector() {
               ) : (
                 <button
                   onClick={() => setCreating(true)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent/50 transition-colors text-xs text-muted-foreground"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted transition-colors text-xs text-muted-foreground"
                 >
                   <PlusIcon className="w-3.5 h-3.5" />
                   创建新团队

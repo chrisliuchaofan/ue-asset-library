@@ -53,8 +53,8 @@ const S = {
     padding: '7px 14px',
     fontSize: 13,
     fontWeight: 500 as const,
-    color: 'hsl(var(--primary-foreground))',
-    background: 'hsl(var(--foreground))',
+    color: '#fff',
+    background: '#F97316',
     border: 'none',
     borderRadius: 6,
     cursor: 'pointer',
@@ -104,7 +104,7 @@ const S = {
     padding: '5px 12px',
     fontSize: 12,
     fontWeight: 500 as const,
-    color: active ? 'hsl(var(--primary-foreground))' : 'hsl(var(--muted-foreground))',
+    color: active ? 'hsl(var(--background))' : 'hsl(var(--muted-foreground))',
     background: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted))',
     border: active ? 'none' : '1px solid hsl(var(--border))',
     borderRadius: 100,
@@ -384,7 +384,7 @@ export default function InspirationsPage() {
               border: '1px solid hsl(var(--border))',
             }}
             onClick={() => setShowImport(true)}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'hsl(var(--accent))'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'hsl(var(--border))'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'hsl(var(--muted))'; }}
             onFocus={(e) => { e.currentTarget.style.outline = '2px solid hsl(var(--ring))'; e.currentTarget.style.outlineOffset = '2px'; }}
             onBlur={(e) => { e.currentTarget.style.outline = 'none'; }}

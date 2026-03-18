@@ -44,7 +44,7 @@ export function KnowledgeEntryCard({ entry, onEdit, onDelete }: KnowledgeEntryCa
         : entry.content;
 
     return (
-        <div className="group border border-border rounded-lg p-4 bg-card hover:bg-accent/50 transition-colors">
+        <div className="group border border-border rounded-lg p-4 bg-card hover:bg-muted transition-colors">
             {/* 头部: 标题 + 标签 */}
             <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2 min-w-0 flex-1">

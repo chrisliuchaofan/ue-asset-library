@@ -219,7 +219,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {quickActions.map((action) => (
                 <Link key={action.href} href={action.href}>
-                  <Card className="hover:bg-accent/50 transition-all duration-200 cursor-pointer group h-full">
+                  <Card className="hover:bg-muted transition-all duration-200 cursor-pointer group h-full">
                     <CardContent className="p-4">
                       <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center mb-3">
                         <action.icon className={`w-[18px] h-[18px] ${action.color}`} />

@@ -114,7 +114,7 @@ export default function SettingsPage() {
 
           {/* 团队管理入口 */}
           <Link href="/settings/team">
-            <Card className="hover:bg-accent/50 transition-colors cursor-pointer group">
+            <Card className="hover:bg-muted transition-colors cursor-pointer group">
               <CardContent className="p-5 sm:p-6">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center flex-shrink-0">

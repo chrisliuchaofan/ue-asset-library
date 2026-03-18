@@ -35,7 +35,7 @@ export function CrossModuleLink({
     return (
       <Link
         href={url}
-        className={`group inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all text-sm ${className}`}
+        className={`group inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-border bg-card hover:bg-muted transition-all text-sm ${className}`}
       >
         {Icon && <Icon className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />}
         <span className="text-muted-foreground group-hover:text-foreground transition-colors">

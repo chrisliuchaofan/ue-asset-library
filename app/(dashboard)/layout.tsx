@@ -126,7 +126,7 @@ const NAV = {
         cursor: 'pointer',
         transition: T.transition.fast,
         textDecoration: 'none' as const,
-        background: active ? 'hsl(var(--accent))' : 'transparent',
+        background: active ? 'hsl(var(--muted))' : 'transparent',
         color: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
         margin: '1px auto',
     }),
@@ -148,7 +148,7 @@ const NAV = {
         cursor: 'pointer',
         transition: T.transition.fast,
         textDecoration: 'none' as const,
-        background: active ? 'hsl(var(--accent))' : 'transparent',
+        background: active ? 'hsl(var(--muted))' : 'transparent',
         color: active ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
         fontWeight: active ? T.fontWeight.semibold : T.fontWeight.normal,
         fontSize: T.fontSize.base,
@@ -322,7 +322,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                             style={{
                                                 ...NAV.navItemExpanded(isActive),
                                                 ...(isHovered && !isActive ? {
-                                                    background: 'hsl(var(--accent))',
+                                                    background: 'hsl(var(--muted))',
                                                     color: 'hsl(var(--foreground))',
                                                 } : {}),
                                             }}
@@ -348,7 +348,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                     style={{
                                         ...NAV.navItemCollapsed(isActive),
                                         ...(isHovered && !isActive ? {
-                                            background: 'hsl(var(--accent))',
+                                            background: 'hsl(var(--muted))',
                                             color: 'hsl(var(--foreground))',
                                         } : {}),
                                     }}
@@ -427,7 +427,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                                 fontSize: T.fontSize.base,
                                                 cursor: 'pointer',
                                                 transition: T.transition.fast,
-                                                background: isActive ? 'hsl(var(--accent))' : 'transparent',
+                                                background: isActive ? 'hsl(var(--muted))' : 'transparent',
                                                 color: isActive ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
                                                 fontWeight: isActive ? T.fontWeight.semibold : T.fontWeight.normal,
                                             }}>

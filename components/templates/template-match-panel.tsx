@@ -133,7 +133,7 @@ export function TemplateMatchPanel({
           {results.map((result) => (
             <div
               key={result.template.id}
-              className="rounded-lg border border-border p-3 space-y-2 hover:bg-accent/50 transition-colors"
+              className="rounded-lg border border-border p-3 space-y-2 hover:bg-muted transition-colors"
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
