@@ -71,15 +71,16 @@ export const authOptions: NextAuthConfig = {
         }
 
         try {
-          const username = String(credentials.username || '');
+          const username = String(credentials.username || '').trim();
           const password = String(credentials.password || '');
           const loginEmail = username.includes('@')
-            ? username
+            ? username.toLowerCase()
             : `${username}@admin.local`;
 
           // === 方式1: 从 Supabase profiles 验证（bcrypt 密码） ===
           try {
             const { supabaseAdmin } = await import('@/lib/supabase/admin');
+            const { createSupabaseAuthClient } = await import('@/lib/supabase/auth-client');
             const bcrypt = await import('bcryptjs');
 
             // 尝试通过 email 或 username 查找用户
@@ -87,7 +88,7 @@ export const authOptions: NextAuthConfig = {
               .select('id, email, username, password_hash, is_active')
               .or(`email.eq.${loginEmail},username.eq.${username}`)
               .limit(1)
-              .single();
+              .maybeSingle();
 
             if (queryError) {
               console.error('[Auth] DB查询错误:', queryError.message, '| 输入:', loginEmail, username);
@@ -95,22 +96,55 @@ export const authOptions: NextAuthConfig = {
 
             if (!profile) {
               console.error('[Auth] 未找到用户 | email:', loginEmail, '| username:', username);
-            } else if (!profile.password_hash) {
-              console.error('[Auth] 用户无密码哈希 | email:', profile.email);
             } else if (profile.is_active === false) {
               console.error('[Auth] 用户已停用 | email:', profile.email);
             } else {
-              const passwordValid = await bcrypt.compare(password, profile.password_hash);
-              if (passwordValid) {
-                console.error('[Auth] 密码验证成功:', profile.email);
+              if (profile.password_hash) {
+                const passwordValid = await bcrypt.compare(password, profile.password_hash);
+                if (passwordValid) {
+                  console.log('[Auth] 密码验证成功:', profile.email);
+                  return {
+                    id: profile.email || profile.id,
+                    name: profile.username || profile.email,
+                    email: profile.email,
+                  };
+                }
+                console.error('[Auth] 本地密码不匹配，尝试 Supabase Auth 校验 | email:', profile.email);
+              } else {
+                console.error('[Auth] 用户无本地密码哈希，尝试 Supabase Auth 校验 | email:', profile.email);
+              }
+
+              // 注册、重设密码、人工修复都可能造成 Supabase Auth 与本地密码哈希不同步。
+              // 如果 Supabase Auth 认可这次密码，就自动同步本地哈希并允许登录。
+              const supabaseAuth = createSupabaseAuthClient();
+              const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
+                email: profile.email,
+                password,
+              });
+
+              if (!authError && authData.user) {
+                const passwordHash = await bcrypt.hash(password, 12);
+                const { error: syncError } = await (supabaseAdmin.from('profiles') as any)
+                  .update({
+                    password_hash: passwordHash,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', profile.id);
+
+                if (syncError) {
+                  console.warn('[Auth] Supabase 密码验证成功，但同步本地密码失败:', syncError.message);
+                } else {
+                  console.log('[Auth] Supabase 密码验证成功，已同步本地密码:', profile.email);
+                }
+
                 return {
                   id: profile.email || profile.id,
                   name: profile.username || profile.email,
                   email: profile.email,
                 };
-              } else {
-                console.error('[Auth] 密码不匹配 | email:', profile.email);
               }
+
+              console.error('[Auth] 密码不匹配 | email:', profile.email, '| Supabase:', authError?.message || 'unknown');
             }
           } catch (dbError: any) {
             console.error('[Auth] Supabase异常:', dbError?.message || dbError);
@@ -127,7 +161,7 @@ export const authOptions: NextAuthConfig = {
           });
 
           if (user) {
-            console.error('[Auth] 环境变量验证成功:', user.email);
+            console.log('[Auth] 环境变量验证成功:', user.email);
             return {
               id: user.email || user.username,
               name: user.username,

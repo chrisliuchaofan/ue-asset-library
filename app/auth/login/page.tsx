@@ -132,9 +132,14 @@ function LoginForm() {
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444', marginBottom: 6 }}>
-                密码
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444' }}>
+                  密码
+                </label>
+                <Link href="/auth/reset-password" style={{ color: '#111', fontSize: 13, fontWeight: 600, textDecoration: 'underline' }}>
+                  重设密码
+                </Link>
+              </div>
               <input
                 type="password"
                 placeholder="请输入密码"
