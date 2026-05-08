@@ -3,23 +3,14 @@
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useCallback, useTransition, useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { PROJECTS, PROJECT_PASSWORDS, getAllProjects, getProjectDisplayName, getProjectPassword, getDescription } from '@/lib/constants';
+import { getAllProjects, getProjectDisplayName } from '@/lib/constants';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 interface ProjectSelectorProps {
@@ -31,36 +22,60 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [pendingProject, setPendingProject] = useState<string | null>(null);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [allowedProjects, setAllowedProjects] = useState<string[] | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
+  const availableProjects = useMemo(() => allowedProjects ?? getAllProjects(), [allowedProjects]);
 
   // 从URL参数获取当前选中的项目，如果没有则默认使用项目A（三冰）
   const currentProject = type === 'assets' || type === 'search'
     ? searchParams.get('projects')?.split(',')[0] || '项目A'
     : searchParams.get('project') || '项目A';
 
-  // 如果URL中没有项目参数，自动设置默认项目A（三冰）
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/projects/permissions')
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json() as Promise<{ projects?: string[] }>;
+      })
+      .then((data) => {
+        if (cancelled || !data?.projects) return;
+        setAllowedProjects(data.projects);
+      })
+      .catch(() => {
+        if (!cancelled) setAllowedProjects(getAllProjects());
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 如果URL中没有项目参数，自动设置默认项目；如果没有权限，则切到第一个可见项目
   useEffect(() => {
     const hasProject = type === 'assets' || type === 'search'
       ? searchParams.has('projects')
       : searchParams.has('project');
-    
-    if (!hasProject) {
+
+    const fallbackProject = availableProjects[0];
+    if (!fallbackProject) {
+      return;
+    }
+
+    if (!hasProject || !availableProjects.includes(currentProject)) {
       const params = new URLSearchParams(searchParams.toString());
       if (type === 'assets' || type === 'search') {
-        params.set('projects', '项目A');
+        params.set('projects', fallbackProject);
       } else {
-        params.set('project', '项目A');
+        params.set('project', fallbackProject);
       }
       startTransition(() => {
         router.replace(`${pathname}?${params.toString()}`);
       });
     }
-  }, [searchParams, pathname, router, type, startTransition]);
+  }, [availableProjects, currentProject, searchParams, pathname, router, type, startTransition]);
 
   // 计算下拉菜单宽度，使其与按钮等宽
   useEffect(() => {
@@ -93,74 +108,12 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
     };
   }, [currentProject]);
 
-  const handleProjectClick = useCallback(
-    (project: string) => {
-      // 如果点击的是当前项目，不需要验证
+  const handleProjectChange = useCallback(
+    (project: string | null) => {
       if (project === currentProject) {
         return;
       }
-      
-      // 打开密码输入对话框
-      setPendingProject(project);
-      setPassword('');
-      setError('');
-      setPasswordDialogOpen(true);
-    },
-    [currentProject]
-  );
 
-  const handlePasswordSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      setError('');
-
-      if (!pendingProject) {
-        return;
-      }
-
-      // 使用统一的密码获取函数（支持自定义项目）
-      const expectedPassword = getProjectPassword(pendingProject);
-      
-      // 支持中文密码，直接比较字符串
-      if (password === expectedPassword) {
-        // 密码正确，切换项目
-        const params = new URLSearchParams(searchParams.toString());
-        
-        if (type === 'assets' || type === 'search') {
-          if (pendingProject) {
-            params.set('projects', pendingProject);
-          } else {
-            params.delete('projects');
-          }
-        } else {
-          if (pendingProject) {
-            params.set('project', pendingProject);
-          } else {
-            params.delete('project');
-          }
-        }
-        
-        // 重置页码
-        params.delete('page');
-        
-        startTransition(() => {
-          router.push(`${pathname}?${params.toString()}`);
-        });
-        
-        // 关闭对话框
-        setPasswordDialogOpen(false);
-        setPassword('');
-        setPendingProject(null);
-      } else {
-        setError('密码错误，请重试');
-        setPassword('');
-      }
-    },
-    [password, pendingProject, router, pathname, searchParams, type]
-  );
-
-  const handleProjectChange = useCallback(
-    (project: string | null) => {
       if (project === null) {
         // 清除项目选择，不需要密码验证
         const params = new URLSearchParams(searchParams.toString());
@@ -177,10 +130,22 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
           router.push(`${pathname}?${params.toString()}`);
         });
       } else {
-        handleProjectClick(project);
+        const params = new URLSearchParams(searchParams.toString());
+
+        if (type === 'assets' || type === 'search') {
+          params.set('projects', project);
+        } else {
+          params.set('project', project);
+        }
+
+        params.delete('page');
+
+        startTransition(() => {
+          router.push(`${pathname}?${params.toString()}`);
+        });
       }
     },
-    [router, pathname, searchParams, type, handleProjectClick]
+    [currentProject, router, pathname, searchParams, type, startTransition]
   );
 
   return (
@@ -204,7 +169,11 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
             }}
           >
             <span className="truncate max-w-[80px] sm:max-w-none">
-              {currentProject ? getProjectDisplayName(currentProject) : '选择项目'}
+              {availableProjects.length === 0
+                ? '暂无项目权限'
+                : currentProject
+                  ? getProjectDisplayName(currentProject)
+                  : '选择项目'}
             </span>
             <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 opacity-50 ml-0.5 sm:ml-1" />
           </Button>
@@ -215,7 +184,11 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
           style={menuWidth ? { minWidth: `${menuWidth}px`, width: 'auto' } : undefined}
           sideOffset={4}
         >
-          {getAllProjects().map((project) => {
+          {availableProjects.length === 0 ? (
+            <DropdownMenuItem disabled className="whitespace-nowrap text-muted-foreground">
+              暂无项目权限
+            </DropdownMenuItem>
+          ) : availableProjects.map((project) => {
             const displayName = getProjectDisplayName(project);
             return (
               <DropdownMenuItem
@@ -233,52 +206,6 @@ export function ProjectSelector({ type = 'assets' }: ProjectSelectorProps) {
           })}
         </DropdownMenuContent>
       </DropdownMenu>
-
-      {/* 密码验证对话框 */}
-      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{useMemo(() => getDescription('projectPasswordDialogTitle'), [])}</DialogTitle>
-            <DialogDescription>
-              {useMemo(() => getDescription('projectPasswordDialogDescription', { project: pendingProject || '' }), [pendingProject])}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handlePasswordSubmit}>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Input
-                  type="text"
-                  placeholder={useMemo(() => getDescription('projectPasswordInputPlaceholder'), [])}
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setError('');
-                  }}
-                  autoFocus
-                  autoComplete="off"
-                />
-                {error && <p className="text-sm text-destructive">{error}</p>}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => {
-                  setPasswordDialogOpen(false);
-                  setPassword('');
-                  setPendingProject(null);
-                  setError('');
-                }}
-              >
-                {useMemo(() => getDescription('projectPasswordDialogCancel'), [])}
-              </Button>
-              <Button type="submit">{useMemo(() => getDescription('projectPasswordDialogConfirm'), [])}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
-

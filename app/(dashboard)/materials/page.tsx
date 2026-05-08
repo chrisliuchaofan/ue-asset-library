@@ -5,6 +5,8 @@ import { MaterialsPageShell } from '@/components/materials-page-shell';
 import { UploadMaterialButton } from '@/components/materials/upload-material-button';
 import { getAllMaterials, getMaterialsSummary, getMaterialsCount, type MaterialsSummary } from '@/lib/materials-data';
 import { getReviewStatusMap } from '@/lib/review/review-data';
+import { getSession } from '@/lib/auth';
+import { getAllowedProjectsForEmail, isProjectAllowed } from '@/lib/project-permissions';
 import type { Material } from '@/data/material.schema';
 import type { Metadata } from 'next';
 
@@ -16,12 +18,16 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function MaterialsPage() {
+  const session = await getSession();
+  const allowedProjects = session?.user?.email
+    ? await getAllowedProjectsForEmail(session.user.email)
+    : [];
   const totalCount = await getMaterialsCount();
 
   let allMaterials: Material[];
   let summary: MaterialsSummary;
 
-  if (totalCount === 0) {
+  if (totalCount === 0 || allowedProjects.length === 0) {
     allMaterials = [];
     summary = { total: 0, types: {}, tags: {}, qualities: {}, projects: {} };
   } else {
@@ -30,10 +36,12 @@ export default async function MaterialsPage() {
       getReviewStatusMap(),
     ]);
     // 注入审核状态到素材对象
-    allMaterials = mats.map(m => ({
-      ...m,
-      reviewStatus: (reviewMap[m.id] as Material['reviewStatus']) || undefined,
-    }));
+    allMaterials = mats
+      .filter((m) => isProjectAllowed(m.project, allowedProjects))
+      .map(m => ({
+        ...m,
+        reviewStatus: (reviewMap[m.id] as Material['reviewStatus']) || undefined,
+      }));
     summary = getMaterialsSummary(allMaterials);
   }
 

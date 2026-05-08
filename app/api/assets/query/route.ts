@@ -7,6 +7,8 @@ import { createHash } from 'crypto';
 import { createLRUCache } from '@/lib/lru-cache';
 import { handleApiError } from '@/lib/error-handler';
 import type { Asset } from '@/data/manifest.schema';
+import { getSession } from '@/lib/auth';
+import { getAllowedProjectsForEmail, isProjectAllowed } from '@/lib/project-permissions';
 
 interface CachedResult {
   timestamp: number;
@@ -31,6 +33,20 @@ const AssetQuerySchema = z.object({
 export async function POST(request: Request) {
   const requestStart = Date.now();
   try {
+    const session = await getSession();
+    const email = session?.user?.email;
+    const allowedProjects = email ? await getAllowedProjectsForEmail(email) : [];
+
+    if (allowedProjects.length === 0) {
+      return NextResponse.json({
+        assets: [],
+        total: 0,
+        returned: 0,
+        summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {}, projects: {} },
+        cache: 'permission',
+      });
+    }
+
     let body: unknown;
     try {
       body = await request.json();
@@ -60,7 +76,19 @@ export async function POST(request: Request) {
 
     // 项目过滤是必填的，如果没有提供项目参数，默认使用项目A（三冰）
     if (!filters.projects || filters.projects.length === 0) {
-      filters.projects = ['项目A'];
+      filters.projects = [allowedProjects[0]];
+    } else {
+      filters.projects = filters.projects.filter((project) => isProjectAllowed(project, allowedProjects));
+    }
+
+    if (filters.projects.length === 0) {
+      return NextResponse.json({
+        assets: [],
+        total: 0,
+        returned: 0,
+        summary: { total: 0, types: {}, styles: {}, tags: {}, sources: {}, versions: {}, projects: {} },
+        cache: 'permission',
+      });
     }
 
     const cacheKey = createHash('sha1')
@@ -83,7 +111,9 @@ export async function POST(request: Request) {
     }
 
     const manifestStart = Date.now();
-    const allAssets = await listAssets();
+    const allAssets = (await listAssets()).filter((asset) =>
+      !asset.project || isProjectAllowed(asset.project, allowedProjects)
+    );
     const manifestDuration = Date.now() - manifestStart;
 
     const filterStart = Date.now();
@@ -151,4 +181,3 @@ export async function POST(request: Request) {
     return handleApiError(error, '资产筛选失败');
   }
 }
-

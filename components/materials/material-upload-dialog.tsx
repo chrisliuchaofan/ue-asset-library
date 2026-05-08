@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -19,6 +19,15 @@ interface FileInfo {
   file: File;
   previewUrl: string;
   isVideo: boolean;
+  width?: number;
+  height?: number;
+  duration?: number;
+}
+
+interface UploadResult {
+  fileUrl: string;
+  key?: string;
+  hash?: string;
   width?: number;
   height?: number;
   duration?: number;
@@ -93,6 +102,65 @@ async function computeSHA256(file: File): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+function uploadFileViaServer(
+  file: File,
+  options: { onProgress?: (percent: number) => void; signal?: AbortSignal } = {}
+): Promise<UploadResult> {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+    xhr.timeout = 10 * 60 * 1000;
+
+    if (options.signal) {
+      options.signal.addEventListener(
+        'abort',
+        () => {
+          xhr.abort();
+          reject(new DOMException('上传已取消', 'AbortError'));
+        },
+        { once: true }
+      );
+    }
+
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        options.onProgress?.(Math.round((event.loaded / event.total) * 100));
+      }
+    });
+
+    xhr.onload = () => {
+      const data = (() => {
+        try {
+          return JSON.parse(xhr.responseText || '{}');
+        } catch {
+          return {};
+        }
+      })();
+
+      if (xhr.status >= 200 && xhr.status < 300 && data.url) {
+        resolve({
+          fileUrl: data.url,
+          hash: data.hash,
+          width: data.width,
+          height: data.height,
+          duration: data.duration,
+        });
+        return;
+      }
+
+      reject(new Error(data.message || `上传失败 (${xhr.status})`));
+    };
+
+    xhr.onerror = () => reject(new Error('上传失败：网络异常'));
+    xhr.ontimeout = () => reject(new Error('上传失败：请求超时'));
+    xhr.onabort = () => reject(new DOMException('上传已取消', 'AbortError'));
+    xhr.send(formData);
+  });
+}
+
 /* ---------- 组件 ---------- */
 
 export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = 'internal' }: MaterialUploadDialogProps) {
@@ -102,6 +170,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
+  const [allowedProjects, setAllowedProjects] = useState<string[]>([...PROJECTS]);
 
   // 表单
   const [name, setName] = useState('');
@@ -109,9 +178,40 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
   const [project, setProject] = useState<string>(PROJECTS[0]);
   const [tag, setTag] = useState<string>('达标');
   const [selectedQualities, setSelectedQualities] = useState<string[]>(['常规']);
+  const [materialSource, setMaterialSource] = useState<MaterialSource>(source);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const selectableProjects = useMemo(
+    () => PROJECTS.filter((item) => allowedProjects.includes(item)),
+    [allowedProjects]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setMaterialSource(source);
+
+    fetch('/api/projects/permissions')
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return res.json() as Promise<{ projects?: string[] }>;
+      })
+      .then((data) => {
+        if (cancelled || !data?.projects) return;
+        setAllowedProjects(data.projects);
+        if (data.projects.length > 0 && !data.projects.includes(project)) {
+          setProject(data.projects[0]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAllowedProjects([...PROJECTS]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, project, source]);
 
   /* --- 重置 --- */
   const resetState = useCallback(() => {
@@ -123,12 +223,13 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
     setIsDragOver(false);
     setName('');
     setMaterialType('');
-    setProject(PROJECTS[0]);
+    setProject(selectableProjects[0] || PROJECTS[0]);
     setTag('达标');
     setSelectedQualities(['常规']);
+    setMaterialSource(source);
     abortRef.current?.abort();
     abortRef.current = null;
-  }, [fileInfo?.previewUrl]);
+  }, [fileInfo?.previewUrl, selectableProjects, source]);
 
   /* --- 文件选择 --- */
   const handleFileSelect = useCallback(async (file: File) => {
@@ -204,6 +305,11 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
   /* --- 上传 + 创建素材 --- */
   const handleUpload = useCallback(async () => {
     if (!fileInfo || !name.trim()) return;
+    if (!selectableProjects.includes(project as Project)) {
+      setErrorMessage('没有该项目的上传权限，请联系管理员开通');
+      setStep('error');
+      return;
+    }
 
     setStep('uploading');
     setUploadProgress(0);
@@ -214,16 +320,26 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
       setUploadProgress(2);
       const hash = await computeSHA256(fileInfo.file);
 
-      // 2. 上传到 OSS
-      const { fileUrl } = await uploadFileDirect(fileInfo.file, {
-        onProgress: (p) => setUploadProgress(Math.min(5 + Math.round(p * 0.85), 90)),
-        signal: abortRef.current.signal,
-      });
+      // 2. 上传到云存储。优先 OSS 直传；如果新桶还没配置浏览器跨域，自动回退到服务器上传。
+      let uploadResult: UploadResult;
+      try {
+        uploadResult = await uploadFileDirect(fileInfo.file, {
+          onProgress: (p) => setUploadProgress(Math.min(5 + Math.round(p * 0.85), 90)),
+          signal: abortRef.current.signal,
+        });
+      } catch (directError) {
+        console.warn('[MaterialUpload] OSS 直传失败，改用服务器上传:', directError);
+        uploadResult = await uploadFileViaServer(fileInfo.file, {
+          onProgress: (p) => setUploadProgress(Math.min(5 + Math.round(p * 0.85), 90)),
+          signal: abortRef.current.signal,
+        });
+      }
 
       setUploadProgress(92);
 
       // 3. 生成缩略图 URL（视频用第一帧截图，图片用原图缩略）
       // 对于视频：OSS 地址就是 src，thumbnail 使用 previewUrl 或同 src
+      const fileUrl = uploadResult.fileUrl;
       const thumbnailUrl = fileInfo.isVideo ? fileUrl : fileUrl;
 
       // 4. 创建素材记录
@@ -233,14 +349,14 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
         project,
         tag,
         quality: selectedQualities.length > 0 ? selectedQualities : ['常规'],
-        source,
+        source: materialSource,
         src: fileUrl,
         thumbnail: thumbnailUrl,
-        hash,
+        hash: uploadResult.hash || hash,
         fileSize: fileInfo.file.size,
-        width: fileInfo.width,
-        height: fileInfo.height,
-        duration: fileInfo.duration,
+        width: uploadResult.width ?? fileInfo.width,
+        height: uploadResult.height ?? fileInfo.height,
+        duration: uploadResult.duration ?? fileInfo.duration,
       };
 
       const res = await fetch('/api/materials', {
@@ -264,7 +380,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
       setErrorMessage(err instanceof Error ? err.message : '上传失败');
       setStep('error');
     }
-  }, [fileInfo, name, materialType, project, tag, selectedQualities, onSuccess, resetState]);
+  }, [fileInfo, name, materialType, project, tag, selectedQualities, materialSource, selectableProjects, resetState]);
 
   /* --- 关闭 --- */
   const handleClose = useCallback(
@@ -283,7 +399,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{source === 'competitor' ? '上传竞品素材' : '上传内部素材'}</DialogTitle>
+          <DialogTitle>{materialSource === 'competitor' ? '上传竞品素材' : '上传内部素材'}</DialogTitle>
           <DialogDescription>
             {step === 'select' && '选择视频或图片文件上传到素材库'}
             {step === 'metadata' && '填写素材信息'}
@@ -407,11 +523,25 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
                   onChange={(e) => setProject(e.target.value)}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
-                  {PROJECTS.map((p) => (
+                  {selectableProjects.length === 0 ? (
+                    <option value="">暂无权限</option>
+                  ) : selectableProjects.map((p) => (
                     <option key={p} value={p}>{PROJECT_DISPLAY_NAMES[p as Project] || p}</option>
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>素材来源</Label>
+              <select
+                value={materialSource}
+                onChange={(e) => setMaterialSource(e.target.value as MaterialSource)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="internal">内部素材</option>
+                <option value="competitor">竞品素材</option>
+              </select>
             </div>
 
             {/* 标签 */}
@@ -446,6 +576,12 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
                 ))}
               </div>
             </div>
+
+            {selectableProjects.length === 0 && (
+              <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                当前账号还没有项目权限，请联系管理员开通后再上传。
+              </div>
+            )}
           </div>
         )}
 
@@ -511,7 +647,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
               </Button>
               <Button
                 size="sm"
-                disabled={!name.trim() || !materialType || !project}
+                disabled={!name.trim() || !materialType || !project || selectableProjects.length === 0}
                 onClick={handleUpload}
               >
                 <Upload className="w-3.5 h-3.5 mr-1.5" />

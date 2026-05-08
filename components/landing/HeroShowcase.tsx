@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 
-const OSS_BASE = 'https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com';
+const OSS_BASE = (
+  process.env.NEXT_PUBLIC_CDN_BASE ||
+  'https://sa205-hengxing-ai-repository-oss.oss-cn-beijing.aliyuncs.com'
+).replace(/\/+$/, '');
 
 /* ───── 视频背景（只渲染 active + 预加载 next） ───── */
 

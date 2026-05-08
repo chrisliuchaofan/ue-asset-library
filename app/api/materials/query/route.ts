@@ -5,6 +5,8 @@ import { getMaterialsIndex, type MaterialFilterOptions } from '@/lib/material-in
 import { createLRUCache } from '@/lib/lru-cache';
 import { createHash } from 'crypto';
 import type { Material } from '@/data/material.schema';
+import { getSession } from '@/lib/auth';
+import { getAllowedProjectsForEmail, isProjectAllowed } from '@/lib/project-permissions';
 
 interface CachedResult {
   timestamp: number;
@@ -27,6 +29,20 @@ const MaterialQuerySchema = z.object({
 export async function POST(request: Request) {
   const requestStart = Date.now();
   try {
+    const session = await getSession();
+    const email = session?.user?.email;
+    const allowedProjects = email ? await getAllowedProjectsForEmail(email) : [];
+
+    if (allowedProjects.length === 0) {
+      return NextResponse.json({
+        materials: [],
+        total: 0,
+        returned: 0,
+        summary: { total: 0, types: {}, tags: {}, qualities: {}, projects: {} },
+        cache: 'permission',
+      });
+    }
+
     let body: unknown;
     try {
       body = await request.json();
@@ -54,9 +70,19 @@ export async function POST(request: Request) {
 
     const { limit, ...filters } = parsed.data;
     
-    // 项目过滤是必填的，如果没有提供项目参数，默认使用项目A（三冰）
+    // 项目过滤是必填的；没有提供时默认使用用户有权限的第一个项目
     if (!filters.project) {
-      filters.project = '项目A';
+      filters.project = allowedProjects[0];
+    }
+
+    if (!isProjectAllowed(filters.project, allowedProjects)) {
+      return NextResponse.json({
+        materials: [],
+        total: 0,
+        returned: 0,
+        summary: { total: 0, types: {}, tags: {}, qualities: {}, projects: {} },
+        cache: 'permission',
+      });
     }
     
     const normalizedFilters: MaterialFilterOptions = {
@@ -67,7 +93,9 @@ export async function POST(request: Request) {
       project: filters.project ?? undefined,
     };
 
-    const cacheKey = createHash('sha1').update(JSON.stringify(normalizedFilters)).digest('hex');
+    const cacheKey = createHash('sha1')
+      .update(JSON.stringify({ filters: normalizedFilters, allowedProjects }))
+      .digest('hex');
     const cached = materialsQueryCache.get(cacheKey);
     // 优化：检查缓存时，如果结果为空且缓存时间较短，延长缓存时间（空结果通常不会很快变化）
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -89,7 +117,9 @@ export async function POST(request: Request) {
     }
 
     const manifestStart = Date.now();
-    const materials = await getAllMaterials();
+    const materials = (await getAllMaterials()).filter((material) =>
+      isProjectAllowed(material.project, allowedProjects)
+    );
     const manifestDuration = Date.now() - manifestStart;
 
     // 优化：如果数据为空，直接返回空结果，不需要构建索引和筛选
@@ -193,5 +223,4 @@ export async function POST(request: Request) {
     }, { status: 200 }); // 返回 200，让前端处理空状态
   }
 }
-
 

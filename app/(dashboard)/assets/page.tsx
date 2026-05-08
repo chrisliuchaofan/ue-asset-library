@@ -3,6 +3,8 @@ import { SearchBox } from '@/components/search-box';
 import { ProjectSelector } from '@/components/project-selector';
 import { AssetsPageShell } from '@/components/assets-page-shell';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getSession } from '@/lib/auth';
+import { getAllowedProjectsForEmail, isProjectAllowed } from '@/lib/project-permissions';
 import type { Asset } from '@/data/manifest.schema';
 import type { Metadata } from 'next';
 
@@ -98,6 +100,11 @@ export default async function AssetsPage() {
   let sources: string[] = [];
   let engineVersions: string[] = [];
 
+  const session = await getSession();
+  const allowedProjects = session?.user?.email
+    ? await getAllowedProjectsForEmail(session.user.email)
+    : [];
+
   try {
     // 检查 Supabase 环境变量
     const hasSupabaseConfig = !!(
@@ -123,7 +130,9 @@ export default async function AssetsPage() {
         // 不 throw，返回空数组确保页面不白屏
       } else if (data && data.length > 0) {
         // 映射数据
-        allAssets = data.map(mapSupabaseRowToAsset);
+        allAssets = data
+          .map(mapSupabaseRowToAsset)
+          .filter((asset) => !asset.project || isProjectAllowed(asset.project, allowedProjects));
 
         // 提取 filters
         const tagSet = new Set<string>();

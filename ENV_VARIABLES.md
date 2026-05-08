@@ -20,6 +20,12 @@ NEXTAUTH_URL=https://your-domain.vercel.app
 # 管理员账号配置（格式：用户名:密码，多个用户用逗号分隔）
 ADMIN_USERS=admin:admin123
 
+# 公司邮箱注册限制（多个域名用英文逗号分隔）
+COMPANY_EMAIL_DOMAINS=tuyoogame.com
+NEXT_PUBLIC_COMPANY_EMAIL_DOMAINS=tuyoogame.com
+COMPANY_TEAM_NAME=爆款工坊团队
+COMPANY_TEAM_SLUG=baokuan-workshop
+
 # ============================================
 # Supabase 配置（必需）
 # ============================================

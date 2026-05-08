@@ -4,6 +4,8 @@ import Google from 'next-auth/providers/google';
 import GitHub from 'next-auth/providers/github';
 import type { NextAuthConfig } from 'next-auth';
 
+const enableOAuthLogin = process.env.ENABLE_OAUTH_LOGIN === 'true';
+
 // 启动时验证 NextAuth 配置
 if (typeof window === 'undefined') {
   const requiredEnvVars = {
@@ -45,13 +47,13 @@ function getAdminUsers(): Array<{ username: string; password: string; email?: st
 export const authOptions: NextAuthConfig = {
   providers: [
     // OAuth providers (配置了环境变量才启用)
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ...(enableOAuthLogin && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       ? [Google({
           clientId: process.env.GOOGLE_CLIENT_ID,
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         })]
       : []),
-    ...(process.env.GITHUB_ID && process.env.GITHUB_SECRET
+    ...(enableOAuthLogin && process.env.GITHUB_ID && process.env.GITHUB_SECRET
       ? [GitHub({
           clientId: process.env.GITHUB_ID,
           clientSecret: process.env.GITHUB_SECRET,

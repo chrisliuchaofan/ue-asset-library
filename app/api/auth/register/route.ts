@@ -1,7 +1,23 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { validateInvitation, consumeInvitation, addMember } from '@/lib/team/team-service';
+import {
+  validateInvitation,
+  consumeInvitation,
+  addMember,
+  getTeamBySlug,
+  createTeam,
+  generateSlug,
+  getMemberRole,
+  getTeamMembers,
+} from '@/lib/team/team-service';
+import {
+  formatAllowedCompanyEmailDomains,
+  getAllowedCompanyEmailDomains,
+  isAllowedCompanyEmail,
+  normalizeEmail,
+} from '@/lib/auth/company-email';
+import { createSupabaseAuthClient } from '@/lib/supabase/auth-client';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -10,19 +26,63 @@ const RegisterSchema = z.object({
   username: z.string().min(2, '用户名至少 2 个字符').max(50),
   email: z.string().email('请输入有效的邮箱地址'),
   password: z.string().min(6, '密码至少 6 个字符').max(100),
-  invitation_code: z.string().min(1, '请输入邀请码'),
+  verification_code: z.string().min(6, '请输入邮箱验证码').max(12, '验证码格式不正确'),
+  invitation_code: z.string().optional(),
 });
 
+async function addToDefaultCompanyTeam(email: string, username: string) {
+  const configuredSlug = process.env.COMPANY_TEAM_SLUG?.trim();
+  const teamName = process.env.COMPANY_TEAM_NAME?.trim() || '爆款工坊团队';
+  const baseSlug = generateSlug(configuredSlug || teamName);
+  let team = await getTeamBySlug(baseSlug);
+
+  if (!team) {
+    try {
+      team = await createTeam({
+        name: teamName,
+        slug: baseSlug,
+        createdBy: email,
+        description: '公司邮箱自动注册创建的默认团队',
+      });
+    } catch (error) {
+      team = await getTeamBySlug(baseSlug);
+      if (!team) {
+        throw error;
+      }
+      const existingRole = await getMemberRole(team.id, email);
+      if (existingRole) {
+        return { teamName: team.name, role: existingRole };
+      }
+
+      const members = await getTeamMembers(team.id);
+      const role = members.some((member) => member.role === 'owner') ? 'member' : 'owner';
+      await addMember(team.id, email, role);
+      return { teamName: team.name, role };
+    }
+    return { teamName: team.name, role: 'owner' as const };
+  }
+
+  const existingRole = await getMemberRole(team.id, email);
+  if (existingRole) {
+    return { teamName: team.name, role: existingRole };
+  }
+
+  const members = await getTeamMembers(team.id);
+  const role = members.some((member) => member.role === 'owner') ? 'member' : 'owner';
+  await addMember(team.id, email, role);
+  return { teamName: team.name, role };
+}
+
 /**
- * POST /api/auth/register — 邀请码注册
+ * POST /api/auth/register — 公司邮箱注册
  *
  * 流程：
- * 1. 验证邀请码是否有效
+ * 1. 验证邮箱是否属于公司域名
  * 2. 检查邮箱/用户名是否已注册
- * 3. 通过 Supabase Auth Admin API 创建 auth 用户
- * 4. 创建 profile（关联 auth.users.id）
- * 5. 将用户添加到邀请码对应的团队
- * 6. 消耗邀请码
+ * 3. 校验公司邮箱验证码
+ * 4. 为已验证的 Supabase Auth 用户设置密码
+ * 5. 创建 profile（关联 auth.users.id）
+ * 6. 加入默认公司团队；如果仍传入邀请码，则加入邀请码团队
  */
 export async function POST(request: Request) {
   try {
@@ -37,32 +97,52 @@ export async function POST(request: Request) {
       );
     }
 
-    const { username, email, password, invitation_code } = parsed.data;
+    const username = parsed.data.username.trim();
+    const email = normalizeEmail(parsed.data.email);
+    const { password } = parsed.data;
+    const verificationCode = parsed.data.verification_code.trim();
+    const invitationCode = parsed.data.invitation_code?.trim().toUpperCase();
 
-    // 1. 验证邀请码
-    const invitation = await validateInvitation(invitation_code);
-    if (!invitation) {
+    const allowedDomains = getAllowedCompanyEmailDomains();
+    if (allowedDomains.length === 0) {
       return NextResponse.json(
-        { message: '邀请码无效、已过期或已被使用' },
-        { status: 400 }
+        { message: '公司邮箱域名未配置，请联系管理员' },
+        { status: 500 }
       );
     }
 
-    // 检查邀请码是否限定了邮箱
-    if (invitation.email && invitation.email !== email) {
+    if (!isAllowedCompanyEmail(email, allowedDomains)) {
       return NextResponse.json(
-        { message: '该邀请码仅限指定邮箱使用' },
-        { status: 400 }
+        { message: `仅支持公司邮箱注册：${formatAllowedCompanyEmailDomains(allowedDomains)}` },
+        { status: 403 }
       );
     }
 
-    // 2. 检查邮箱是否已注册（在 profiles 表中）
+    let invitation: Awaited<ReturnType<typeof validateInvitation>> = null;
+    if (invitationCode) {
+      invitation = await validateInvitation(invitationCode);
+      if (!invitation) {
+        return NextResponse.json(
+          { message: '邀请码无效、已过期或已被使用' },
+          { status: 400 }
+        );
+      }
+
+      if (invitation.email && normalizeEmail(invitation.email) !== email) {
+        return NextResponse.json(
+          { message: '该邀请码仅限指定邮箱使用' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 2. 检查邮箱是否已完成注册。发验证码时可能会先创建一个未完成 profile。
     const { data: existingByEmail } = await (supabaseAdmin.from('profiles') as any)
-      .select('id')
+      .select('id, email, username, password_hash')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
-    if (existingByEmail) {
+    if (existingByEmail?.password_hash) {
       return NextResponse.json(
         { message: '该邮箱已注册' },
         { status: 409 }
@@ -71,47 +151,68 @@ export async function POST(request: Request) {
 
     // 检查用户名是否已被使用
     const { data: existingByUsername } = await (supabaseAdmin.from('profiles') as any)
-      .select('id')
+      .select('id, email')
       .eq('username', username)
-      .single();
+      .maybeSingle();
 
-    if (existingByUsername) {
+    if (existingByUsername && normalizeEmail(existingByUsername.email) !== email) {
       return NextResponse.json(
         { message: '该用户名已被使用' },
         { status: 409 }
       );
     }
 
-    // 3. 通过 Supabase Auth Admin API 创建用户
-    // 这会在 auth.users 表中创建记录，返回的 user.id 作为 profiles.id
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    // 3. 校验邮箱验证码。只有能收到公司邮箱验证码的人，才允许继续创建账号。
+    const supabase = createSupabaseAuthClient();
+    const { data: verifiedData, error: verifyError } = await supabase.auth.verifyOtp({
       email,
-      password, // Supabase Auth 会自动加密存储
-      email_confirm: true, // 自动确认邮箱（邀请码已验证身份）
+      token: verificationCode,
+      type: 'email',
+    });
+
+    if (verifyError || !verifiedData.user) {
+      console.error('[Register] 邮箱验证码校验失败:', verifyError);
+      return NextResponse.json(
+        { message: '验证码无效或已过期，请重新获取' },
+        { status: 400 }
+      );
+    }
+
+    const authUserId = verifiedData.user.id; // UUID from auth.users
+
+    if (existingByEmail && existingByEmail.id !== authUserId) {
+      return NextResponse.json(
+        { message: '该邮箱已注册' },
+        { status: 409 }
+      );
+    }
+
+    if (existingByUsername && existingByUsername.id !== authUserId) {
+      return NextResponse.json(
+        { message: '该用户名已被使用' },
+        { status: 409 }
+      );
+    }
+
+    // 4. 为已验证的 auth 用户设置密码，之后可用项目登录页登录。
+    const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+      password,
+      email_confirm: true,
       user_metadata: { username },
     });
 
-    if (authError || !authData.user) {
-      console.error('[Register] Supabase Auth 创建用户失败:', authError);
-      // 如果是邮箱已在 auth.users 中存在
-      if (authError?.message?.includes('already been registered')) {
-        return NextResponse.json(
-          { message: '该邮箱已注册' },
-          { status: 409 }
-        );
-      }
+    if (updateAuthError) {
+      console.error('[Register] 设置 Auth 密码失败:', updateAuthError);
       return NextResponse.json(
         { message: '注册失败，请重试' },
         { status: 500 }
       );
     }
 
-    const authUserId = authData.user.id; // UUID from auth.users
-
-    // 4. 加密密码（用于 NextAuth credentials 登录）
+    // 5. 加密密码（用于 NextAuth credentials 登录）
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // 5. 创建/更新 profile（id = auth.users.id，满足外键约束）
+    // 6. 创建/更新 profile（id = auth.users.id，满足外键约束）
     // 使用 upsert：Supabase 可能有 trigger 在 auth.users INSERT 时自动创建 profile
     const { data: profile, error: profileError } = await (supabaseAdmin.from('profiles') as any)
       .upsert({
@@ -127,7 +228,6 @@ export async function POST(request: Request) {
 
     if (profileError) {
       console.error('[Register] 创建 profile 失败:', profileError);
-      // 回滚：删除刚创建的 auth 用户
       await supabaseAdmin.auth.admin.deleteUser(authUserId);
       return NextResponse.json(
         { message: '注册失败，请重试' },
@@ -135,20 +235,30 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. 将用户添加到团队
+    // 7. 将用户添加到团队
+    let teamName = '爆款工坊团队';
     try {
-      await addMember(
-        invitation.team_id,
-        email, // team_members.user_id 使用 email（与现有系统一致）
-        invitation.role as any
-      );
+      if (invitation) {
+        await addMember(
+          invitation.team_id,
+          email, // team_members.user_id 使用 email（与现有系统一致）
+          invitation.role as any
+        );
+        await consumeInvitation(invitation.id);
+        teamName = invitation.team?.name || teamName;
+      } else {
+        const result = await addToDefaultCompanyTeam(email, username);
+        teamName = result.teamName;
+      }
     } catch (memberError) {
       console.error('[Register] 添加团队成员失败:', memberError);
-      // 不影响注册成功，但记录错误
+      await (supabaseAdmin.from('profiles') as any).delete().eq('id', authUserId);
+      await supabaseAdmin.auth.admin.deleteUser(authUserId);
+      return NextResponse.json(
+        { message: '注册失败：无法加入团队，请联系管理员' },
+        { status: 500 }
+      );
     }
-
-    // 7. 消耗邀请码
-    await consumeInvitation(invitation.id);
 
     return NextResponse.json(
       {
@@ -156,7 +266,7 @@ export async function POST(request: Request) {
         user: {
           email: profile.email,
           username: profile.username,
-          teamName: invitation.team?.name || '未知团队',
+          teamName,
         },
       },
       { status: 201 }

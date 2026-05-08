@@ -1,18 +1,36 @@
 import { NextResponse } from 'next/server';
 import { MaterialCreateSchema, type Material } from '@/data/material.schema';
 import { createMaterial, getAllMaterials, getMaterialsSummary } from '@/lib/materials-data';
+import { getSession } from '@/lib/auth';
+import { getAllowedProjectsForEmail, isProjectAllowed } from '@/lib/project-permissions';
 import { z } from 'zod';
 
 export async function GET(request: Request) {
   const start = Date.now();
   try {
+    const session = await getSession();
+    const email = session?.user?.email;
+    const allowedProjects = email ? await getAllowedProjectsForEmail(email) : [];
+
+    if (allowedProjects.length === 0) {
+      return NextResponse.json({
+        materials: [],
+        total: 0,
+        page: 1,
+        pageSize: 0,
+        totalPages: 1,
+      });
+    }
+
     // 解析查询参数
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
 
     // 使用真实数据源
-    const allMaterials = await getAllMaterials();
+    const allMaterials = (await getAllMaterials()).filter((material) =>
+      isProjectAllowed(material.project, allowedProjects)
+    );
 
     // 简单分页处理（暂时返回全部，后续可以优化）
     // 如果 pageSize 为 -1 或很大，返回全部数据
@@ -46,6 +64,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    const email = session?.user?.email;
+
+    if (!email) {
+      return NextResponse.json({ message: '未登录，请先登录' }, { status: 401 });
+    }
+
     const json = await request.json();
     
     const parsed = MaterialCreateSchema.safeParse(json);
@@ -57,6 +82,14 @@ export async function POST(request: Request) {
           errors: parsed.error.flatten(),
         },
         { status: 400 }
+      );
+    }
+
+    const allowedProjects = await getAllowedProjectsForEmail(email);
+    if (!isProjectAllowed(parsed.data.project, allowedProjects)) {
+      return NextResponse.json(
+        { message: '没有该项目的上传权限，请联系管理员开通' },
+        { status: 403 }
       );
     }
 
@@ -84,4 +117,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ message }, { status: 500 });
   }
 }
-

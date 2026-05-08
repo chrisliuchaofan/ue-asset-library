@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 
-const OSS_BASE = 'https://guangzhougamead.oss-cn-guangzhou.aliyuncs.com';
+const OSS_BASE = (
+  process.env.NEXT_PUBLIC_CDN_BASE ||
+  'https://sa205-hengxing-ai-repository-oss.oss-cn-beijing.aliyuncs.com'
+).replace(/\/+$/, '');
 
 /* ───── Tab 数据 ───── */
 

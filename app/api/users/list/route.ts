@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createStandardError, ErrorCode, handleApiRouteError } from '@/lib/errors/error-handler';
 import { isAdmin } from '@/lib/auth/is-admin';
+import { readProjectPermissions } from '@/lib/project-permissions';
 
 /**
  * GET /api/users/list
@@ -42,6 +43,11 @@ export async function GET() {
       throw error;
     }
 
+    const projectPermissionRecords = await readProjectPermissions();
+    const projectPermissionsByEmail = new Map(
+      projectPermissionRecords.map((record) => [record.email.toLowerCase(), record.projects])
+    );
+
     // 转换为前端需要的格式
     const users = await Promise.all((profiles || []).map(async (profile: any) => {
       // 通过 isAdmin 函数判断是否是管理员（会处理字段不存在的情况）
@@ -58,6 +64,9 @@ export async function GET() {
         createdAt: profile.created_at || new Date().toISOString(),
         updatedAt: profile.updated_at || profile.created_at || new Date().toISOString(),
         isAdmin: userIsAdmin, // 通过 isAdmin 函数判断
+        projectPermissions: userIsAdmin
+          ? ['项目A', '项目B', '项目C']
+          : projectPermissionsByEmail.get(email.toLowerCase()) || [],
       };
     }));
 
@@ -67,4 +76,3 @@ export async function GET() {
     return await handleApiRouteError(error, '获取用户列表失败');
   }
 }
-

@@ -19,6 +19,7 @@ import {
 import { ErrorDisplay } from '@/components/errors/error-display';
 import { normalizeError, createStandardError, ErrorCode } from '@/lib/errors/error-handler';
 import { useRequireAdmin } from '@/lib/auth/require-admin';
+import { PROJECTS, PROJECT_DISPLAY_NAMES, type Project } from '@/lib/constants';
 
 interface User {
   id: string;
@@ -30,6 +31,7 @@ interface User {
   createdAt: string;
   updatedAt: string;
   isAdmin?: boolean;
+  projectPermissions: Project[];
 }
 
 export default function UsersPage() {
@@ -161,6 +163,43 @@ export default function UsersPage() {
     }
   };
 
+  const handleToggleProjectPermission = async (user: User, project: Project) => {
+    const hasPermission = user.projectPermissions.includes(project);
+    const nextProjects = hasPermission
+      ? user.projectPermissions.filter((item) => item !== project)
+      : [...user.projectPermissions, project];
+
+    setUpdating(`${user.id}-project-${project}`);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/users/project-permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetEmail: user.email,
+          projects: nextProjects,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw normalizeError(errorData, ErrorCode.UNKNOWN_ERROR);
+      }
+
+      const result = await response.json();
+      setUsers((prevUsers) => prevUsers.map((item) =>
+        item.id === user.id
+          ? { ...item, projectPermissions: result.projects || nextProjects }
+          : item
+      ));
+    } catch (err) {
+      setError(normalizeError(err, ErrorCode.UNKNOWN_ERROR));
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const handleCreateUser = async () => {
     if (!createEmail || !createPassword) {
       setError(createStandardError(ErrorCode.VALIDATION_ERROR, '请填写邮箱和密码'));
@@ -202,7 +241,7 @@ export default function UsersPage() {
 
       // 将新用户添加到列表
       if (result.user) {
-        setUsers(prevUsers => [...prevUsers, result.user]);
+        setUsers(prevUsers => [...prevUsers, { ...result.user, projectPermissions: [] }]);
       } else {
         // 如果没有返回用户，重新加载列表
         await loadUsers();
@@ -257,7 +296,9 @@ export default function UsersPage() {
       // 只更新该用户，不重新加载整个列表
       if (result.user) {
         setUsers(prevUsers => prevUsers.map(user => 
-          user.id === editingUser.id ? result.user : user
+          user.id === editingUser.id
+            ? { ...result.user, projectPermissions: editingUser.projectPermissions }
+            : user
         ));
       } else {
         // 如果没有返回用户，只更新本地状态
@@ -384,6 +425,7 @@ export default function UsersPage() {
                     <th className="text-right py-3 px-4 text-sm font-semibold text-foreground">积分</th>
                     <th className="text-center py-3 px-4 text-sm font-semibold text-foreground">计费</th>
                     <th className="text-center py-3 px-4 text-sm font-semibold text-foreground">模型</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">项目权限</th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-foreground">创建</th>
                     <th className="text-right py-3 px-4 text-sm font-semibold text-foreground">操作</th>
                   </tr>
@@ -444,6 +486,30 @@ export default function UsersPage() {
                             </>
                           )}
                         </button>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-wrap gap-1.5">
+                          {PROJECTS.map((project) => {
+                            const active = user.isAdmin || user.projectPermissions.includes(project);
+                            const disabled = Boolean(user.isAdmin || updating === `${user.id}-project-${project}`);
+                            return (
+                              <button
+                                key={project}
+                                type="button"
+                                onClick={() => handleToggleProjectPermission(user, project)}
+                                disabled={disabled}
+                                className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                                  active
+                                    ? 'border-primary/40 bg-primary/10 text-primary'
+                                    : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                                } disabled:cursor-not-allowed disabled:opacity-60`}
+                                title={user.isAdmin ? '管理员默认拥有所有项目权限' : undefined}
+                              >
+                                {PROJECT_DISPLAY_NAMES[project]}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-sm text-muted-foreground">
                         {new Date(user.createdAt).toLocaleString('zh-CN')}
