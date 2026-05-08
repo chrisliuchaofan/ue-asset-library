@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +39,8 @@ export function ResetPasswordForm({ allowedDomains }: ResetPasswordFormProps) {
   const [verificationCode, setVerificationCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [codeNotice, setCodeNotice] = useState('');
@@ -195,34 +198,64 @@ export function ResetPasswordForm({ allowedDomains }: ResetPasswordFormProps) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">新密码</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="至少 6 个字符"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError('');
-                }}
-                required
-                disabled={loading}
-                minLength={6}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="至少 6 个字符"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError('');
+                  }}
+                  required
+                  disabled={loading}
+                  minLength={6}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={showPassword ? '隐藏新密码' : '显示新密码'}
+                  title={showPassword ? '隐藏新密码' : '显示新密码'}
+                  disabled={loading}
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">确认新密码</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="请再次输入新密码"
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  setError('');
-                }}
-                required
-                disabled={loading}
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="请再次输入新密码"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setError('');
+                  }}
+                  required
+                  disabled={loading}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={showConfirmPassword ? '隐藏确认新密码' : '显示确认新密码'}
+                  title={showConfirmPassword ? '隐藏确认新密码' : '显示确认新密码'}
+                  disabled={loading}
+                  onClick={() => setShowConfirmPassword((value) => !value)}
+                  className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             {error && (
               <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">

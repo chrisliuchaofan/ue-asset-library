@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
 import { LoginShowcase } from '@/components/auth/LoginShowcase';
 
 /* ───── 响应式 CSS ───── */
@@ -21,6 +22,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -140,17 +142,44 @@ function LoginForm() {
                   重设密码
                 </Link>
               </div>
-              <input
-                type="password"
-                placeholder="请输入密码"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                required
-                disabled={loading}
-                style={inputStyle}
-                onFocus={(e) => { e.currentTarget.style.borderColor = '#111'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = '#e0e0e0'; }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="请输入密码"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                  required
+                  disabled={loading}
+                  style={{ ...inputStyle, paddingRight: 48 }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = '#111'; }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = '#e0e0e0'; }}
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                  title={showPassword ? '隐藏密码' : '显示密码'}
+                  disabled={loading}
+                  onClick={() => setShowPassword((value) => !value)}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    right: 10,
+                    transform: 'translateY(-50%)',
+                    width: 32,
+                    height: 32,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#666',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {/* 错误信息 */}
