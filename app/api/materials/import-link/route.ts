@@ -17,7 +17,7 @@ import {
   FILE_UPLOAD_LIMITS,
 } from '@/lib/constants';
 import { getSession } from '@/lib/auth';
-import { LINK_MATERIAL_PLATFORM, getLinkHostname } from '@/lib/material-link';
+import { getLinkHostname } from '@/lib/material-link';
 import { createMaterial } from '@/lib/materials-data';
 import { getOSSClient } from '@/lib/oss-client';
 import { getAllowedProjectsForEmail, isProjectAllowed } from '@/lib/project-permissions';
@@ -239,28 +239,15 @@ async function uploadDownloadedMedia(
   };
 }
 
-async function createLinkedMaterial(input: z.infer<typeof LinkImportSchema>, message?: string) {
-  const material = await createMaterial({
-    name: input.name.trim(),
-    type: input.type,
-    project: input.project,
-    source: input.source,
-    tag: input.tag,
-    quality: input.quality,
-    src: input.url,
-    thumbnail: '',
-    gallery: [],
-    platform: LINK_MATERIAL_PLATFORM,
-    advertiser: getLinkHostname(input.url),
-  });
-
+function createUnsupportedLinkResponse(message?: string) {
   return NextResponse.json(
     {
-      material,
-      mode: 'linked',
-      message: message || '已保存为在线链接',
+      message:
+        message ||
+        '这个链接不是可直接读取的图片/视频文件。钉钉文档、在线表格、需要登录的页面无法由服务器直接提取内部视频，请先下载视频文件上传，或粘贴可直接播放的视频链接。',
+      mode: 'unsupported',
     },
-    { status: 201 }
+    { status: 422 }
   );
 }
 
@@ -314,12 +301,12 @@ export async function POST(request: Request) {
       const kind = response.ok ? getDownloadableKind(contentType, ext) : null;
 
       if (!kind) {
-        return createLinkedMaterial(input, '该链接需要登录或不是直连媒体，已保存为在线链接');
+        return createUnsupportedLinkResponse();
       }
 
       const contentLength = Number(response.headers.get('content-length') || 0);
       if (contentLength > FILE_UPLOAD_LIMITS.MAX_FILE_SIZE) {
-        return createLinkedMaterial(input, '远程文件超过大小限制，已保存为在线链接');
+        return createUnsupportedLinkResponse('远程文件超过 2GB，无法直接导入素材库。请下载后压缩或分段上传。');
       }
 
       const buffer = await readResponseWithLimit(response, FILE_UPLOAD_LIMITS.MAX_FILE_SIZE);
@@ -352,9 +339,9 @@ export async function POST(request: Request) {
       );
     } catch (error) {
       const message = error instanceof Error && error.message === 'REMOTE_FILE_TOO_LARGE'
-        ? '远程文件超过大小限制，已保存为在线链接'
-        : '无法直接下载该链接，已保存为在线链接';
-      return createLinkedMaterial(input, message);
+        ? '远程文件超过 2GB，无法直接导入素材库。请下载后压缩或分段上传。'
+        : undefined;
+      return createUnsupportedLinkResponse(message);
     } finally {
       clearTimeout(timeout);
     }

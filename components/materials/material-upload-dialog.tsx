@@ -471,7 +471,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
         <DialogHeader>
           <DialogTitle>{materialSource === 'competitor' ? '上传竞品素材' : '上传内部素材'}</DialogTitle>
           <DialogDescription>
-            {step === 'select' && '选择文件或粘贴在线链接上传到素材库'}
+            {step === 'select' && '选择文件或粘贴视频/图片直链上传到素材库'}
             {step === 'metadata' && '填写素材信息'}
             {step === 'uploading' && '正在上传...'}
             {step === 'done' && '上传完成'}
@@ -517,7 +517,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
             <div className="rounded-xl border border-border p-4">
               <div className="mb-3 flex items-center gap-2">
                 <LinkIcon className="h-4 w-4 text-primary" />
-                <Label htmlFor="material-link">粘贴在线链接</Label>
+                <Label htmlFor="material-link">粘贴视频/图片直链</Label>
               </div>
               <div className="flex gap-2">
                 <Input
@@ -530,7 +530,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
                       handleLinkContinue();
                     }
                   }}
-                  placeholder="https://alidocs.dingtalk.com/..."
+                  placeholder="https://example.com/video.mp4"
                 />
                 <Button
                   type="button"
@@ -544,7 +544,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
                 </Button>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                图片、视频直链会尝试下载到素材库；钉钉文档这类需要登录的链接会保存为可打开的链接卡片。
+                只支持可直接读取的 MP4、MOV、WebM、JPG、PNG 等文件链接。钉钉文档这类页面链接需要先下载视频文件再上传。
               </p>
             </div>
           </div>
@@ -606,7 +606,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
                 <div className="flex items-center gap-3">
                   <LinkIcon className="h-8 w-8 shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">在线链接</p>
+                    <p className="text-sm font-medium">在线媒体链接</p>
                     <p className="truncate text-xs text-muted-foreground" title={linkUrl}>
                       {getHostname(linkUrl)} · {linkUrl}
                     </p>
