@@ -300,7 +300,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
         controllerRef.current = null;
       }
     };
-  }, [filtersKey, mounted, hasServerFilters, optimisticFilters, keyword, selectedType, selectedTag, selectedQualities, selectedProject, summary.total]); // 使用 filtersKey 和原始值作为依赖项，避免对象引用问题
+  }, [materials, filtersKey, mounted, hasServerFilters, optimisticFilters, keyword, selectedType, selectedTag, selectedQualities, selectedProject, summary.total]); // 使用 filtersKey 和原始值作为依赖项，避免对象引用问题
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -617,4 +617,3 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
     </>
   );
 }
-
