@@ -108,6 +108,11 @@ export async function POST(request: Request) {
       width: parsed.data.width,
       height: parsed.data.height,
       duration: parsed.data.duration,
+      platform: parsed.data.platform,
+      advertiser: parsed.data.advertiser,
+      estimatedSpend: parsed.data.estimatedSpend,
+      firstSeen: parsed.data.firstSeen,
+      lastSeen: parsed.data.lastSeen,
     });
     return NextResponse.json(material, { status: 201 });
   } catch (error) {

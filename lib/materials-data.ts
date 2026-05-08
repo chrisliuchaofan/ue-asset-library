@@ -448,6 +448,11 @@ export async function createMaterial(input: {
   width?: number;
   height?: number;
   duration?: number;
+  platform?: string;
+  advertiser?: string;
+  estimatedSpend?: number;
+  firstSeen?: number;
+  lastSeen?: number;
 }): Promise<Material> {
   // 优先使用 Supabase
   if (await isDbAvailable()) {
@@ -469,6 +474,11 @@ export async function createMaterial(input: {
           width: input.width,
           height: input.height,
           duration: input.duration,
+          platform: input.platform,
+          advertiser: input.advertiser,
+          estimatedSpend: input.estimatedSpend,
+          firstSeen: input.firstSeen,
+          lastSeen: input.lastSeen,
         });
         invalidateMaterialsCache();
         return material;
@@ -506,6 +516,11 @@ export async function createMaterial(input: {
     width: input.width,
     height: input.height,
     duration: input.duration,
+    platform: input.platform,
+    advertiser: input.advertiser,
+    estimatedSpend: input.estimatedSpend,
+    firstSeen: input.firstSeen,
+    lastSeen: input.lastSeen,
     createdAt: now,
     updatedAt: now,
   };

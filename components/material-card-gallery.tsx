@@ -9,9 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { type Material, MATERIAL_STATUS_LABELS, MATERIAL_STATUS_COLORS } from '@/data/material.schema';
 import { cn, highlightText, getClientAssetUrl, getOptimizedImageUrl } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, X, Eye, BarChart3, Loader2, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Eye, BarChart3, Loader2, FileText, ExternalLink } from 'lucide-react';
 import { MaterialDetailDialog } from '@/components/material-detail-dialog';
 import { useIsMobile } from '@/lib/hooks/use-is-mobile';
+import { getLinkHostname, isImageUrl, isLinkMaterial } from '@/lib/material-link';
 
 type ThumbSize = 'compact' | 'expanded';
 
@@ -60,6 +61,8 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
   const [aiResult, setAiResult] = useState<{ description: string; tags?: string[] } | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [savedAnalysis, setSavedAnalysis] = useState<string | null>(null);
+  const isLinkOnly = useMemo(() => isLinkMaterial(material), [material]);
+  const linkHostname = useMemo(() => getLinkHostname(material.src), [material.src]);
   
   const isVideoUrl = useCallback((url: string): boolean => {
     if (!url) return false;
@@ -73,6 +76,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
   
   // 收集所有视频 URL（优先从 gallery 和 src 获取，不包括 thumbnail）
   const videoUrls = useMemo(() => {
+    if (isLinkOnly) return [];
     const videos: string[] = [];
     // 从 gallery 中获取视频
     if (material.gallery?.length) {
@@ -83,25 +87,26 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
       videos.push(material.src);
     }
     return videos;
-  }, [material.gallery, material.src, isVideoUrl]);
+  }, [isLinkOnly, material.gallery, material.src, isVideoUrl]);
 
   // 收集所有图片 URL（不包括视频，不包括 thumbnail 如果它是视频）
   const imageUrls = useMemo(() => {
+    if (isLinkOnly) return [];
     const images: string[] = [];
     // 从 gallery 中获取图片
     if (material.gallery?.length) {
-      images.push(...material.gallery.filter((url) => url && !isVideoUrl(url)));
+      images.push(...material.gallery.filter((url) => url && !isVideoUrl(url) && isImageUrl(url)));
     }
     // 从 src 中获取图片
-    if (material.src && !isVideoUrl(material.src)) {
+    if (material.src && !isVideoUrl(material.src) && isImageUrl(material.src)) {
       images.push(material.src);
     }
     // 从 thumbnail 中获取图片（如果它不是视频）
-    if (material.thumbnail && !isVideoUrl(material.thumbnail)) {
+    if (material.thumbnail && !isVideoUrl(material.thumbnail) && isImageUrl(material.thumbnail)) {
       images.push(material.thumbnail);
     }
     return images;
-  }, [material.gallery, material.src, material.thumbnail, isVideoUrl]);
+  }, [isLinkOnly, material.gallery, material.src, material.thumbnail, isVideoUrl]);
 
   // 稳定第一个视频 URL 的引用
   const firstVideoUrl = useMemo(() => videoUrls[0] || null, [videoUrls]);
@@ -167,6 +172,8 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
 
   // 获取当前主图 URL（用于 AI 分析）
   const getMainImageUrl = useCallback((): string | null => {
+    if (isLinkOnly) return null;
+
     // 如果当前是视频且有提取的帧，使用当前索引对应的帧
     if (hasVideo && videoThumbnails.length > 0) {
       const frameIndex = Math.min(currentIndex, videoThumbnails.length - 1);
@@ -226,7 +233,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
     }
     
     return null;
-  }, [hasVideo, hasImage, videoThumbnails, currentIndex, imageUrls, currentImageUrl, material.thumbnail, videoThumbnail, isVideoUrl]);
+  }, [isLinkOnly, hasVideo, hasImage, videoThumbnails, currentIndex, imageUrls, currentImageUrl, material.thumbnail, videoThumbnail, isVideoUrl]);
 
   // 从localStorage加载已保存的分析
   useEffect(() => {
@@ -555,6 +562,29 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
               <span className="sr-only">查看详情</span>
             </Button>
           </div>
+          {isLinkOnly && (
+            <div className="z-10 flex h-full w-full flex-col items-center justify-center gap-2 bg-muted px-3 text-center text-muted-foreground">
+              <FileText className="h-9 w-9 opacity-70" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-foreground">在线链接</p>
+                <p className="mt-0.5 max-w-full truncate text-[11px]">{linkHostname}</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                className="relative z-20 h-7 gap-1 rounded-full bg-background/90 text-[11px]"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(material.src, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                <ExternalLink className="h-3 w-3" />
+                打开
+              </Button>
+            </div>
+          )}
           {/* 视频加载中的底层占位（视频帧加载后会被覆盖） */}
           {hasVideo && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted text-muted-foreground z-[5] gap-1.5">
@@ -627,7 +657,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
           )}
           
           {/* 3. 无预览内容（含视频加载失败回退） */}
-          {((!hasVideo && !hasImage) || (hasVideo && videoLoadError && !hasImage)) && (
+          {!isLinkOnly && ((!hasVideo && !hasImage) || (hasVideo && videoLoadError && !hasImage)) && (
             <div className="flex flex-col items-center justify-center h-full bg-muted text-muted-foreground z-10 gap-1.5">
               <svg className="w-8 h-8 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -745,7 +775,7 @@ function MaterialCardGalleryComponent({ material, keyword, priority = false, thu
               variant="secondary" 
               className="rounded-full font-normal text-[10px] px-1.5 py-0.5"
             >
-              {material.type}
+              {isLinkOnly ? '链接' : material.type}
             </Badge>
             <Badge
               variant="secondary"

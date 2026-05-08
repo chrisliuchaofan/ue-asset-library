@@ -7,7 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, X, FileVideo, ImageIcon, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Upload, X, FileVideo, ImageIcon, Loader2, CheckCircle2, AlertCircle, LinkIcon, ArrowRight } from 'lucide-react';
 import { uploadFileDirect } from '@/lib/client/direct-upload';
 import { PROJECTS, PROJECT_DISPLAY_NAMES, type Project } from '@/lib/constants';
 
@@ -102,6 +102,28 @@ async function computeSHA256(file: File): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function getHostname(value: string): string {
+  try {
+    return new URL(value).hostname.replace(/^www\./, '');
+  } catch {
+    return '在线链接';
+  }
+}
+
+function getDefaultLinkName(value: string): string {
+  const host = getHostname(value);
+  return `在线素材 - ${host}`;
+}
+
 function uploadFileViaServer(
   file: File,
   options: { onProgress?: (percent: number) => void; signal?: AbortSignal } = {}
@@ -167,6 +189,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
   // 状态
   const [step, setStep] = useState<UploadStep>('select');
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
+  const [linkUrl, setLinkUrl] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
@@ -218,6 +241,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
     if (fileInfo?.previewUrl) URL.revokeObjectURL(fileInfo.previewUrl);
     setStep('select');
     setFileInfo(null);
+    setLinkUrl('');
     setUploadProgress(0);
     setErrorMessage('');
     setIsDragOver(false);
@@ -255,6 +279,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
       isVideo,
       ...mediaInfo,
     });
+    setLinkUrl('');
     setMaterialType(autoType);
 
     // 自动填充名称（去掉扩展名）
@@ -295,6 +320,22 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
     [handleFileSelect]
   );
 
+  const handleLinkContinue = useCallback(() => {
+    const normalizedUrl = linkUrl.trim();
+    if (!isValidHttpUrl(normalizedUrl)) {
+      setErrorMessage('请输入 http 或 https 开头的有效链接');
+      setStep('error');
+      return;
+    }
+
+    if (fileInfo?.previewUrl) URL.revokeObjectURL(fileInfo.previewUrl);
+    setFileInfo(null);
+    setLinkUrl(normalizedUrl);
+    setMaterialType('图片');
+    setName((current) => current.trim() || getDefaultLinkName(normalizedUrl));
+    setStep('metadata');
+  }, [fileInfo?.previewUrl, linkUrl]);
+
   /* --- 质量多选 --- */
   const toggleQuality = useCallback((q: string) => {
     setSelectedQualities((prev) =>
@@ -304,7 +345,8 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
 
   /* --- 上传 + 创建素材 --- */
   const handleUpload = useCallback(async () => {
-    if (!fileInfo || !name.trim()) return;
+    const normalizedLinkUrl = linkUrl.trim();
+    if ((!fileInfo && !normalizedLinkUrl) || !name.trim()) return;
     if (!selectableProjects.includes(project as Project)) {
       setErrorMessage('没有该项目的上传权限，请联系管理员开通');
       setStep('error');
@@ -316,6 +358,34 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
     abortRef.current = new AbortController();
 
     try {
+      if (!fileInfo) {
+        setUploadProgress(20);
+        const res = await fetch('/api/materials/import-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: abortRef.current.signal,
+          body: JSON.stringify({
+            url: normalizedLinkUrl,
+            name: name.trim(),
+            type: materialType || '图片',
+            project,
+            tag,
+            quality: selectedQualities.length > 0 ? selectedQualities : ['常规'],
+            source: materialSource,
+          }),
+        });
+
+        setUploadProgress(90);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || `导入链接失败 (${res.status})`);
+        }
+
+        setUploadProgress(100);
+        setStep('done');
+        return;
+      }
+
       // 1. 计算 hash (用于去重)
       setUploadProgress(2);
       const hash = await computeSHA256(fileInfo.file);
@@ -380,7 +450,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
       setErrorMessage(err instanceof Error ? err.message : '上传失败');
       setStep('error');
     }
-  }, [fileInfo, name, materialType, project, tag, selectedQualities, materialSource, selectableProjects, resetState]);
+  }, [fileInfo, linkUrl, name, materialType, project, tag, selectedQualities, materialSource, selectableProjects, resetState]);
 
   /* --- 关闭 --- */
   const handleClose = useCallback(
@@ -401,7 +471,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
         <DialogHeader>
           <DialogTitle>{materialSource === 'competitor' ? '上传竞品素材' : '上传内部素材'}</DialogTitle>
           <DialogDescription>
-            {step === 'select' && '选择视频或图片文件上传到素材库'}
+            {step === 'select' && '选择文件或粘贴在线链接上传到素材库'}
             {step === 'metadata' && '填写素材信息'}
             {step === 'uploading' && '正在上传...'}
             {step === 'done' && '上传完成'}
@@ -411,84 +481,150 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
 
         {/* Step 1: 选择文件 */}
         {step === 'select' && (
-          <div
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-              isDragOver
-                ? 'border-primary bg-primary/5'
-                : 'border-muted-foreground/20 hover:bg-muted'
-            }`}
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-          >
-            <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-            <p className="text-sm font-medium text-foreground">
-              拖拽文件到此处，或点击选择
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              支持 MP4、MOV、WebM、JPG、PNG、WebP、GIF，最大 2GB
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPT_TYPES}
-              className="hidden"
-              onChange={onFileInputChange}
-            />
+          <div className="space-y-4">
+            <div
+              className={`border-2 border-dashed rounded-xl p-7 text-center cursor-pointer transition-colors ${
+                isDragOver
+                  ? 'border-primary bg-primary/5'
+                  : 'border-muted-foreground/20 hover:bg-muted'
+              }`}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+            >
+              <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">
+                拖拽文件到此处，或点击选择
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                支持 MP4、MOV、WebM、JPG、PNG、WebP、GIF，最大 2GB
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPT_TYPES}
+                className="hidden"
+                onChange={onFileInputChange}
+              />
+            </div>
+
+            <div className="relative flex items-center justify-center">
+              <div className="h-px w-full bg-border" />
+              <span className="absolute bg-background px-3 text-xs text-muted-foreground">或</span>
+            </div>
+
+            <div className="rounded-xl border border-border p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <LinkIcon className="h-4 w-4 text-primary" />
+                <Label htmlFor="material-link">粘贴在线链接</Label>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  id="material-link"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && linkUrl.trim()) {
+                      e.preventDefault();
+                      handleLinkContinue();
+                    }
+                  }}
+                  placeholder="https://alidocs.dingtalk.com/..."
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 shrink-0"
+                  disabled={!linkUrl.trim()}
+                  onClick={handleLinkContinue}
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                  <span className="sr-only">继续</span>
+                </Button>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                图片、视频直链会尝试下载到素材库；钉钉文档这类需要登录的链接会保存为可打开的链接卡片。
+              </p>
+            </div>
           </div>
         )}
 
         {/* Step 2: 元数据填写 */}
-        {step === 'metadata' && fileInfo && (
+        {step === 'metadata' && (fileInfo || linkUrl.trim()) && (
           <div className="space-y-4">
             {/* 文件预览 */}
-            <div className="relative rounded-lg overflow-hidden bg-muted/30 border border-border">
-              <div className="flex items-center gap-3 p-3">
-                {fileInfo.isVideo ? (
-                  <FileVideo className="w-8 h-8 text-primary shrink-0" />
-                ) : (
-                  <ImageIcon className="w-8 h-8 text-primary shrink-0" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{fileInfo.file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatFileSize(fileInfo.file.size)}
-                    {fileInfo.width && fileInfo.height
-                      ? ` · ${fileInfo.width}×${fileInfo.height}`
-                      : ''}
-                    {fileInfo.duration ? ` · ${fileInfo.duration}s` : ''}
-                  </p>
+            {fileInfo ? (
+              <div className="relative rounded-lg overflow-hidden bg-muted/30 border border-border">
+                <div className="flex items-center gap-3 p-3">
+                  {fileInfo.isVideo ? (
+                    <FileVideo className="w-8 h-8 text-primary shrink-0" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-primary shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{fileInfo.file.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatFileSize(fileInfo.file.size)}
+                      {fileInfo.width && fileInfo.height
+                        ? ` · ${fileInfo.width}×${fileInfo.height}`
+                        : ''}
+                      {fileInfo.duration ? ` · ${fileInfo.duration}s` : ''}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-7 w-7"
+                    onClick={() => {
+                      if (fileInfo.previewUrl) URL.revokeObjectURL(fileInfo.previewUrl);
+                      setFileInfo(null);
+                      setStep('select');
+                    }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 h-7 w-7"
-                  onClick={() => {
-                    if (fileInfo.previewUrl) URL.revokeObjectURL(fileInfo.previewUrl);
-                    setFileInfo(null);
-                    setStep('select');
-                  }}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </Button>
+                {/* 小预览 */}
+                {fileInfo.isVideo ? (
+                  <video
+                    src={fileInfo.previewUrl}
+                    className="w-full max-h-40 object-contain bg-black/5"
+                    controls
+                    muted
+                  />
+                ) : (
+                  <img
+                    src={fileInfo.previewUrl}
+                    alt="预览"
+                    className="w-full max-h-40 object-contain"
+                  />
+                )}
               </div>
-              {/* 小预览 */}
-              {fileInfo.isVideo ? (
-                <video
-                  src={fileInfo.previewUrl}
-                  className="w-full max-h-40 object-contain bg-black/5"
-                  controls
-                  muted
-                />
-              ) : (
-                <img
-                  src={fileInfo.previewUrl}
-                  alt="预览"
-                  className="w-full max-h-40 object-contain"
-                />
-              )}
-            </div>
+            ) : (
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex items-center gap-3">
+                  <LinkIcon className="h-8 w-8 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">在线链接</p>
+                    <p className="truncate text-xs text-muted-foreground" title={linkUrl}>
+                      {getHostname(linkUrl)} · {linkUrl}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-7 w-7"
+                    onClick={() => {
+                      setLinkUrl('');
+                      setStep('select');
+                    }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* 名称 */}
             <div className="space-y-1.5">
@@ -594,7 +730,13 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">
-                  {uploadProgress < 5
+                  {!fileInfo
+                    ? uploadProgress < 90
+                      ? '处理在线链接...'
+                      : uploadProgress < 100
+                        ? '创建素材记录...'
+                        : '完成'
+                    : uploadProgress < 5
                     ? '计算文件指纹...'
                     : uploadProgress < 90
                       ? '上传到云存储...'
@@ -642,7 +784,16 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
         <DialogFooter className="gap-2 sm:gap-0">
           {step === 'metadata' && (
             <>
-              <Button variant="outline" size="sm" onClick={() => { setFileInfo(null); setStep('select'); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (fileInfo?.previewUrl) URL.revokeObjectURL(fileInfo.previewUrl);
+                  setFileInfo(null);
+                  setLinkUrl('');
+                  setStep('select');
+                }}
+              >
                 重新选择
               </Button>
               <Button
@@ -679,7 +830,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
               <Button variant="outline" size="sm" onClick={() => handleClose(false)}>
                 关闭
               </Button>
-              <Button size="sm" onClick={() => setStep(fileInfo ? 'metadata' : 'select')}>
+              <Button size="sm" onClick={() => setStep(fileInfo || isValidHttpUrl(linkUrl) ? 'metadata' : 'select')}>
                 重试
               </Button>
             </>

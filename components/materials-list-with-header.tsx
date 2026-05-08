@@ -39,6 +39,7 @@ interface MaterialsListWithHeaderProps {
   optimisticFilters?: MaterialFilterSnapshot | null;
   summary: MaterialsSummary;
   scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  uploadSource?: 'internal' | 'competitor';
 }
 
 function applyFilters(
@@ -72,7 +73,7 @@ function applyFilters(
   return result;
 }
 
-export function MaterialsListWithHeader({ materials, optimisticFilters, summary, scrollContainerRef }: MaterialsListWithHeaderProps) {
+export function MaterialsListWithHeader({ materials, optimisticFilters, summary, scrollContainerRef, uploadSource = 'internal' }: MaterialsListWithHeaderProps) {
   // 使用默认值 'compact' 避免 hydration mismatch，在 mounted 后再从 localStorage 读取
   const [thumbSize, setThumbSize] = useState<ThumbSize>('compact');
   const [sortBy, setSortBy] = useState<SortBy>('latest');
@@ -591,6 +592,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
           batchMode={batchMode}
           selectedIds={selectedIds}
           onToggleSelect={handleToggleSelect}
+          emptyUploadSource={uploadSource}
         />
         {/* 筛选遮罩层 - 已移除 */}
       </div>
@@ -615,6 +617,4 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
     </>
   );
 }
-
-
 

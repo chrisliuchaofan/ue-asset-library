@@ -67,6 +67,7 @@ export function MaterialsPageShell({ materials, summary }: MaterialsPageShellPro
             materials={filteredMaterials}
             summary={filteredSummary}
             scrollContainerRef={scrollContainerRef}
+            uploadSource={activeSource}
           />
         </Suspense>
       </div>

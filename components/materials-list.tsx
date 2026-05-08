@@ -1,17 +1,19 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState, useEffect, useRef, type RefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import Link from 'next/link';
 import { MaterialCardGallery } from '@/components/material-card-gallery';
 import { ModuleEmptyState } from '@/components/empty-states/ModuleEmptyState';
-import { Library, Upload } from 'lucide-react';
+import { Library } from 'lucide-react';
 import { type Material, MATERIAL_STATUS_LABELS, MATERIAL_STATUS_COLORS } from '@/data/material.schema';
 import { PAGINATION } from '@/lib/constants';
 import { getProjectDisplayName } from '@/lib/constants';
+import { MaterialUploadDialog } from '@/components/materials/material-upload-dialog';
+import { isImageUrl, isLinkMaterial } from '@/lib/material-link';
 
 type ThumbSize = 'compact' | 'expanded' | 'list';
+type MaterialSource = 'internal' | 'competitor';
 
 interface MaterialsListProps {
   materials: Material[];
@@ -20,23 +22,41 @@ interface MaterialsListProps {
   batchMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
+  emptyUploadSource?: MaterialSource;
 }
 
-function MaterialsListContent({ materials, thumbSize = 'compact', scrollContainerRef, batchMode, selectedIds, onToggleSelect }: MaterialsListProps) {
-  // 性能优化：使用虚拟滚动替代分页，支持大量素材
-  if (materials.length === 0) {
-    return (
+function MaterialsEmptyState({ emptyUploadSource = 'internal' }: { emptyUploadSource?: MaterialSource }) {
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+
+  return (
+    <>
       <ModuleEmptyState
         icon={Library}
         iconColor="text-blue-400/60"
         title="还没有素材"
         description="上传你的第一个广告素材，开始管理和优化你的创意资产"
         actions={[
-          { label: '上传素材', href: '/materials', variant: 'primary' },
+          { label: '上传素材', onClick: () => setUploadDialogOpen(true), variant: 'primary' },
           { label: '体验 AI 创作', href: '/studio', variant: 'secondary' },
         ]}
       />
-    );
+      <MaterialUploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        source={emptyUploadSource}
+        onSuccess={() => {
+          setUploadDialogOpen(false);
+          window.location.reload();
+        }}
+      />
+    </>
+  );
+}
+
+function MaterialsListContent({ materials, thumbSize = 'compact', scrollContainerRef, batchMode, selectedIds, onToggleSelect, emptyUploadSource = 'internal' }: MaterialsListProps) {
+  // 性能优化：使用虚拟滚动替代分页，支持大量素材
+  if (materials.length === 0) {
+    return <MaterialsEmptyState emptyUploadSource={emptyUploadSource} />;
   }
 
   // 列表视图模式
@@ -296,6 +316,8 @@ function MaterialsListView({ materials, scrollContainerRef, batchMode, selectedI
           const status = (m.status || 'draft') as string;
           const statusColor = MATERIAL_STATUS_COLORS[status] || 'text-muted-foreground bg-muted';
           const isSelected = selectedIds?.has(m.id);
+          const isLinkOnly = isLinkMaterial(m);
+          const showThumbnail = Boolean(m.thumbnail && !isLinkOnly && isImageUrl(m.thumbnail));
 
           if (batchMode) {
             return (
@@ -315,14 +337,14 @@ function MaterialsListView({ materials, scrollContainerRef, batchMode, selectedI
                   </div>
                   <div className="grid grid-cols-[1fr_80px_80px_80px_80px_64px_100px] gap-2 flex-1 items-center text-sm">
                     <div className="flex items-center gap-2 min-w-0">
-                      {m.thumbnail && (
+                      {showThumbnail && (
                         <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0 bg-muted">
                           <img src={m.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
                         </div>
                       )}
                       <span className="truncate text-foreground">{m.name}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground truncate">{m.type}</div>
+                    <div className="text-xs text-muted-foreground truncate">{isLinkOnly ? '链接' : m.type}</div>
                     <div className="text-xs text-muted-foreground truncate">{getProjectDisplayName(m.project) || m.project}</div>
                     <div className="text-xs text-muted-foreground truncate">{m.tag}</div>
                     <div>
@@ -351,14 +373,14 @@ function MaterialsListView({ materials, scrollContainerRef, batchMode, selectedI
             >
               <div className="grid grid-cols-[1fr_80px_80px_80px_80px_64px_100px] gap-2 w-full items-center text-sm">
                 <div className="flex items-center gap-2 min-w-0">
-                  {m.thumbnail && (
+                  {showThumbnail && (
                     <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0 bg-muted">
                       <img src={m.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
                     </div>
                   )}
                   <span className="truncate text-foreground group-hover:text-primary transition-colors">{m.name}</span>
                 </div>
-                <div className="text-xs text-muted-foreground truncate">{m.type}</div>
+                <div className="text-xs text-muted-foreground truncate">{isLinkOnly ? '链接' : m.type}</div>
                 <div className="text-xs text-muted-foreground truncate">{getProjectDisplayName(m.project) || m.project}</div>
                 <div className="text-xs text-muted-foreground truncate">{m.tag}</div>
                 <div>
@@ -377,7 +399,7 @@ function MaterialsListView({ materials, scrollContainerRef, batchMode, selectedI
   );
 }
 
-export function MaterialsList({ materials, thumbSize = 'compact', scrollContainerRef, batchMode, selectedIds, onToggleSelect }: MaterialsListProps) {
+export function MaterialsList({ materials, thumbSize = 'compact', scrollContainerRef, batchMode, selectedIds, onToggleSelect, emptyUploadSource }: MaterialsListProps) {
   return (
     <Suspense fallback={<div>加载中...</div>}>
       <MaterialsListContent
@@ -387,8 +409,8 @@ export function MaterialsList({ materials, thumbSize = 'compact', scrollContaine
         batchMode={batchMode}
         selectedIds={selectedIds}
         onToggleSelect={onToggleSelect}
+        emptyUploadSource={emptyUploadSource}
       />
     </Suspense>
   );
 }
-
