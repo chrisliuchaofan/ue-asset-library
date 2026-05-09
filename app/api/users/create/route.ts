@@ -5,6 +5,7 @@ import { createStandardError, ErrorCode, handleApiRouteError } from '@/lib/error
 import { isAdmin } from '@/lib/auth/is-admin';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import { addToDefaultCompanyTeam } from '@/lib/auth/default-company-team';
 
 const CreateUserSchema = z.object({
   email: z.string().email('邮箱格式不正确'),
@@ -112,6 +113,8 @@ export async function POST(request: Request) {
       await supabaseAdmin.auth.admin.deleteUser(userId).catch(() => {});
       throw profileError;
     }
+
+    await addToDefaultCompanyTeam(normalizedEmail);
 
     console.log('[API /users/create] 用户创建成功:', { userId, email: normalizedEmail });
 

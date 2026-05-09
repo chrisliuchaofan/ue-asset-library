@@ -95,7 +95,105 @@ export const authOptions: NextAuthConfig = {
             }
 
             if (!profile) {
-              console.error('[Auth] 未找到用户 | email:', loginEmail, '| username:', username);
+              const { getAllowedCompanyEmailDomains, isAllowedCompanyEmail } = await import('@/lib/auth/company-email');
+              const { addToDefaultCompanyTeam } = await import('@/lib/auth/default-company-team');
+              const temporaryPassword = process.env.TEMP_ACCOUNT_PASSWORD || 'TY123';
+              const allowedDomains = getAllowedCompanyEmailDomains();
+              const canAutoProvision =
+                username.includes('@') &&
+                allowedDomains.length > 0 &&
+                isAllowedCompanyEmail(loginEmail, allowedDomains) &&
+                password === temporaryPassword;
+
+              if (!canAutoProvision) {
+                console.error('[Auth] 未找到用户 | email:', loginEmail, '| username:', username);
+              } else {
+                const tempUsername = loginEmail.split('@')[0];
+                const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+                const authPassword = temporaryPassword.length >= 6 ? temporaryPassword : `${temporaryPassword}1`;
+
+                let authUserId: string | undefined;
+                const { data: createdAuth, error: createAuthError } = await supabaseAdmin.auth.admin.createUser({
+                  email: loginEmail,
+                  password: authPassword,
+                  email_confirm: true,
+                  user_metadata: {
+                    username: tempUsername,
+                    must_change_password: true,
+                    temporary_account: true,
+                  },
+                });
+
+                if (createAuthError) {
+                  if (!/already|registered|exists/i.test(createAuthError.message)) {
+                    console.error('[Auth] 临时账号创建 Auth 用户失败:', createAuthError.message);
+                    return null;
+                  }
+
+                  const { data: usersPage, error: listUsersError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+                  if (listUsersError) {
+                    console.error('[Auth] 查找已有 Auth 用户失败:', listUsersError.message);
+                    return null;
+                  }
+                  authUserId = usersPage.users.find((u) => u.email?.toLowerCase() === loginEmail)?.id;
+                } else {
+                  authUserId = createdAuth.user?.id;
+                }
+
+                if (!authUserId) {
+                  console.error('[Auth] 临时账号创建失败：未找到 Auth 用户 ID | email:', loginEmail);
+                  return null;
+                }
+
+                const { data: existingAuthUser } = await supabaseAdmin.auth.admin.getUserById(authUserId);
+                const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+                  password: authPassword,
+                  email_confirm: true,
+                  user_metadata: {
+                    ...(existingAuthUser.user?.user_metadata || {}),
+                    username: tempUsername,
+                    must_change_password: true,
+                    temporary_account: true,
+                  },
+                });
+
+                if (updateAuthError) {
+                  console.error('[Auth] 临时账号更新 Auth 用户失败:', updateAuthError.message);
+                  return null;
+                }
+
+                const { error: profileCreateError } = await (supabaseAdmin.from('profiles') as any)
+                  .upsert({
+                    id: authUserId,
+                    email: loginEmail,
+                    username: tempUsername,
+                    password_hash: passwordHash,
+                    credits: 0,
+                    is_active: true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  }, { onConflict: 'id' });
+
+                if (profileCreateError) {
+                  console.error('[Auth] 临时账号创建 profile 失败:', profileCreateError.message);
+                  return null;
+                }
+
+                try {
+                  await addToDefaultCompanyTeam(loginEmail);
+                } catch (teamError: any) {
+                  console.error('[Auth] 临时账号加入默认团队失败:', teamError?.message || teamError);
+                  return null;
+                }
+
+                console.log('[Auth] 临时账号自动创建并登录:', loginEmail);
+                return {
+                  id: loginEmail,
+                  name: tempUsername,
+                  email: loginEmail,
+                  mustChangePassword: true,
+                };
+              }
             } else if (profile.is_active === false) {
               console.error('[Auth] 用户已停用 | email:', profile.email);
             } else {
