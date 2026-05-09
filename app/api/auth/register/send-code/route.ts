@@ -8,6 +8,7 @@ import {
 } from '@/lib/auth/company-email';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createSupabaseAuthClient } from '@/lib/supabase/auth-client';
+import { getOtpSendErrorResponse } from '@/lib/auth/otp-send-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,10 +84,8 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('[Register Send Code] 发送验证码失败:', error);
-      return NextResponse.json(
-        { message: '验证码发送失败，请稍后重试' },
-        { status: 500 }
-      );
+      const response = getOtpSendErrorResponse(error);
+      return NextResponse.json({ message: response.message }, { status: response.status });
     }
 
     return NextResponse.json({ message: '验证码已发送，请查看公司邮箱' });
