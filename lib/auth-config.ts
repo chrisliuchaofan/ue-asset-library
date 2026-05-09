@@ -103,10 +103,13 @@ export const authOptions: NextAuthConfig = {
                 const passwordValid = await bcrypt.compare(password, profile.password_hash);
                 if (passwordValid) {
                   console.log('[Auth] 密码验证成功:', profile.email);
+                  const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+                  const mustChangePassword = authUserData.user?.user_metadata?.must_change_password === true;
                   return {
                     id: profile.email || profile.id,
                     name: profile.username || profile.email,
                     email: profile.email,
+                    mustChangePassword,
                   };
                 }
                 console.error('[Auth] 本地密码不匹配，尝试 Supabase Auth 校验 | email:', profile.email);
@@ -141,6 +144,7 @@ export const authOptions: NextAuthConfig = {
                   id: profile.email || profile.id,
                   name: profile.username || profile.email,
                   email: profile.email,
+                  mustChangePassword: authData.user.user_metadata?.must_change_password === true,
                 };
               }
 
@@ -255,6 +259,7 @@ export const authOptions: NextAuthConfig = {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
+        token.mustChangePassword = user.mustChangePassword === true;
       }
 
       // 注入 Onboarding 状态（仅首次登录或 session update 时查询）
@@ -264,10 +269,14 @@ export const authOptions: NextAuthConfig = {
           const email = token.email || token.name || '';
           if (email) {
             const { data: profile } = await (supabaseAdmin.from('profiles') as any)
-              .select('onboarding_completed')
+              .select('id, onboarding_completed')
               .eq('email', email)
               .single();
             token.onboardingCompleted = profile?.onboarding_completed ?? false;
+            if (profile?.id) {
+              const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+              token.mustChangePassword = authUserData.user?.user_metadata?.must_change_password === true;
+            }
           }
         } catch {
           // 查询失败不影响登录
@@ -355,6 +364,8 @@ export const authOptions: NextAuthConfig = {
         session.user.activeTeamSlug = (token.activeTeamSlug as string) || null;
         // 注入 Onboarding 状态
         session.user.onboardingCompleted = token.onboardingCompleted ?? false;
+        // 注入首次改密状态
+        session.user.mustChangePassword = token.mustChangePassword === true;
       }
       return session;
     },

@@ -4,10 +4,11 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createStandardError, ErrorCode, handleApiRouteError } from '@/lib/errors/error-handler';
 import { isAdmin } from '@/lib/auth/is-admin';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 
 const CreateUserSchema = z.object({
   email: z.string().email('邮箱格式不正确'),
-  password: z.string().min(6, '密码至少需要6个字符'),
+  password: z.string().min(5, '密码至少需要5个字符'),
   name: z.string().optional(),
   credits: z.number().int().min(0).default(0),
   billingMode: z.enum(['DRY_RUN', 'REAL']).default('DRY_RUN'),
@@ -49,15 +50,24 @@ export async function POST(request: Request) {
     }
 
     const { email, password, name, credits, billingMode, modelMode } = parsed.data;
+    const normalizedEmail = email.trim().toLowerCase();
 
-    console.log('[API /users/create] 创建用户:', { email, name, credits, billingMode, modelMode });
+    console.log('[API /users/create] 创建用户:', { email: normalizedEmail, name, credits, billingMode, modelMode });
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    // Supabase Auth 默认要求密码至少 6 位；临时密码仍由 profiles.password_hash 校验。
+    const authPassword = password.length >= 6 ? password : `${password}1`;
 
     // 1. 使用 Supabase Admin API 创建 Auth 用户
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
+      email: normalizedEmail,
+      password: authPassword,
       email_confirm: true, // 自动确认邮箱
-      user_metadata: name ? { name } : undefined,
+      user_metadata: {
+        ...(name ? { name } : {}),
+        must_change_password: true,
+        temporary_account: true,
+      },
     });
 
     if (authError) {
@@ -81,9 +91,12 @@ export async function POST(request: Request) {
       .from('profiles') as any)
       .upsert({
         id: userId,
-        email,
+        email: normalizedEmail,
+        username: normalizedEmail.split('@')[0],
         name: name || undefined,
         credits: credits || 0,
+        password_hash: passwordHash,
+        is_active: true,
         billing_mode: billingMode || 'DRY_RUN',
         model_mode: modelMode || 'DRY_RUN',
         created_at: new Date().toISOString(),
@@ -100,14 +113,14 @@ export async function POST(request: Request) {
       throw profileError;
     }
 
-    console.log('[API /users/create] 用户创建成功:', { userId, email });
+    console.log('[API /users/create] 用户创建成功:', { userId, email: normalizedEmail });
 
     return NextResponse.json({
       success: true,
       user: {
         id: userId,
         email: (profileData as any).email,
-        name: (profileData as any).name || email.split('@')[0] || '',
+        name: (profileData as any).name || normalizedEmail.split('@')[0] || '',
         credits: (profileData as any).credits || 0,
         billingMode: (profileData as any).billing_mode || 'DRY_RUN',
         modelMode: (profileData as any).model_mode || 'DRY_RUN',
@@ -117,4 +130,3 @@ export async function POST(request: Request) {
     return await handleApiRouteError(error, '创建用户失败');
   }
 }
-
