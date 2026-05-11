@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { ArrowLeft, Film, ImageIcon, Loader2, X } from 'lucide-react';
 import type { PromptCase } from '@/lib/prompt-library/types';
 import { CopyPromptButton } from './copy-prompt-button';
+import { HardNavLink } from './hard-nav-link';
 import { UseInStudioButton } from './use-in-studio-button';
 
 const tagStyles = [
@@ -63,10 +63,10 @@ export function PromptCaseDetailView({ id }: { id: string }) {
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black text-white">
         <div className="text-center">
           <p className="text-sm font-medium">未找到案例</p>
-          <Link href="/prompt-library" className="mt-3 inline-flex items-center gap-2 text-sm text-cyan-300">
+          <HardNavLink href="/prompt-library" className="mt-3 inline-flex items-center gap-2 text-sm text-cyan-300">
             <ArrowLeft className="h-4 w-4" />
             返回 AI 提示库
-          </Link>
+          </HardNavLink>
         </div>
       </div>
     );
@@ -118,13 +118,13 @@ export function PromptCaseDetailView({ id }: { id: string }) {
           <aside className="flex min-h-0 min-w-0 flex-col bg-[#080808]">
             <header className="shrink-0 border-b border-white/10 px-6 py-5">
               <div className="mb-5 flex items-center justify-between text-sm text-zinc-400">
-                <Link href="/prompt-library" className="inline-flex items-center gap-2 hover:text-white">
+                <HardNavLink href="/prompt-library" className="inline-flex items-center gap-2 hover:text-white">
                   <ArrowLeft className="h-4 w-4" />
                   返回画廊
-                </Link>
-                <Link href="/prompt-library" aria-label="关闭详情" className="rounded-full p-1 text-zinc-400 hover:bg-white/10 hover:text-white">
+                </HardNavLink>
+                <HardNavLink href="/prompt-library" aria-label="关闭详情" className="rounded-full p-1 text-zinc-400 hover:bg-white/10 hover:text-white">
                   <X className="h-5 w-5" />
-                </Link>
+                </HardNavLink>
               </div>
               <div className="text-sm text-indigo-300">{[item.tool, item.category].filter(Boolean).join(' / ')}</div>
               <h1 className="mt-2 text-2xl font-semibold leading-tight text-white">{item.title}</h1>

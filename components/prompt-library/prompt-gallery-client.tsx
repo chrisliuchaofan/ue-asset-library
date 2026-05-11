@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Filter, Grid2X2, ImageIcon, Loader2, Search, Video } from 'lucide-react';
 import type { PromptCase, PromptCaseMediaType } from '@/lib/prompt-library/types';
+import { HardNavLink } from './hard-nav-link';
 import { PromptCaseCard } from './prompt-case-tile-client';
 import { PromptCaseUploadDialog } from './prompt-case-upload-dialog';
 
@@ -116,12 +116,12 @@ export function PromptGalleryClient() {
           <div className="mb-8 flex items-center justify-between gap-4">
             <h1 className="text-3xl font-bold tracking-normal text-white">AI知识库</h1>
             <nav className="flex shrink-0 items-center gap-3 text-sm text-white/70">
-              <Link href="/prompt-library" className="rounded-full bg-white px-4 py-2 font-semibold text-black">
+              <HardNavLink href="/prompt-library" className="rounded-full bg-white px-4 py-2 font-semibold text-black">
                 案例库
-              </Link>
-              <Link href="/prompt-library/docs" className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white">
+              </HardNavLink>
+              <HardNavLink href="/prompt-library/docs" className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white">
                 文档库
-              </Link>
+              </HardNavLink>
               <PromptCaseUploadDialog onCreated={handleCaseCreated} />
             </nav>
           </div>

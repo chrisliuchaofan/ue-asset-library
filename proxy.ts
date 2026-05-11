@@ -1,16 +1,5 @@
 import { auth } from '@/lib/auth-config';
 import { NextResponse } from 'next/server';
-const MATRIX_CREATE_URL = 'https://matrix.tuyoo.com/newVideo/index';
-
-function isPromptLibraryStudioEntry(params: URLSearchParams) {
-  const source = params.get('source') || params.get('from') || params.get('ref');
-
-  return (
-    source === 'prompt-library' ||
-    source === 'ai-prompt-library' ||
-    (params.has('caseId') && params.has('prompt'))
-  );
-}
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
@@ -32,19 +21,11 @@ export default auth((req) => {
     return NextResponse.redirect(canonicalUrl, 308);
   }
 
-  if (pathname === '/studio' && isPromptLibraryStudioEntry(req.nextUrl.searchParams)) {
-    return NextResponse.redirect(new URL(MATRIX_CREATE_URL));
-  }
-
   // 公开路由（不需要认证）
   const publicPrefixes = [
     '/auth/login',
     '/auth/register',
     '/api/auth',
-    '/prompt-library',
-    '/api/prompt-library/cases',
-    '/api/prompt-library/docs',
-    '/api/prompt-library/media',
     '/api/billing/webhook', // Stripe webhook 不需要用户认证
     '/api/landing',         // Landing page 公共 API（hero 视频等）
     '/interview',           // 公开访谈页（token 验证，免登录）
@@ -83,6 +64,7 @@ export default auth((req) => {
     '/review',
     '/inspirations',
     '/templates',
+    '/prompt-library',
     '/knowledge',
     '/assets',
     '/weekly-reports',

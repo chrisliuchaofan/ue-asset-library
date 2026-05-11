@@ -1,17 +1,10 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { dbCreateKnowledgeEntry } from '@/lib/knowledge/knowledge-db';
-import { createHash } from 'crypto';
 import type { PromptCase, PromptCaseMediaType, PromptCaseQuery, PromptDoc } from './types';
-import { samplePromptCases, samplePromptDocs } from './sample-data';
+import { samplePromptDocs } from './sample-data';
 import { migratedPromptDocs } from './legacy-docs';
 
 const PROMPT_LIBRARY_TAG = 'prompt-library';
-const LEGACY_MATERIAL_NAMESPACE = 'prompt-library-legacy-material';
-const PROJECT_A = '\u9879\u76eeA';
-const MATERIAL_TYPE_IMAGE = '\u56fe\u7247';
-const MATERIAL_TYPE_AI_VIDEO = 'AI\u89c6\u9891';
-const MATERIAL_TAG_STANDARD = '\u8fbe\u6807';
-const MATERIAL_QUALITY_NORMAL = '\u5e38\u89c4';
 
 interface KnowledgePromptRow {
   id: string;
@@ -65,17 +58,6 @@ function isMissingKnowledgeTableError(error: any) {
 
 function isVideoUrl(url?: string | null) {
   return !!url && /\.(mp4|webm|mov|m4v|avi|mkv)(\?.*)?$/i.test(url);
-}
-
-function uuidFromText(text: string) {
-  const hex = createHash('sha1').update(text).digest('hex').slice(0, 32);
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    `5${hex.slice(13, 16)}`,
-    `${((parseInt(hex.slice(16, 18), 16) & 0x3f) | 0x80).toString(16)}${hex.slice(18, 20)}`,
-    hex.slice(20, 32),
-  ].join('-');
 }
 
 function normalizeTags(tags?: string[] | null) {
@@ -149,85 +131,6 @@ function rowToPromptCase(row: KnowledgePromptRow, material?: MaterialRow): Promp
   };
 }
 
-async function ensureLegacySampleCasesMaterialized(teamId?: string) {
-  if (samplePromptCases.length === 0) return;
-
-  let existingRequest = (supabaseAdmin.from('knowledge_entries') as any)
-    .select('id')
-    .in(
-      'id',
-      samplePromptCases.map((item) => item.id),
-    )
-    .limit(1);
-
-  if (teamId) {
-    existingRequest = existingRequest.or(`team_id.is.null,team_id.eq.${teamId}`);
-  }
-
-  const { data: existing, error: existingError } = await existingRequest;
-  if (existingError) {
-    if (isMissingKnowledgeTableError(existingError)) return;
-    throw new Error(`Failed to check legacy prompt cases: ${existingError.message}`);
-  }
-  if ((existing ?? []).length > 0) return;
-
-  const now = new Date().toISOString();
-  const materialRows = samplePromptCases
-    .filter((item) => item.mediaUrl)
-    .map((item) => {
-      const id = uuidFromText(`${LEGACY_MATERIAL_NAMESPACE}:${item.id}`);
-      return {
-        id,
-        name: item.title,
-        source: 'internal',
-        type: item.mediaType === 'image' ? MATERIAL_TYPE_IMAGE : MATERIAL_TYPE_AI_VIDEO,
-        project: PROJECT_A,
-        tag: MATERIAL_TAG_STANDARD,
-        quality: [MATERIAL_QUALITY_NORMAL],
-        thumbnail: item.mediaType === 'image' ? item.coverUrl || item.mediaUrl || '' : item.coverUrl || '',
-        src: item.mediaUrl || item.coverUrl || '',
-        gallery: item.mediaUrl ? [item.mediaUrl] : [],
-        team_id: null,
-        created_at: item.createdAt || now,
-        updated_at: item.updatedAt || now,
-      };
-    });
-
-  if (materialRows.length > 0) {
-    const { error } = await (supabaseAdmin.from('materials') as any).upsert(materialRows, { onConflict: 'id' });
-    if (error) throw new Error(`Failed to materialize legacy prompt media: ${error.message}`);
-  }
-
-  const knowledgeRows = samplePromptCases.map((item) => ({
-    id: item.id,
-    team_id: null,
-    user_id: item.userId ?? 'legacy-migration',
-    title: item.title,
-    content: item.description || item.prompt,
-    category: 'example',
-    tags: normalizeTags([PROMPT_LIBRARY_TAG, ...item.tags]),
-    prompt_template: item.prompt,
-    criteria: {
-      promptLibrary: true,
-      description: item.description || '',
-      negativePrompt: item.negativePrompt || '',
-      tool: item.tool || '',
-      promptCategory: item.category || '',
-      mediaType: item.mediaType,
-      sortOrder: item.sortOrder,
-      legacySource: 'sample-data',
-    },
-    source_type: 'import',
-    source_material_id: item.mediaUrl ? uuidFromText(`${LEGACY_MATERIAL_NAMESPACE}:${item.id}`) : null,
-    status: 'approved',
-    created_at: item.createdAt || now,
-    updated_at: item.updatedAt || now,
-  }));
-
-  const { error } = await (supabaseAdmin.from('knowledge_entries') as any).upsert(knowledgeRows, { onConflict: 'id' });
-  if (error) throw new Error(`Failed to materialize legacy prompt cases: ${error.message}`);
-}
-
 function filterCases(cases: PromptCase[], query: PromptCaseQuery): PromptCase[] {
   const q = query.q?.trim().toLowerCase();
   return cases
@@ -257,17 +160,14 @@ function filterCases(cases: PromptCase[], query: PromptCaseQuery): PromptCase[] 
     .slice(0, query.limit ?? 100);
 }
 
-async function getMaterialMap(ids: string[], teamId?: string): Promise<Map<string, MaterialRow>> {
+async function getMaterialMap(ids: string[], teamId: string): Promise<Map<string, MaterialRow>> {
   const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
   if (uniqueIds.length === 0) return new Map();
 
   let request = (supabaseAdmin.from('materials') as any)
     .select('id,name,type,thumbnail,src,gallery')
-    .in('id', uniqueIds);
-
-  if (teamId) {
-    request = request.or(`team_id.is.null,team_id.eq.${teamId}`);
-  }
+    .in('id', uniqueIds)
+    .eq('team_id', teamId);
 
   const { data, error } = await request;
   if (error) throw new Error(`Failed to query prompt case materials: ${error.message}`);
@@ -276,7 +176,7 @@ async function getMaterialMap(ids: string[], teamId?: string): Promise<Map<strin
 }
 
 export async function dbGetPromptCases(query: PromptCaseQuery = {}): Promise<PromptCase[]> {
-  await ensureLegacySampleCasesMaterialized(query.teamId);
+  if (!query.teamId) return [];
 
   let request = (supabaseAdmin.from('knowledge_entries') as any)
     .select('id,team_id,user_id,title,content,category,tags,prompt_template,criteria,source_material_id,status,created_at,updated_at')
@@ -285,19 +185,17 @@ export async function dbGetPromptCases(query: PromptCaseQuery = {}): Promise<Pro
     .contains('tags', [PROMPT_LIBRARY_TAG])
     .order('created_at', { ascending: false });
 
-  if (query.teamId) {
-    request = request.or(`team_id.is.null,team_id.eq.${query.teamId}`);
-  }
+  request = request.eq('team_id', query.teamId);
   if (query.limit) request = request.limit(query.limit);
 
   const { data, error } = await request;
   if (error) {
-    if (isMissingKnowledgeTableError(error)) return filterCases(samplePromptCases, { ...query, status: 'published' });
+    if (isMissingKnowledgeTableError(error)) return [];
     throw new Error(`Failed to query prompt cases: ${error.message}`);
   }
 
   const rows = data as KnowledgePromptRow[];
-  if (rows.length === 0) return filterCases(samplePromptCases, { ...query, status: 'published' });
+  if (rows.length === 0) return [];
 
   const materialMap = await getMaterialMap(
     rows.map((row) => row.source_material_id).filter((id): id is string => Boolean(id)),
@@ -310,27 +208,22 @@ export async function dbGetPromptCases(query: PromptCaseQuery = {}): Promise<Pro
   return filterCases(cases, query);
 }
 
-export async function dbGetPromptCaseById(id: string, teamId?: string): Promise<PromptCase | null> {
+export async function dbGetPromptCaseById(id: string, teamId: string): Promise<PromptCase | null> {
   let request = (supabaseAdmin.from('knowledge_entries') as any)
     .select('id,team_id,user_id,title,content,category,tags,prompt_template,criteria,source_material_id,status,created_at,updated_at')
     .eq('id', id)
     .eq('category', 'example')
     .contains('tags', [PROMPT_LIBRARY_TAG])
+    .eq('team_id', teamId)
     .limit(1);
-
-  if (teamId) {
-    request = request.or(`team_id.is.null,team_id.eq.${teamId}`);
-  }
 
   const { data, error } = await request.maybeSingle();
   if (error) {
-    if (isMissingKnowledgeTableError(error)) {
-      return samplePromptCases.find((item) => item.id === id) ?? null;
-    }
+    if (isMissingKnowledgeTableError(error)) return null;
     throw new Error(`Failed to query prompt case: ${error.message}`);
   }
 
-  if (!data) return samplePromptCases.find((item) => item.id === id) ?? null;
+  if (!data) return null;
 
   const row = data as KnowledgePromptRow;
   const materialMap = await getMaterialMap(row.source_material_id ? [row.source_material_id] : [], teamId);
@@ -370,17 +263,14 @@ export async function dbCreatePromptCase(
   return created;
 }
 
-export async function dbGetPromptDocs(teamId?: string): Promise<PromptDoc[]> {
+export async function dbGetPromptDocs(teamId: string): Promise<PromptDoc[]> {
   let request = (supabaseAdmin.from('knowledge_entries') as any)
     .select('id,title,content,category,tags,updated_at')
     .eq('status', 'approved')
     .neq('category', 'example')
     .order('updated_at', { ascending: false })
-    .limit(80);
-
-  if (teamId) {
-    request = request.or(`team_id.is.null,team_id.eq.${teamId}`);
-  }
+    .limit(80)
+    .eq('team_id', teamId);
 
   const { data, error } = await request;
   if (error) {

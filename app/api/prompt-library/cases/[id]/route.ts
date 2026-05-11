@@ -5,10 +5,10 @@ import { dbGetPromptCaseById } from '@/lib/prompt-library/prompt-cases-db';
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const ctx = await requireTeamAccess('content:read');
-    const teamId = isErrorResponse(ctx) ? undefined : ctx.teamId;
+    if (isErrorResponse(ctx)) return ctx;
 
     const { id } = await params;
-    const promptCase = await dbGetPromptCaseById(id, teamId);
+    const promptCase = await dbGetPromptCaseById(id, ctx.teamId);
     if (!promptCase) {
       return NextResponse.json({ message: '未找到案例' }, { status: 404 });
     }

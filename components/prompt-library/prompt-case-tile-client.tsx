@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { Film, ImageIcon } from 'lucide-react';
 import type { PromptCase } from '@/lib/prompt-library/types';
+import { HardNavLink } from './hard-nav-link';
 
 export function PromptCaseCard({ item }: { item: PromptCase }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -43,7 +43,7 @@ export function PromptCaseCard({ item }: { item: PromptCase }) {
       onMouseEnter={playPreview}
       onMouseLeave={pausePreview}
     >
-      <Link href={`/prompt-library/${item.id}`} className="block">
+      <HardNavLink href={`/prompt-library/${item.id}`} className="block">
         <div className="relative overflow-hidden rounded-xl bg-transparent" style={{ aspectRatio }}>
           {item.mediaType === 'video' && item.mediaUrl && (!item.coverUrl || shouldLoadVideo) ? (
             <video
@@ -110,7 +110,7 @@ export function PromptCaseCard({ item }: { item: PromptCase }) {
             </div>
           </div>
         </div>
-      </Link>
+      </HardNavLink>
     </article>
   );
 }

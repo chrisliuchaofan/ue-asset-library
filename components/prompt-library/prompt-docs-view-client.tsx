@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { BookOpen, ChevronDown, ChevronRight, FileText, Loader2, Search } from 'lucide-react';
 import type { PromptDoc } from '@/lib/prompt-library/types';
+import { HardNavLink } from './hard-nav-link';
 
 function groupDocs(docs: PromptDoc[]) {
   return docs.reduce<Record<string, PromptDoc[]>>((groups, doc) => {
@@ -177,12 +177,12 @@ export function PromptDocsClient() {
           </div>
 
           <nav className="flex shrink-0 items-center gap-3 text-sm text-white/70">
-            <Link href="/prompt-library" className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white">
+            <HardNavLink href="/prompt-library" className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white">
               案例库
-            </Link>
-            <Link href="/prompt-library/docs" className="rounded-full bg-white px-4 py-2 font-semibold text-black">
+            </HardNavLink>
+            <HardNavLink href="/prompt-library/docs" className="rounded-full bg-white px-4 py-2 font-semibold text-black">
               文档库
-            </Link>
+            </HardNavLink>
           </nav>
         </div>
 
