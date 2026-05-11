@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Filter, Grid2X2, ImageIcon, Loader2, Search, Video } from 'lucide-react';
 import type { PromptCase, PromptCaseMediaType } from '@/lib/prompt-library/types';
-import { PromptCaseCard } from './prompt-case-card';
+import { PromptCaseCard } from './prompt-case-tile-client';
+import { PromptCaseUploadDialog } from './prompt-case-upload-dialog';
 
 type MediaFilter = 'all' | PromptCaseMediaType;
 
@@ -37,8 +38,9 @@ export function PromptGalleryClient() {
   const [subjectFilter, setSubjectFilter] = useState('全部');
   const [galleryColumns, setGalleryColumns] = useState(5);
 
-  useEffect(() => {
+  const loadCases = useCallback(() => {
     let mounted = true;
+    setLoading(true);
     fetch('/api/prompt-library/cases')
       .then((res) => res.json())
       .then((data) => {
@@ -54,6 +56,12 @@ export function PromptGalleryClient() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => loadCases(), [loadCases]);
+
+  function handleCaseCreated(item: PromptCase) {
+    setCases((current) => [item, ...current.filter((existing) => existing.id !== item.id)]);
+  }
 
   useEffect(() => {
     function syncGalleryColumns() {
@@ -114,6 +122,7 @@ export function PromptGalleryClient() {
               <Link href="/prompt-library/docs" className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white">
                 文档库
               </Link>
+              <PromptCaseUploadDialog onCreated={handleCaseCreated} />
             </nav>
           </div>
 

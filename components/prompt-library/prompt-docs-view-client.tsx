@@ -14,6 +14,10 @@ function groupDocs(docs: PromptDoc[]) {
   }, {});
 }
 
+function stripHtml(content: string) {
+  return content.replace(/<[^>]+>/g, ' ');
+}
+
 function markdownBlocks(content: string) {
   return content
     .replace(/\r\n/g, '\n')
@@ -22,9 +26,45 @@ function markdownBlocks(content: string) {
     .filter(Boolean);
 }
 
+function decodeHtmlEntities(content: string) {
+  let decoded = content;
+
+  for (let index = 0; index < 3; index += 1) {
+    const next = decoded
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+
+    if (next === decoded) break;
+    decoded = next;
+  }
+
+  return decoded;
+}
+
+function sanitizeTrustedDocHtml(content: string) {
+  return content
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+=(["']).*?\1/gi, '');
+}
+
 function MarkdownView({ content }: { content: string }) {
+  const decodedContent = decodeHtmlEntities(content);
+
+  if (decodedContent.includes('<')) {
+    return (
+      <div
+        data-render-mode="html"
+        className="max-w-[760px] pb-24 text-[15px] font-light leading-8 tracking-[0.02em] text-zinc-300 [&_a]:text-cyan-300 [&_h1]:mb-8 [&_h1]:mt-10 [&_h1]:text-4xl [&_h1]:font-light [&_h1]:leading-tight [&_h1]:tracking-[0.04em] [&_h1]:text-white [&_h2]:mb-5 [&_h2]:mt-12 [&_h2]:text-2xl [&_h2]:font-normal [&_h2]:tracking-[0.04em] [&_h2]:text-white [&_h3]:mb-3 [&_h3]:mt-9 [&_h3]:text-lg [&_h3]:font-normal [&_h3]:tracking-[0.04em] [&_h3]:text-white [&_img]:my-5 [&_img]:max-w-full [&_img]:rounded-sm [&_img]:bg-white [&_li]:my-1 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-white [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-5"
+        dangerouslySetInnerHTML={{ __html: sanitizeTrustedDocHtml(decodedContent) }}
+      />
+    );
+  }
+
   return (
-    <div className="max-w-[760px] pb-24 text-[15px] font-light leading-8 tracking-[0.02em] text-zinc-300">
+    <div data-render-mode="markdown" className="max-w-[760px] pb-24 text-[15px] font-light leading-8 tracking-[0.02em] text-zinc-300">
       {markdownBlocks(content).map((block, index) => {
         if (block.startsWith('### ')) {
           return (
@@ -109,7 +149,9 @@ export function PromptDocsClient() {
     if (!keyword) return docs;
 
     return docs.filter((doc) =>
-      `${doc.title} ${doc.content} ${doc.category} ${doc.tags.join(' ')}`.toLowerCase().includes(keyword),
+      `${doc.title} ${stripHtml(doc.content)} ${doc.category} ${doc.tags.join(' ')}`
+        .toLowerCase()
+        .includes(keyword),
     );
   }, [docs, query]);
 
@@ -122,29 +164,19 @@ export function PromptDocsClient() {
 
   return (
     <main className="min-h-0 flex-1 overflow-y-auto bg-black text-white">
-      <header className="relative border-b border-white/10 px-8 py-7">
-        <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-5">
+      <header className="border-b border-white/10 px-8 py-7">
+        <div className="flex items-start justify-between gap-8">
           <div>
             <div className="flex items-center gap-3">
               <BookOpen className="h-7 w-7 text-white" />
               <h1 className="text-3xl font-bold tracking-normal text-white">AI知识库文档</h1>
             </div>
-            <p className="mt-3 max-w-[390px] text-sm font-light leading-6 tracking-[0.04em] text-zinc-500">
+            <p className="mt-3 text-sm font-light leading-6 tracking-[0.04em] text-zinc-500">
               沉淀 Prompt 写法、镜头语言、光影风格、工具和创作经验。
             </p>
           </div>
 
-          <div className="relative w-full" style={{ order: 3, flexBasis: '100%' }}>
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索标题、摘要、正文..."
-              className="h-11 w-full rounded-lg border border-white/[0.18] bg-white/[0.08] pl-10 pr-4 text-sm font-light tracking-[0.03em] text-white outline-none transition placeholder:text-white/35 focus:border-white/35"
-            />
-          </div>
-
-          <nav className="absolute right-8 top-7 flex justify-end gap-3 text-sm text-white/70">
+          <nav className="flex shrink-0 items-center gap-3 text-sm text-white/70">
             <Link href="/prompt-library" className="rounded-full px-4 py-2 transition hover:bg-white/10 hover:text-white">
               案例库
             </Link>
@@ -153,16 +185,26 @@ export function PromptDocsClient() {
             </Link>
           </nav>
         </div>
+
+        <div className="relative mt-6 w-full">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索标题、摘要、正文..."
+            className="h-11 w-full rounded-lg border border-white/[0.18] bg-white/[0.08] pl-10 pr-4 text-sm font-light tracking-[0.03em] text-white outline-none transition placeholder:text-white/35 focus:border-white/35"
+          />
+        </div>
       </header>
 
       <section
-        className="min-h-[calc(100vh-137px)] border-b border-white/10"
+        className="min-h-[calc(100vh-176px)]"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'clamp(190px, 24vw, 320px) minmax(0, 1fr)',
+          gridTemplateColumns: 'clamp(220px, 23vw, 360px) minmax(0, 1fr)',
         }}
       >
-        <aside className="min-w-0 border-r border-white/10 px-5 py-8 md:px-8">
+        <aside className="min-w-0 border-r border-white/10 px-8 py-8">
           <div className="mb-7 text-xs font-light tracking-[0.24em] text-zinc-600">目录</div>
           {loading ? (
             <div className="flex items-center gap-3 text-sm font-light tracking-[0.12em] text-zinc-600">
@@ -184,7 +226,7 @@ export function PromptDocsClient() {
                       <span className="truncate">{category}</span>
                     </button>
                     {open && (
-                      <div className="mt-4 space-y-3 pl-4 md:pl-5">
+                      <div className="mt-4 space-y-3 pl-5">
                         {items.map((doc) => {
                           const active = selected?.id === doc.id;
                           return (
@@ -213,7 +255,7 @@ export function PromptDocsClient() {
           )}
         </aside>
 
-        <article className="min-w-0 px-6 py-10 md:px-12 xl:px-24">
+        <article className="min-w-0 px-12 py-10 xl:px-24">
           {selected ? (
             <>
               <div className="mb-10">

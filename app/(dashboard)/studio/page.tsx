@@ -287,6 +287,7 @@ function StudioPageInner() {
     const [style, setStyle] = useState<ScriptGenerateRequest['style']>('剧情');
     const [generating, setGenerating] = useState(false);
     const [fromAnalysis, setFromAnalysis] = useState(false);
+    const [inputSourceNotice, setInputSourceNotice] = useState<string | null>(null);
 
     // --- 分镜图生成 ---
     const [imageProvider, setImageProvider] = useState<ImageProviderType>('qwen');
@@ -340,18 +341,22 @@ function StudioPageInner() {
 
     useEffect(() => {
         (async () => {
+            const currentParams = new URLSearchParams(window.location.search);
+            const isPromptLibraryEntry = currentParams.get('source') === 'prompt-library';
             const { scripts: apiScripts, fallback } = await fetchScriptsFromAPI();
             if (!fallback && apiScripts.length > 0) {
                 setScripts(apiScripts);
                 setUseDb(true);
-                setActiveScript(apiScripts[0]);
-                // 如果已有脚本，自动跳到脚本步骤
-                setCurrentStep('script');
+                if (!isPromptLibraryEntry) {
+                    setActiveScript(apiScripts[0]);
+                    // 如果已有脚本，自动跳到脚本步骤
+                    setCurrentStep('script');
+                }
             } else {
                 const loaded = loadLocalScripts();
                 setScripts(loaded);
                 setUseDb(!fallback);
-                if (loaded.length > 0) {
+                if (loaded.length > 0 && !isPromptLibraryEntry) {
                     setActiveScript(loaded[0]);
                     setCurrentStep('script');
                 }
@@ -373,6 +378,7 @@ function StudioPageInner() {
                     if (ctx.scenes?.length) points.push(...ctx.scenes.slice(0, 3));
                     if (points.length > 0) setSellingPoints(points.join('\n'));
                     setFromAnalysis(true);
+                    setInputSourceNotice('已从爆款分析导入诊断上下文');
                     setCurrentStep('input');
                     localStorage.removeItem('analysis_to_studio');
                 }
@@ -405,6 +411,32 @@ function StudioPageInner() {
         return () => {
             cancelled = true;
         };
+    }, [searchParams]);
+
+    // 跨模块流转：从 AI 提示库带入完整 Prompt，保持 Studio 原有生成流程不变
+    useEffect(() => {
+        const currentParams = new URLSearchParams(window.location.search);
+        if (currentParams.get('source') !== 'prompt-library') return;
+
+        let importedPrompt = currentParams.get('prompt') || '';
+        try {
+            const raw = sessionStorage.getItem('prompt_library_to_studio');
+            if (raw) {
+                const ctx = JSON.parse(raw);
+                if (ctx?.prompt) importedPrompt = ctx.prompt;
+                sessionStorage.removeItem('prompt_library_to_studio');
+            }
+        } catch { /* 忽略浏览器存储异常 */ }
+
+        if (importedPrompt.trim()) {
+            setMode('free');
+            setSelectedTemplate(null);
+            setActiveScript(null);
+            setTopic('基于 AI 提示库案例创作');
+            setSellingPoints(importedPrompt.trim());
+            setInputSourceNotice('已从 AI 提示库带入提示词，可直接生成脚本');
+            setCurrentStep('input');
+        }
     }, [searchParams]);
 
     // ==================== 持久化 ====================
@@ -1081,6 +1113,7 @@ function StudioPageInner() {
                         generating={generating}
                         onGenerate={handleGenerate}
                         fromAnalysis={fromAnalysis}
+                        sourceNotice={inputSourceNotice}
                     />
 
                     {/* 模版选择器（模版模式下） */}

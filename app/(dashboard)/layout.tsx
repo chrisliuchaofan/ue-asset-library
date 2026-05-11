@@ -253,6 +253,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             items: [
                 { href: '/inspirations', label: t('inspirations'), short: '灵感', icon: LightbulbIcon },
                 { href: '/templates', label: t('templates'), short: '模版', icon: LayoutTemplateIcon },
+                { href: '/prompt-library', label: 'AI 提示库', short: '提示', icon: ClapperboardIcon },
             ],
         },
         {

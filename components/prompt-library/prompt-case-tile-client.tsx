@@ -45,7 +45,7 @@ export function PromptCaseCard({ item }: { item: PromptCase }) {
     >
       <Link href={`/prompt-library/${item.id}`} className="block">
         <div className="relative overflow-hidden rounded-xl bg-transparent" style={{ aspectRatio }}>
-          {item.mediaType === 'video' && item.mediaUrl && shouldLoadVideo ? (
+          {item.mediaType === 'video' && item.mediaUrl && (!item.coverUrl || shouldLoadVideo) ? (
             <video
               ref={videoRef}
               src={videoSrc}
@@ -59,12 +59,12 @@ export function PromptCaseCard({ item }: { item: PromptCase }) {
               muted
               loop
               playsInline
-              preload="none"
+              preload={shouldLoadVideo ? 'auto' : 'metadata'}
             />
-          ) : item.mediaType === 'video' && (item.coverUrl || item.mediaUrl) ? (
+          ) : item.mediaType === 'video' && item.coverUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={item.coverUrl || item.mediaUrl}
+              src={item.coverUrl}
               alt={item.title}
               onLoad={(event) => {
                 const img = event.currentTarget;
@@ -77,7 +77,7 @@ export function PromptCaseCard({ item }: { item: PromptCase }) {
           ) : item.coverUrl || item.mediaUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={item.coverUrl || item.mediaUrl}
+              src={item.coverUrl || videoSrc}
               alt={item.title}
               onLoad={(event) => {
                 const img = event.currentTarget;

@@ -1,1 +1,1 @@
-export { PromptDocsClient } from './prompt-docs-layout-client';
+export { PromptDocsClient } from './prompt-docs-view-client';

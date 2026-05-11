@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
-import { dbGetPromptCases } from '@/lib/prompt-library/prompt-cases-db';
+import { getMaterialById } from '@/lib/materials-data';
+import { dbCreatePromptCase, dbGetPromptCases } from '@/lib/prompt-library/prompt-cases-db';
+
+const CreatePromptCaseSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  prompt: z.string().min(1),
+  negativePrompt: z.string().optional(),
+  tool: z.string().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  mediaType: z.enum(['image', 'video']),
+  sourceMaterialId: z.string().min(1),
+});
 
 export async function GET(request: Request) {
   try {
@@ -27,5 +41,35 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.error('[PromptLibrary] 获取案例失败:', error);
     return NextResponse.json({ cases: [], facets: { tools: [], categories: [], tags: [] }, error: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const ctx = await requireTeamAccess('content:create');
+    if (isErrorResponse(ctx)) return ctx;
+
+    const parsed = CreatePromptCaseSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { message: 'Invalid prompt case payload', errors: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
+
+    const material = await getMaterialById(parsed.data.sourceMaterialId, { teamId: ctx.teamId });
+    if (!material) {
+      return NextResponse.json({ message: 'Source material not found or not accessible' }, { status: 404 });
+    }
+
+    const promptCase = await dbCreatePromptCase(parsed.data, {
+      teamId: ctx.teamId,
+      userId: ctx.userId,
+    });
+
+    return NextResponse.json({ case: promptCase }, { status: 201 });
+  } catch (error: any) {
+    console.error('[PromptLibrary] Create prompt case failed:', error);
+    return NextResponse.json({ message: error.message }, { status: 500 });
   }
 }

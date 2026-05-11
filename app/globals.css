@@ -447,3 +447,35 @@
 }
 
 /* cache-bust: 1742299200 */
+
+/* Prompt library gallery: keep media aspect ratio, but show denser floating cards. */
+.prompt-library-gallery {
+  columns: 2 !important;
+  column-gap: 1rem !important;
+}
+
+main.bg-black.text-white section.columns-1.gap-4 {
+  columns: 2 !important;
+  column-gap: 1rem !important;
+}
+
+@media (min-width: 768px) {
+  .prompt-library-gallery,
+  main.bg-black.text-white section.columns-1.gap-4 {
+    columns: 3 !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .prompt-library-gallery,
+  main.bg-black.text-white section.columns-1.gap-4 {
+    columns: 4 !important;
+  }
+}
+
+@media (min-width: 1536px) {
+  .prompt-library-gallery,
+  main.bg-black.text-white section.columns-1.gap-4 {
+    columns: 5 !important;
+  }
+}

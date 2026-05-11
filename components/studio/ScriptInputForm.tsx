@@ -18,6 +18,7 @@ interface ScriptInputFormProps {
     generating: boolean;
     onGenerate: () => void;
     fromAnalysis?: boolean;
+    sourceNotice?: string | null;
 }
 
 const S = {
@@ -39,15 +40,16 @@ export function ScriptInputForm({
     generating,
     onGenerate,
     fromAnalysis,
+    sourceNotice,
 }: ScriptInputFormProps) {
     const missingTopic = !topic.trim();
 
     return (
         <div className="space-y-4">
-            {fromAnalysis && (
+            {(fromAnalysis || sourceNotice) && (
                 <div className="flex items-center gap-2 p-2.5 rounded-lg text-xs text-white/60" style={S.input}>
                     <Sparkles className="w-3.5 h-3.5 shrink-0 text-white/40" />
-                    已从爆款分析导入诊断上下文
+                    {sourceNotice || '已从爆款分析导入诊断上下文'}
                 </div>
             )}
 
