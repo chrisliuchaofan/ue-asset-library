@@ -26,6 +26,12 @@ export interface WeeklyReport {
 export interface ReportMaterial {
   /** 素材 ID（如果有） */
   id?: string;
+  /** 投放平台素材 ID / 视频 md5 / 创意 ID */
+  platformId?: string;
+  /** 创意 ID */
+  creativeId?: string;
+  /** 视频 md5 值 */
+  videoMd5?: string;
   /** 素材名称 */
   name: string;
   /** 关联的素材库 material_id（匹配后回填） */
@@ -40,6 +46,16 @@ export interface ReportMaterial {
   direction?: string;
   /** 消耗 */
   consumption?: number;
+  /** 展示 */
+  impressions?: number;
+  /** 点击 */
+  clicks?: number;
+  /** 点击率（小数，如 0.0123 表示 1.23%） */
+  ctr?: number;
+  /** 点击成本 */
+  cpc?: number;
+  /** 千次展示成本 */
+  cpm?: number;
   /** ROI */
   roi?: number;
   /** 推广类型（微小、抖小、APP） */
@@ -58,8 +74,18 @@ export interface ReportMaterial {
   cumulativeRoi?: number;
   /** 新增成本 */
   newCost?: number;
+  /** 新增成本（素材库回写字段别名） */
+  newUserCost?: number;
+  /** 新付费数 */
+  newPaidCount?: number;
+  /** 首日付费数（素材库回写字段别名） */
+  firstDayPayCount?: number;
   /** 付费成本 */
   paidCost?: number;
+  /** 新付费成本 */
+  newPaidCost?: number;
+  /** 首日付费成本（素材库回写字段别名） */
+  firstDayPayCost?: number;
   /** 付费率 */
   paymentRate?: number;
   /** 媒体文件 URL（华为云 OSS）- 视频链接 */

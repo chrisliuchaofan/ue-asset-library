@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ConsumptionSummaryBar } from '@/components/charts/consumption-summary-bar';
 import { BatchOperationsBar } from '@/components/batch-operations-bar';
+import { TemplateExtractDialog } from '@/components/templates/template-extract-dialog';
 
 type ThumbSize = 'compact' | 'expanded' | 'list';
 type SortBy = 'latest' | 'recommended' | 'consumption' | 'roi';
@@ -101,6 +102,7 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
   // 批量操作状态
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showExtractDialog, setShowExtractDialog] = useState(false);
 
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -605,6 +607,19 @@ export function MaterialsListWithHeader({ materials, optimisticFilters, summary,
           onClearSelection={handleClearSelection}
           onExitBatchMode={handleExitBatchMode}
           onBatchComplete={handleBatchComplete}
+          onExtractTemplate={() => setShowExtractDialog(true)}
+        />
+      )}
+      {showExtractDialog && (
+        <TemplateExtractDialog
+          materialIds={Array.from(selectedIds)}
+          onClose={() => setShowExtractDialog(false)}
+          onSuccess={(template) => {
+            setShowExtractDialog(false);
+            setBatchMode(false);
+            setSelectedIds(new Set());
+            window.location.href = `/templates/${template.id}`;
+          }}
         />
       )}
       {portal && createPortal(

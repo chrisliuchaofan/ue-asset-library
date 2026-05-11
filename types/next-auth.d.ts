@@ -14,6 +14,8 @@ declare module 'next-auth' {
       activeTeamSlug?: string | null;
       // Phase 3: Onboarding
       onboardingCompleted?: boolean;
+      // 临时账号：首次登录后必须修改密码
+      mustChangePassword?: boolean;
     };
   }
 
@@ -21,6 +23,7 @@ declare module 'next-auth' {
     id: string;
     name?: string | null;
     email?: string | null;
+    mustChangePassword?: boolean;
   }
 }
 
@@ -36,5 +39,7 @@ declare module 'next-auth/jwt' {
     activeTeamSlug?: string | null;
     // Phase 3: Onboarding
     onboardingCompleted?: boolean;
+    // 临时账号：首次登录后必须修改密码
+    mustChangePassword?: boolean;
   }
 }

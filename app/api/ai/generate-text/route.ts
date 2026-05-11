@@ -21,7 +21,7 @@ const GenerateTextSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
   responseFormat: z.enum(['text', 'json']).optional(),
   systemPrompt: z.string().optional(),
-  provider: z.enum(['qwen', 'jimeng', 'kling']).optional(),
+  provider: z.enum(['qwen', 'jimeng', 'kling', 'deepseek', 'tuyoo', 'custom']).optional(),
   presetId: z.string().optional(), // 后端API需要的presetId
 });
 
@@ -185,7 +185,7 @@ export async function POST(request: Request) {
           {
             message: 'AI 服务配置错误',
             error: errorMessage,
-            suggestion: '请检查 AI_IMAGE_API_KEY 环境变量是否正确配置',
+            suggestion: '请检查 LLM_TOKEN / TUYOO_LLM_BASE_URL 等太石网关环境变量是否正确配置',
           },
           { status: 503 } // Service Unavailable
         );
@@ -198,4 +198,3 @@ export async function POST(request: Request) {
     return handleApiError(error, '文本生成失败');
   }
 }
-

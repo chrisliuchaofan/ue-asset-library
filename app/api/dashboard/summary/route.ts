@@ -53,7 +53,7 @@ export async function GET() {
     // 5. 最近 5 条素材（从现有材料数据源获取）
     let recentMaterials: Array<{ id: string; name: string; type: string; project: string; createdAt: string }> = [];
     try {
-      const allMaterials = await getAllMaterials();
+      const allMaterials = await getAllMaterials({ teamId: ctx.teamId });
       recentMaterials = allMaterials
         .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
         .slice(0, 5)

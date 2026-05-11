@@ -12,6 +12,30 @@ import type { Material, MaterialCreateInput } from '@/data/material.schema';
 type MaterialInsert = Database['public']['Tables']['materials']['Insert'];
 type MaterialUpdate = Database['public']['Tables']['materials']['Update'];
 
+interface MaterialAccessOptions {
+  teamId?: string;
+  includeGlobal?: boolean;
+}
+
+function scopeMaterialsQuery<T extends { eq: (column: string, value: string) => T; or: (filters: string) => T }>(
+  query: T,
+  options?: MaterialAccessOptions
+): T {
+  if (!options?.teamId) return query;
+  if (options.includeGlobal === false) return query.eq('team_id', options.teamId);
+  return query.or(`team_id.eq.${options.teamId},team_id.is.null`);
+}
+
+function toDbInteger(value: number | undefined | null): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.round(value);
+}
+
+function toDbFloat(value: number | undefined | null): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return value;
+}
+
 // ==================== 类型映射 ====================
 
 /** Supabase materials 表的行数据类型 */
@@ -134,19 +158,26 @@ function materialToInsertRow(material: MaterialCreateInput & { id?: string }): M
 
   if (material.id) row.id = material.id;
   if (material.gallery) row.gallery = material.gallery;
-  if (material.fileSize) row.file_size = material.fileSize;
+  const fileSize = toDbInteger(material.fileSize);
+  const width = toDbInteger(material.width);
+  const height = toDbInteger(material.height);
+  const duration = toDbInteger(material.duration);
+  const conversions = toDbInteger(material.conversions);
+
+  if (fileSize !== undefined) row.file_size = fileSize;
   if (material.hash) row.hash = material.hash;
-  if (material.width) row.width = material.width;
-  if (material.height) row.height = material.height;
-  if (material.duration) row.duration = material.duration;
-  if (material.consumption) row.consumption = material.consumption;
-  if (material.conversions) row.conversions = material.conversions;
-  if (material.roi) row.roi = material.roi;
+  if (width !== undefined) row.width = width;
+  if (height !== undefined) row.height = height;
+  if (duration !== undefined) row.duration = duration;
+  if (toDbFloat(material.consumption) !== undefined) row.consumption = material.consumption;
+  if (conversions !== undefined) row.conversions = conversions;
+  if (toDbFloat(material.roi) !== undefined) row.roi = material.roi;
   if (material.platform) row.platform = material.platform;
   if (material.advertiser) row.advertiser = material.advertiser;
-  if (material.estimatedSpend) row.estimated_spend = material.estimatedSpend;
+  if (toDbFloat(material.estimatedSpend) !== undefined) row.estimated_spend = material.estimatedSpend;
   if (material.firstSeen) row.first_seen = new Date(material.firstSeen).toISOString();
   if (material.lastSeen) row.last_seen = new Date(material.lastSeen).toISOString();
+  if ((material as any).sourceScriptId) (row as any).source_script_id = (material as any).sourceScriptId;
 
   return row;
 }
@@ -164,13 +195,11 @@ function materialToUpdateRow(updates: Partial<Material>): MaterialUpdate {
   if (updates.thumbnail !== undefined) row.thumbnail = updates.thumbnail;
   if (updates.src !== undefined) row.src = updates.src;
   if (updates.gallery !== undefined) row.gallery = updates.gallery;
-  if (updates.fileSize !== undefined) {
-    row.file_size = updates.fileSize;
-  }
+  if (updates.fileSize !== undefined) row.file_size = toDbInteger(updates.fileSize);
   if (updates.hash !== undefined) row.hash = updates.hash;
-  if (updates.width !== undefined) row.width = updates.width;
-  if (updates.height !== undefined) row.height = updates.height;
-  if (updates.duration !== undefined) row.duration = updates.duration;
+  if (updates.width !== undefined) row.width = toDbInteger(updates.width);
+  if (updates.height !== undefined) row.height = toDbInteger(updates.height);
+  if (updates.duration !== undefined) row.duration = toDbInteger(updates.duration);
   if (updates.recommended !== undefined) row.recommended = updates.recommended;
   if (updates.consumption !== undefined) row.consumption = updates.consumption;
   if (updates.conversions !== undefined) row.conversions = updates.conversions;
@@ -223,13 +252,17 @@ export async function isMaterialsTableAvailable(): Promise<boolean> {
 }
 
 /** 获取所有素材 */
-export async function dbGetAllMaterials(): Promise<Material[]> {
+export async function dbGetAllMaterials(options?: MaterialAccessOptions): Promise<Material[]> {
   const supabase = supabaseAdmin;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('materials')
     .select('*')
     .order('created_at', { ascending: false });
+
+  query = scopeMaterialsQuery(query, options);
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[MaterialsDB] 查询素材失败:', error);
@@ -240,12 +273,16 @@ export async function dbGetAllMaterials(): Promise<Material[]> {
 }
 
 /** 获取素材总数 */
-export async function dbGetMaterialsCount(): Promise<number> {
+export async function dbGetMaterialsCount(options?: MaterialAccessOptions): Promise<number> {
   const supabase = supabaseAdmin;
 
-  const { count, error } = await supabase
+  let query = supabase
     .from('materials')
     .select('id', { count: 'exact', head: true });
+
+  query = scopeMaterialsQuery(query, options);
+
+  const { count, error } = await query;
 
   if (error) {
     console.error('[MaterialsDB] 查询素材数量失败:', error);
@@ -256,31 +293,39 @@ export async function dbGetMaterialsCount(): Promise<number> {
 }
 
 /** 根据 ID 获取素材 */
-export async function dbGetMaterialById(id: string): Promise<Material | null> {
+export async function dbGetMaterialById(
+  id: string,
+  options?: MaterialAccessOptions
+): Promise<Material | null> {
   const supabase = supabaseAdmin;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('materials')
     .select('*')
-    .eq('id', id)
-    .single();
+    .eq('id', id);
+
+  query = scopeMaterialsQuery(query, options);
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
-    if (error.code === 'PGRST116') {
-      // 没找到记录
-      return null;
-    }
     console.error('[MaterialsDB] 查询素材失败:', error);
     throw new Error(`查询素材失败: ${error.message}`);
   }
+
+  if (!data) return null;
 
   return rowToMaterial(data as MaterialRow);
 }
 
 /** 创建素材 */
-export async function dbCreateMaterial(input: MaterialCreateInput): Promise<Material> {
+export async function dbCreateMaterial(
+  input: MaterialCreateInput,
+  options?: { teamId?: string }
+): Promise<Material> {
   const supabase = supabaseAdmin;
   const insertData = materialToInsertRow(input);
+  if (options?.teamId) insertData.team_id = options.teamId;
 
   const { data, error } = await (supabase
     .from('materials') as any)
@@ -297,33 +342,52 @@ export async function dbCreateMaterial(input: MaterialCreateInput): Promise<Mate
 }
 
 /** 更新素材 */
-export async function dbUpdateMaterial(id: string, updates: Partial<Material>): Promise<Material> {
+export async function dbUpdateMaterial(
+  id: string,
+  updates: Partial<Material>,
+  options?: MaterialAccessOptions
+): Promise<Material> {
   const supabase = supabaseAdmin;
   const updateData = materialToUpdateRow(updates);
 
-  const { data, error } = await (supabase
+  let query = (supabase
     .from('materials') as any)
     .update(updateData)
-    .eq('id', id)
+    .eq('id', id);
+
+  query = scopeMaterialsQuery(query, { ...options, includeGlobal: false });
+
+  const { data, error } = await query
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('[MaterialsDB] 更新素材失败:', error);
     throw new Error(`更新素材失败: ${error.message}`);
   }
 
+  if (!data) {
+    throw new Error('素材不存在或无权限更新');
+  }
+
   return rowToMaterial(data as MaterialRow);
 }
 
 /** 删除素材 */
-export async function dbDeleteMaterial(id: string): Promise<void> {
+export async function dbDeleteMaterial(
+  id: string,
+  options?: MaterialAccessOptions
+): Promise<void> {
   const supabase = supabaseAdmin;
 
-  const { error } = await supabase
+  let query = supabase
     .from('materials')
     .delete()
     .eq('id', id);
+
+  query = scopeMaterialsQuery(query, { ...options, includeGlobal: false });
+
+  const { error } = await query;
 
   if (error) {
     console.error('[MaterialsDB] 删除素材失败:', error);
@@ -355,11 +419,16 @@ export async function dbBatchInsertMaterials(materials: Material[]): Promise<num
       };
 
       if (m.gallery) row.gallery = m.gallery;
-      if (m.fileSize) row.file_size = m.fileSize;
+      const fileSize = toDbInteger(m.fileSize);
+      const width = toDbInteger(m.width);
+      const height = toDbInteger(m.height);
+      const duration = toDbInteger(m.duration);
+
+      if (fileSize !== undefined) row.file_size = fileSize;
       if (m.hash) row.hash = m.hash;
-      if (m.width) row.width = m.width;
-      if (m.height) row.height = m.height;
-      if (m.duration) row.duration = m.duration;
+      if (width !== undefined) row.width = width;
+      if (height !== undefined) row.height = height;
+      if (duration !== undefined) row.duration = duration;
       if (m.recommended) row.recommended = m.recommended;
       if (m.consumption) row.consumption = m.consumption;
       if (m.conversions) row.conversions = m.conversions;
@@ -392,15 +461,22 @@ export async function dbBatchInsertMaterials(materials: Material[]): Promise<num
 }
 
 /** 根据 ID 列表批量获取素材 */
-export async function dbGetMaterialsByIds(ids: string[]): Promise<Material[]> {
+export async function dbGetMaterialsByIds(
+  ids: string[],
+  options?: MaterialAccessOptions
+): Promise<Material[]> {
   if (ids.length === 0) return [];
 
   const supabase = supabaseAdmin;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('materials')
     .select('*')
     .in('id', ids);
+
+  query = scopeMaterialsQuery(query, options);
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[MaterialsDB] 批量查询素材失败:', error);

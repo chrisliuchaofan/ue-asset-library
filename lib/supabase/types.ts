@@ -639,6 +639,54 @@ export interface Database {
           }
         ]
       }
+      template_material_relations: {
+        Row: {
+          id: string
+          template_id: string
+          material_id: string
+          relation_type: 'source' | 'replica' | 'competitor_reference'
+          note: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          template_id: string
+          material_id: string
+          relation_type: 'source' | 'replica' | 'competitor_reference'
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          template_id?: string
+          material_id?: string
+          relation_type?: 'source' | 'replica' | 'competitor_reference'
+          note?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'template_material_relations_template_id_fkey'
+            columns: ['template_id']
+            isOneToOne: false
+            referencedRelation: 'material_templates'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'template_material_relations_material_id_fkey'
+            columns: ['material_id']
+            isOneToOne: false
+            referencedRelation: 'materials'
+            referencedColumns: ['id']
+          }
+        ]
+      }
       // ==================== Phase 4: 知识库 ====================
       knowledge_entries: {
         Row: {
@@ -1088,5 +1136,4 @@ export interface Database {
     }
   }
 }
-
 

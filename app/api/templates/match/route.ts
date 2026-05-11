@@ -5,9 +5,13 @@
  */
 
 import { NextResponse } from 'next/server';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 
 export async function POST(request: Request) {
   try {
+    const ctx = await requireTeamAccess('content:read');
+    if (isErrorResponse(ctx)) return ctx;
+
     const body = await request.json();
     const { text, threshold, limit } = body;
 
@@ -22,6 +26,7 @@ export async function POST(request: Request) {
     const results = await matchTemplates(text.trim(), {
       threshold: threshold ?? 0.5,
       limit: limit ?? 5,
+      teamId: ctx.teamId,
     });
 
     return NextResponse.json({

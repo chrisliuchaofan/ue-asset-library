@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
     FolderIcon,
@@ -206,6 +206,7 @@ const NAV = {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    const router = useRouter();
     const { data: session } = useSession();
     const t = useTranslations('nav');
     const tc = useTranslations('common');
@@ -222,6 +223,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         mq.addEventListener('change', handler);
         return () => mq.removeEventListener('change', handler);
     }, []);
+
+    useEffect(() => {
+        if (!session?.user?.mustChangePassword) return;
+        const callbackUrl = pathname || '/materials';
+        router.replace(`/auth/change-password?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    }, [pathname, router, session?.user?.mustChangePassword]);
 
     /* ── 侧栏展开/折叠 ── */
     const isCollapsedRoute = COLLAPSED_ROUTES.some(r => pathname.startsWith(r));

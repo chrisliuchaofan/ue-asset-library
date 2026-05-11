@@ -1,4 +1,4 @@
-import type { AIProvider, AIGenerateTextRequest, AIGenerateTextResponse } from '../types';
+import type { AIProvider, AIGenerateTextRequest, AIGenerateTextResponse, AIMessageContent } from '../types';
 
 export class TuyooProvider implements AIProvider {
     name = 'TuyooGateway';
@@ -6,16 +6,45 @@ export class TuyooProvider implements AIProvider {
 
     private endpoint = process.env.TUYOO_LLM_BASE_URL || 'https://relay.tuyoo.com/v1';
     private apiKey = process.env.LLM_TOKEN;
-    private defaultModel = process.env.TUYOO_LLM_DEFAULT_MODEL || 'tuyoo-search-qwen';
+    private defaultModel = process.env.TUYOO_LLM_DEFAULT_MODEL || 'glm-4.6';
 
-    async generateText(request: AIGenerateTextRequest): Promise<AIGenerateTextResponse> {
-        if (!this.apiKey) {
-            throw new Error('Tuyoo API密钥未配置 (需配置 LLM_TOKEN)');
+    private formatContent(content: AIMessageContent): string | any[] {
+        if (typeof content === 'string') return content;
+
+        return content.map((item) => {
+            if (item.type === 'text') {
+                return { type: 'text', text: item.text || '' };
+            }
+
+            if (item.type === 'image_url' && item.image_url?.url) {
+                return { type: 'image_url', image_url: { url: item.image_url.url } };
+            }
+
+            if (item.type === 'video_url' && item.video_url?.url) {
+                return { type: 'video_url', video_url: { url: item.video_url.url } };
+            }
+
+            // 兼容旧的千问多模态写法：{ type: 'video', video: url }
+            if (item.type === 'video' && item.video) {
+                return { type: 'video_url', video_url: { url: item.video } };
+            }
+
+            if (item.type === 'image' && item.image) {
+                return { type: 'image_url', image_url: { url: item.image } };
+            }
+
+            return item;
+        });
+    }
+
+    private buildMessages(request: AIGenerateTextRequest): Array<{ role: string; content: string | any[] }> {
+        if (request.messages && request.messages.length > 0) {
+            return request.messages.map((message) => ({
+                role: message.role,
+                content: this.formatContent(message.content),
+            }));
         }
 
-        const model = request.model || this.defaultModel;
-
-        // 构建 messages
         const messages: Array<{ role: string; content: string | any[] }> = [];
         if (request.systemPrompt) {
             messages.push({
@@ -23,12 +52,20 @@ export class TuyooProvider implements AIProvider {
                 content: request.systemPrompt,
             });
         }
-
-        // 如果 prompt 是字符串
         messages.push({
             role: 'user',
             content: request.prompt,
         });
+        return messages;
+    }
+
+    async generateText(request: AIGenerateTextRequest): Promise<AIGenerateTextResponse> {
+        if (!this.apiKey) {
+            throw new Error('Tuyoo API密钥未配置 (需配置 LLM_TOKEN)');
+        }
+
+        const model = request.model || this.defaultModel;
+        const messages = this.buildMessages(request);
 
         // OpenAI 兼容格式
         const requestBody: any = {

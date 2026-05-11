@@ -16,7 +16,7 @@ import {
   ALLOWED_MIME_TYPES,
   FILE_UPLOAD_LIMITS,
 } from '@/lib/constants';
-import { getSession } from '@/lib/auth';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { getLinkHostname } from '@/lib/material-link';
 import { createMaterial } from '@/lib/materials-data';
 import { getOSSClient } from '@/lib/oss-client';
@@ -253,12 +253,8 @@ function createUnsupportedLinkResponse(message?: string) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getSession();
-    const email = session?.user?.email;
-
-    if (!email) {
-      return NextResponse.json({ message: '未登录，请先登录' }, { status: 401 });
-    }
+    const ctx = await requireTeamAccess('content:create');
+    if (isErrorResponse(ctx)) return ctx;
 
     const parsed = LinkImportSchema.safeParse(await request.json());
     if (!parsed.success) {
@@ -272,7 +268,7 @@ export async function POST(request: Request) {
     }
 
     const input = parsed.data;
-    const allowedProjects = await getAllowedProjectsForEmail(email);
+    const allowedProjects = await getAllowedProjectsForEmail(ctx.email);
     if (!isProjectAllowed(input.project, allowedProjects)) {
       return NextResponse.json(
         { message: '没有该项目的上传权限，请联系管理员开通' },
@@ -327,6 +323,8 @@ export async function POST(request: Request) {
         height: uploadResult.height,
         platform: '链接下载',
         advertiser: getLinkHostname(input.url),
+      }, {
+        teamId: ctx.teamId,
       });
 
       return NextResponse.json(

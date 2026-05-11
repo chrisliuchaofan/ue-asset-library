@@ -5,6 +5,7 @@ import { getAssetsIndex } from '@/lib/asset-index';
 import { getMaterialsIndex } from '@/lib/material-index';
 import type { Asset } from '@/data/manifest.schema';
 import type { Material } from '@/data/material.schema';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,6 +19,9 @@ interface SearchResult {
 
 export async function GET(request: Request) {
   try {
+    const ctx = await requireTeamAccess('content:read');
+    if (isErrorResponse(ctx)) return ctx;
+
     const { searchParams } = new URL(request.url);
     const keyword = searchParams.get('q') || '';
     const type = searchParams.get('type') || 'all'; // all, assets, materials
@@ -59,7 +63,7 @@ export async function GET(request: Request) {
 
     // 搜索素材
     if (type === 'all' || type === 'materials') {
-      const allMaterials = await getAllMaterials();
+      const allMaterials = await getAllMaterials({ teamId: ctx.teamId });
       const materialsIndex = getMaterialsIndex(allMaterials);
       const filterOptions: any = {
         keyword: keyword.trim(),
@@ -88,4 +92,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

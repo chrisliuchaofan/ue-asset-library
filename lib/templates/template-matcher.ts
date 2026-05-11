@@ -36,9 +36,10 @@ export async function matchTemplates(
   options?: {
     threshold?: number;
     limit?: number;
+    teamId?: string;
   }
 ): Promise<TemplateMatchResult[]> {
-  const { threshold = 0.5, limit = 5 } = options || {};
+  const { threshold = 0.5, limit = 5, teamId } = options || {};
 
   // 1. 生成查询 embedding（使用 RETRIEVAL_QUERY 模式）
   const embedding = await generateEmbedding(creativeText, 'RETRIEVAL_QUERY');
@@ -52,7 +53,7 @@ export async function matchTemplates(
     const { data, error } = await (supabaseAdmin as any).rpc('match_templates', {
       query_embedding: JSON.stringify(embedding),
       match_threshold: threshold,
-      match_count: limit,
+      match_count: teamId ? limit * 5 : limit,
     });
 
     if (error) {
@@ -64,8 +65,28 @@ export async function matchTemplates(
       return [];
     }
 
+    let rows = data as any[];
+    if (teamId) {
+      const ids = rows.map(row => row.id).filter(Boolean);
+      if (ids.length === 0) return [];
+
+      const { data: allowed, error: allowedError } = await (supabaseAdmin as any)
+        .from('material_templates')
+        .select('id')
+        .in('id', ids)
+        .eq('team_id', teamId);
+
+      if (allowedError) {
+        console.error('[TemplateMatcher] 团队模版过滤失败:', allowedError);
+        return [];
+      }
+
+      const allowedIds = new Set((allowed || []).map((row: { id: string }) => row.id));
+      rows = rows.filter(row => allowedIds.has(row.id)).slice(0, limit);
+    }
+
     // 3. 转换为 TemplateMatchResult
-    return (data as any[]).map(row => ({
+    return rows.map(row => ({
       template: rpcRowToTemplate(row),
       similarity: row.similarity,
       matchLevel: getMatchLevel(row.similarity),

@@ -321,7 +321,12 @@ async function writeFileMaterials(materials: Material[]): Promise<void> {
 
 // ==================== 公共 API（自动选择存储模式） ====================
 
-export async function getAllMaterials(): Promise<Material[]> {
+interface MaterialAccessOptions {
+  teamId?: string;
+  includeGlobal?: boolean;
+}
+
+export async function getAllMaterials(options?: MaterialAccessOptions): Promise<Material[]> {
   const start = Date.now();
 
   // 优先使用 Supabase
@@ -329,13 +334,16 @@ export async function getAllMaterials(): Promise<Material[]> {
     try {
       const db = await getDbModule();
       if (db) {
-        const materials = await db.dbGetAllMaterials();
+        const materials = await db.dbGetAllMaterials(options);
         const duration = Date.now() - start;
         console.info('[Materials]', { mode: 'supabase', count: materials.length, durationMs: duration });
         return materials;
       }
     } catch (error) {
       console.error('[Materials] Supabase 查询失败，回退到文件模式:', error);
+      if (options?.teamId) {
+        throw error;
+      }
     }
   }
 
@@ -349,16 +357,19 @@ export async function getAllMaterials(): Promise<Material[]> {
 /**
  * Lightweight check: returns the total count of materials without loading full data.
  */
-export async function getMaterialsCount(): Promise<number> {
+export async function getMaterialsCount(options?: MaterialAccessOptions): Promise<number> {
   // 优先使用 Supabase
   if (await isDbAvailable()) {
     try {
       const db = await getDbModule();
       if (db) {
-        return await db.dbGetMaterialsCount();
+        return await db.dbGetMaterialsCount(options);
       }
     } catch (error) {
       console.error('[Materials] Supabase 计数失败，回退到文件模式:', error);
+      if (options?.teamId) {
+        throw error;
+      }
     }
   }
 
@@ -416,16 +427,22 @@ export function getMaterialsSummary(materials: Material[]): MaterialsSummary {
   return summary;
 }
 
-export async function getMaterialById(id: string): Promise<Material | null> {
+export async function getMaterialById(
+  id: string,
+  options?: MaterialAccessOptions
+): Promise<Material | null> {
   // 优先使用 Supabase
   if (await isDbAvailable()) {
     try {
       const db = await getDbModule();
       if (db) {
-        return await db.dbGetMaterialById(id);
+        return await db.dbGetMaterialById(id, options);
       }
     } catch (error) {
       console.error('[Materials] Supabase 查询单个素材失败，回退到文件模式:', error);
+      if (options?.teamId) {
+        throw error;
+      }
     }
   }
 
@@ -453,7 +470,7 @@ export async function createMaterial(input: {
   estimatedSpend?: number;
   firstSeen?: number;
   lastSeen?: number;
-}): Promise<Material> {
+}, options?: Pick<MaterialAccessOptions, 'teamId'>): Promise<Material> {
   // 优先使用 Supabase
   if (await isDbAvailable()) {
     try {
@@ -479,12 +496,15 @@ export async function createMaterial(input: {
           estimatedSpend: input.estimatedSpend,
           firstSeen: input.firstSeen,
           lastSeen: input.lastSeen,
-        });
+        }, options);
         invalidateMaterialsCache();
         return material;
       }
     } catch (error) {
       console.error('[Materials] Supabase 创建素材失败，回退到文件模式:', error);
+      if (options?.teamId) {
+        throw error;
+      }
     }
   }
 
@@ -530,18 +550,25 @@ export async function createMaterial(input: {
   return material;
 }
 
-export async function updateMaterial(id: string, updates: Partial<Material>): Promise<Material> {
+export async function updateMaterial(
+  id: string,
+  updates: Partial<Material>,
+  options?: Pick<MaterialAccessOptions, 'teamId'>
+): Promise<Material> {
   // 优先使用 Supabase
   if (await isDbAvailable()) {
     try {
       const db = await getDbModule();
       if (db) {
-        const material = await db.dbUpdateMaterial(id, updates);
+        const material = await db.dbUpdateMaterial(id, updates, options);
         invalidateMaterialsCache();
         return material;
       }
     } catch (error) {
       console.error('[Materials] Supabase 更新素材失败，回退到文件模式:', error);
+      if (options?.teamId) {
+        throw error;
+      }
     }
   }
 
@@ -559,18 +586,24 @@ export async function updateMaterial(id: string, updates: Partial<Material>): Pr
   return materials[index];
 }
 
-export async function deleteMaterial(id: string): Promise<void> {
+export async function deleteMaterial(
+  id: string,
+  options?: Pick<MaterialAccessOptions, 'teamId'>
+): Promise<void> {
   // 优先使用 Supabase
   if (await isDbAvailable()) {
     try {
       const db = await getDbModule();
       if (db) {
-        await db.dbDeleteMaterial(id);
+        await db.dbDeleteMaterial(id, options);
         invalidateMaterialsCache();
         return;
       }
     } catch (error) {
       console.error('[Materials] Supabase 删除素材失败，回退到文件模式:', error);
+      if (options?.teamId) {
+        throw error;
+      }
     }
   }
 

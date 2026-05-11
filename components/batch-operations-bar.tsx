@@ -8,7 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { CheckCircle2, Trash2, Send, ChevronUp, Loader2, X } from 'lucide-react';
+import { CheckCircle2, Trash2, Send, ChevronUp, Loader2, X, Sparkles } from 'lucide-react';
 import { useToast } from '@/components/toast-provider';
 import { MATERIAL_STATUS_LABELS } from '@/data/material.schema';
 
@@ -19,6 +19,7 @@ interface BatchOperationsBarProps {
   onClearSelection: () => void;
   onExitBatchMode: () => void;
   onBatchComplete: () => void;
+  onExtractTemplate?: () => void;
 }
 
 export function BatchOperationsBar({
@@ -28,6 +29,7 @@ export function BatchOperationsBar({
   onClearSelection,
   onExitBatchMode,
   onBatchComplete,
+  onExtractTemplate,
 }: BatchOperationsBarProps) {
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
@@ -130,6 +132,19 @@ export function BatchOperationsBar({
 
         {/* 右侧：操作按钮 */}
         <div className="flex items-center gap-2">
+          {onExtractTemplate && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              onClick={onExtractTemplate}
+              className="gap-1"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              提取模版
+            </Button>
+          )}
+
           {/* 批量审核（状态更新） */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

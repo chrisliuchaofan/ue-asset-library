@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import type { MaterialTemplate } from '@/data/template.schema';
 import { TemplateStructureTimeline } from './template-structure-timeline';
-import { Loader2, Sparkles, Check } from 'lucide-react';
+import { Loader2, Sparkles, Check, ArrowRight } from 'lucide-react';
 
 interface TemplateExtractDialogProps {
   /** 选中的素材 ID 列表 */
@@ -31,6 +32,11 @@ export function TemplateExtractDialog({
   const [style, setStyle] = useState<string>('');
 
   const handleExtract = async () => {
+    if (materialIds.length === 0) {
+      setError('请先在素材库批量选择要拆解的爆款素材');
+      return;
+    }
+
     setStep('extracting');
     setError(null);
 
@@ -97,10 +103,26 @@ export function TemplateExtractDialog({
         <div className="p-4">
           {step === 'confirm' && (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                将从 <strong>{materialIds.length}</strong> 个素材中提取共性特征，
-                生成一个可复用的爆款模版。
-              </p>
+              {materialIds.length === 0 ? (
+                <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    先去素材库批量选择已验证的爆款素材，再提取可复用模版。
+                  </p>
+                  <Link
+                    href="/materials"
+                    onClick={onClose}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                  >
+                    去素材库选择
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  将从 <strong>{materialIds.length}</strong> 个素材中提取共性特征，
+                  生成一个可复用的爆款模版。
+                </p>
+              )}
 
               {/* 风格选择 */}
               <div>
@@ -133,6 +155,7 @@ export function TemplateExtractDialog({
                 </button>
                 <button
                   onClick={handleExtract}
+                  disabled={materialIds.length === 0}
                   className="px-4 py-2 text-sm rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium"
                 >
                   开始提取
@@ -190,7 +213,10 @@ export function TemplateExtractDialog({
               {/* 操作 */}
               <div className="flex justify-end gap-2 pt-2">
                 <button
-                  onClick={onClose}
+                  onClick={() => {
+                    onSuccess?.(template);
+                    onClose();
+                  }}
                   className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-accent"
                 >
                   保存为草稿

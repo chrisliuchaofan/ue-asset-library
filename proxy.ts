@@ -14,6 +14,24 @@ function isPromptLibraryStudioEntry(params: URLSearchParams) {
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
+  const host = req.headers.get('host') || '';
+  const hostname = host.split(':')[0].toLowerCase();
+  const canonicalHost = 'www.factory-buy.com';
+  const isLocalHost = ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(hostname);
+  const shouldCanonicalize =
+    hostname !== canonicalHost &&
+    !isLocalHost &&
+    (hostname === 'factory-buy.com' ||
+      hostname.endsWith('.vercel.app') ||
+      hostname.endsWith('.factory-buy.com'));
+
+  if (shouldCanonicalize) {
+    const canonicalUrl = req.nextUrl.clone();
+    canonicalUrl.protocol = 'https:';
+    canonicalUrl.host = canonicalHost;
+    return NextResponse.redirect(canonicalUrl, 308);
+  }
+
   if (pathname === '/studio' && isPromptLibraryStudioEntry(req.nextUrl.searchParams)) {
     return NextResponse.redirect(new URL(MATRIX_CREATE_URL));
   }
@@ -88,6 +106,7 @@ export default auth((req) => {
 export const config = {
   matcher: [
     '/',
+    '/auth/:path*',
     '/dashboard/:path*',
     '/admin/:path*',
     '/materials/:path*',
@@ -100,6 +119,7 @@ export const config = {
     '/knowledge/:path*',
     '/assets/:path*',
     '/weekly-reports/:path*',
+    '/delivery/:path*',
     '/settings/:path*',
     '/interview/:path*',
     '/api/((?!auth).*)',

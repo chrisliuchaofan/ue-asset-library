@@ -4,15 +4,19 @@
  */
 
 import { NextResponse } from 'next/server';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 
 export async function GET(request: Request) {
   try {
+    const ctx = await requireTeamAccess('content:read');
+    if (isErrorResponse(ctx)) return ctx;
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || undefined;
     const limit = searchParams.get('limit') ? Number(searchParams.get('limit')) : undefined;
 
     const { dbGetTemplates } = await import('@/lib/templates/templates-db');
-    const templates = await dbGetTemplates({ status, limit });
+    const templates = await dbGetTemplates({ status, limit, teamId: ctx.teamId });
     return NextResponse.json({ templates });
   } catch (error) {
     console.error('[TemplatesAPI] 获取模版列表失败:', error);
@@ -22,6 +26,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const ctx = await requireTeamAccess('content:create');
+    if (isErrorResponse(ctx)) return ctx;
+
     const body = await request.json();
     const { template, options } = body;
 
@@ -30,7 +37,11 @@ export async function POST(request: Request) {
     }
 
     const { dbCreateTemplate } = await import('@/lib/templates/templates-db');
-    const saved = await dbCreateTemplate(template, options);
+    const saved = await dbCreateTemplate(template, {
+      ...options,
+      teamId: ctx.teamId,
+      userId: ctx.userId,
+    });
     return NextResponse.json(saved, { status: 201 });
   } catch (error) {
     console.error('[TemplatesAPI] 创建模版失败:', error);

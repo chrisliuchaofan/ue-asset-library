@@ -16,7 +16,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing materialId' }, { status: 400 });
         }
 
-        const materials = await getAllMaterials();
+        const materials = await getAllMaterials({ teamId: ctx.teamId });
         const material = materials.find((m: any) => m.id === materialId);
 
         if (!material) {

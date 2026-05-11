@@ -35,6 +35,10 @@ export interface MatchSummary {
   results: MatchResult[];
 }
 
+export interface MaterialMatchOptions {
+  teamId?: string;
+}
+
 // ==================== 工具函数 ====================
 
 /**
@@ -125,17 +129,49 @@ function nameSimilarity(a: string, b: string): { score: number; reason: string }
   return { score: editScore, reason: '相似度较低' };
 }
 
+function normalizeStableId(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  const text = String(value).trim().toLowerCase();
+  if (!text || text === 'null' || text === 'undefined' || text === 'nan' || text === '-' || text === '--') {
+    return undefined;
+  }
+  return text;
+}
+
+function uniqueStableIds(values: unknown[]): string[] {
+  return Array.from(
+    new Set(values.map(normalizeStableId).filter((value): value is string => Boolean(value)))
+  );
+}
+
+function getReportPlatformIds(reportMaterial: ReportMaterial): string[] {
+  return uniqueStableIds([
+    reportMaterial.platformId,
+    reportMaterial.creativeId,
+  ]);
+}
+
+function getMaterialPlatformIds(material: Material): string[] {
+  return uniqueStableIds([material.platformId]);
+}
+
 // ==================== 核心匹配逻辑 ====================
 
 /**
  * 获取素材库中所有素材（用于匹配）
  * 只查询需要的字段，减少数据传输
  */
-async function fetchMaterialsForMatching(): Promise<Material[]> {
-  const { data, error } = await (supabaseAdmin as any)
+async function fetchMaterialsForMatching(options: MaterialMatchOptions = {}): Promise<Material[]> {
+  let query = (supabaseAdmin as any)
     .from('materials')
-    .select('id, name, platform_name, platform_id, material_naming, type, project, tag, status, consumption, roi, src, thumbnail')
+    .select('id, name, platform_name, platform_id, material_naming, type, project, tag, status, consumption, roi, src, thumbnail, hash')
     .order('created_at', { ascending: false });
+
+  if (options.teamId) {
+    query = query.or(`team_id.eq.${options.teamId},team_id.is.null`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[MaterialMatcher] 查询素材失败:', error);
@@ -157,6 +193,7 @@ async function fetchMaterialsForMatching(): Promise<Material[]> {
     roi: row.roi,
     src: row.src,
     thumbnail: row.thumbnail,
+    hash: row.hash || undefined,
     // 以下是 Material 类型必需但匹配不关心的字段
     source: 'internal' as const,
     quality: [],
@@ -172,6 +209,22 @@ function matchSingle(
   fuzzyThreshold: number = 0.7
 ): { material: Material | null; matchType: 'exact' | 'fuzzy' | 'none'; confidence: number; reason: string } {
   const excelName = reportMaterial.name;
+  const reportPlatformIds = getReportPlatformIds(reportMaterial);
+
+  // 0. 优先精确匹配兼容的平台标识，避免同名素材误匹配
+  if (reportPlatformIds.length > 0) {
+    for (const m of materials) {
+      const materialPlatformIds = getMaterialPlatformIds(m);
+      if (materialPlatformIds.some(id => reportPlatformIds.includes(id))) {
+        return {
+          material: m,
+          matchType: 'exact',
+          confidence: 1.0,
+          reason: '平台素材标识精确匹配',
+        };
+      }
+    }
+  }
 
   // 1. 精确匹配 platform_name
   for (const m of materials) {
@@ -257,12 +310,13 @@ function matchSingle(
  */
 export async function matchReportMaterials(
   reportMaterials: ReportMaterial[],
-  fuzzyThreshold: number = 0.7
+  fuzzyThreshold: number = 0.7,
+  options: MaterialMatchOptions = {}
 ): Promise<MatchSummary> {
   console.log(`[MaterialMatcher] 开始匹配 ${reportMaterials.length} 条周报素材...`);
 
   // 获取素材库数据
-  const materials = await fetchMaterialsForMatching();
+  const materials = await fetchMaterialsForMatching(options);
   console.log(`[MaterialMatcher] 素材库共 ${materials.length} 条素材`);
 
   const results: MatchResult[] = [];
@@ -331,6 +385,10 @@ export interface MetricsWritebackResult {
   details: { materialId: string; success: boolean; error?: string }[];
 }
 
+function firstDefinedNumber(...values: Array<number | undefined>): number | undefined {
+  return values.find(value => value !== undefined);
+}
+
 /**
  * 将周报中的投放数据回写到素材库
  * 匹配成功的素材，将消耗/展示/点击/CTR/CPC 等数据写入 materials 表
@@ -340,7 +398,8 @@ export interface MetricsWritebackResult {
  */
 export async function writebackMetrics(
   reportMaterials: ReportMaterial[],
-  reportPeriod: string
+  reportPeriod: string,
+  options: MaterialMatchOptions = {}
 ): Promise<MetricsWritebackResult> {
   const matched = reportMaterials.filter(rm => rm.material_id);
   const details: MetricsWritebackResult['details'] = [];
@@ -363,18 +422,34 @@ export async function writebackMetrics(
       if (rm.cpm !== undefined) updateData.cpm = rm.cpm;
       if (rm.conversions !== undefined) updateData.conversions = rm.conversions;
       if (rm.roi !== undefined) updateData.roi = rm.roi;
-      if (rm.newUserCost !== undefined) updateData.new_user_cost = rm.newUserCost;
-      if (rm.firstDayPayCount !== undefined) updateData.first_day_pay_count = rm.firstDayPayCount;
-      if (rm.firstDayPayCost !== undefined) updateData.first_day_pay_cost = rm.firstDayPayCost;
 
-      const { error } = await (supabaseAdmin as any)
+      const newUserCost = firstDefinedNumber(rm.newUserCost, rm.newCost);
+      const firstDayPayCount = firstDefinedNumber(rm.firstDayPayCount, rm.newPaidCount);
+      const firstDayPayCost = firstDefinedNumber(rm.firstDayPayCost, rm.newPaidCost, rm.paidCost);
+
+      if (newUserCost !== undefined) updateData.new_user_cost = newUserCost;
+      if (firstDayPayCount !== undefined) updateData.first_day_pay_count = firstDayPayCount;
+      if (firstDayPayCost !== undefined) updateData.first_day_pay_cost = firstDayPayCost;
+
+      let query = (supabaseAdmin as any)
         .from('materials')
         .update(updateData)
         .eq('id', rm.material_id);
 
+      if (options.teamId) {
+        query = query.eq('team_id', options.teamId);
+      }
+
+      const { data, error } = await query
+        .select('id')
+        .maybeSingle();
+
       if (error) {
         failed++;
         details.push({ materialId: rm.material_id!, success: false, error: error.message });
+      } else if (options.teamId && !data) {
+        failed++;
+        details.push({ materialId: rm.material_id!, success: false, error: '素材不存在或无权限回填' });
       } else {
         updated++;
         details.push({ materialId: rm.material_id!, success: true });

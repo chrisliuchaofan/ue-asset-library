@@ -5,7 +5,7 @@ import { getMaterialsIndex, type MaterialFilterOptions } from '@/lib/material-in
 import { createLRUCache } from '@/lib/lru-cache';
 import { createHash } from 'crypto';
 import type { Material } from '@/data/material.schema';
-import { getSession } from '@/lib/auth';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { getAllowedProjectsForEmail, isProjectAllowed } from '@/lib/project-permissions';
 
 interface CachedResult {
@@ -29,9 +29,10 @@ const MaterialQuerySchema = z.object({
 export async function POST(request: Request) {
   const requestStart = Date.now();
   try {
-    const session = await getSession();
-    const email = session?.user?.email;
-    const allowedProjects = email ? await getAllowedProjectsForEmail(email) : [];
+    const ctx = await requireTeamAccess('content:read');
+    if (isErrorResponse(ctx)) return ctx;
+
+    const allowedProjects = await getAllowedProjectsForEmail(ctx.email);
 
     if (allowedProjects.length === 0) {
       return NextResponse.json({
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
     };
 
     const cacheKey = createHash('sha1')
-      .update(JSON.stringify({ filters: normalizedFilters, allowedProjects }))
+      .update(JSON.stringify({ filters: normalizedFilters, allowedProjects, teamId: ctx.teamId }))
       .digest('hex');
     const cached = materialsQueryCache.get(cacheKey);
     // 优化：检查缓存时，如果结果为空且缓存时间较短，延长缓存时间（空结果通常不会很快变化）
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
     }
 
     const manifestStart = Date.now();
-    const materials = (await getAllMaterials()).filter((material) =>
+    const materials = (await getAllMaterials({ teamId: ctx.teamId })).filter((material) =>
       isProjectAllowed(material.project, allowedProjects)
     );
     const manifestDuration = Date.now() - manifestStart;
@@ -223,4 +224,3 @@ export async function POST(request: Request) {
     }, { status: 200 }); // 返回 200，让前端处理空状态
   }
 }
-

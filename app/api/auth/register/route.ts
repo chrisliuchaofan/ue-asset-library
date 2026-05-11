@@ -5,12 +5,8 @@ import {
   validateInvitation,
   consumeInvitation,
   addMember,
-  getTeamBySlug,
-  createTeam,
-  generateSlug,
-  getMemberRole,
-  getTeamMembers,
 } from '@/lib/team/team-service';
+import { addToDefaultCompanyTeam } from '@/lib/auth/default-company-team';
 import {
   formatAllowedCompanyEmailDomains,
   getAllowedCompanyEmailDomains,
@@ -29,49 +25,6 @@ const RegisterSchema = z.object({
   verification_code: z.string().min(6, '请输入邮箱验证码').max(12, '验证码格式不正确'),
   invitation_code: z.string().optional(),
 });
-
-async function addToDefaultCompanyTeam(email: string, username: string) {
-  const configuredSlug = process.env.COMPANY_TEAM_SLUG?.trim();
-  const teamName = process.env.COMPANY_TEAM_NAME?.trim() || '爆款工坊团队';
-  const baseSlug = generateSlug(configuredSlug || teamName);
-  let team = await getTeamBySlug(baseSlug);
-
-  if (!team) {
-    try {
-      team = await createTeam({
-        name: teamName,
-        slug: baseSlug,
-        createdBy: email,
-        description: '公司邮箱自动注册创建的默认团队',
-      });
-    } catch (error) {
-      team = await getTeamBySlug(baseSlug);
-      if (!team) {
-        throw error;
-      }
-      const existingRole = await getMemberRole(team.id, email);
-      if (existingRole) {
-        return { teamName: team.name, role: existingRole };
-      }
-
-      const members = await getTeamMembers(team.id);
-      const role = members.some((member) => member.role === 'owner') ? 'member' : 'owner';
-      await addMember(team.id, email, role);
-      return { teamName: team.name, role };
-    }
-    return { teamName: team.name, role: 'owner' as const };
-  }
-
-  const existingRole = await getMemberRole(team.id, email);
-  if (existingRole) {
-    return { teamName: team.name, role: existingRole };
-  }
-
-  const members = await getTeamMembers(team.id);
-  const role = members.some((member) => member.role === 'owner') ? 'member' : 'owner';
-  await addMember(team.id, email, role);
-  return { teamName: team.name, role };
-}
 
 /**
  * POST /api/auth/register — 公司邮箱注册
@@ -247,7 +200,7 @@ export async function POST(request: Request) {
         await consumeInvitation(invitation.id);
         teamName = invitation.team?.name || teamName;
       } else {
-        const result = await addToDefaultCompanyTeam(email, username);
+        const result = await addToDefaultCompanyTeam(email);
         teamName = result.teamName;
       }
     } catch (memberError) {

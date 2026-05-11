@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import { MaterialCreateSchema, type Material } from '@/data/material.schema';
-import { createMaterial, getAllMaterials, getMaterialsSummary } from '@/lib/materials-data';
-import { getSession } from '@/lib/auth';
+import { createMaterial, getAllMaterials } from '@/lib/materials-data';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { getAllowedProjectsForEmail, isProjectAllowed } from '@/lib/project-permissions';
-import { z } from 'zod';
 
 export async function GET(request: Request) {
   const start = Date.now();
   try {
-    const session = await getSession();
-    const email = session?.user?.email;
-    const allowedProjects = email ? await getAllowedProjectsForEmail(email) : [];
+    const ctx = await requireTeamAccess('content:read');
+    if (isErrorResponse(ctx)) return ctx;
+
+    const allowedProjects = await getAllowedProjectsForEmail(ctx.email);
 
     if (allowedProjects.length === 0) {
       return NextResponse.json({
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
 
     // 使用真实数据源
-    const allMaterials = (await getAllMaterials()).filter((material) =>
+    const allMaterials = (await getAllMaterials({ teamId: ctx.teamId })).filter((material) =>
       isProjectAllowed(material.project, allowedProjects)
     );
 
@@ -64,12 +64,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getSession();
-    const email = session?.user?.email;
-
-    if (!email) {
-      return NextResponse.json({ message: '未登录，请先登录' }, { status: 401 });
-    }
+    const ctx = await requireTeamAccess('content:create');
+    if (isErrorResponse(ctx)) return ctx;
 
     const json = await request.json();
     
@@ -85,7 +81,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const allowedProjects = await getAllowedProjectsForEmail(email);
+    const allowedProjects = await getAllowedProjectsForEmail(ctx.email);
     if (!isProjectAllowed(parsed.data.project, allowedProjects)) {
       return NextResponse.json(
         { message: '没有该项目的上传权限，请联系管理员开通' },
@@ -113,6 +109,8 @@ export async function POST(request: Request) {
       estimatedSpend: parsed.data.estimatedSpend,
       firstSeen: parsed.data.firstSeen,
       lastSeen: parsed.data.lastSeen,
+    }, {
+      teamId: ctx.teamId,
     });
     return NextResponse.json(material, { status: 201 });
   } catch (error) {

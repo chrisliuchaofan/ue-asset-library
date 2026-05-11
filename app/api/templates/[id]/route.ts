@@ -5,14 +5,18 @@
  */
 
 import { NextResponse } from 'next/server';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, props: Params) {
   try {
+    const ctx = await requireTeamAccess('content:read');
+    if (isErrorResponse(ctx)) return ctx;
+
     const { id } = await props.params;
     const { dbGetTemplateById } = await import('@/lib/templates/templates-db');
-    const template = await dbGetTemplateById(id);
+    const template = await dbGetTemplateById(id, { teamId: ctx.teamId });
 
     if (!template) {
       return NextResponse.json({ message: '模版不存在' }, { status: 404 });
@@ -28,6 +32,9 @@ export async function GET(request: Request, props: Params) {
 
 export async function PUT(request: Request, props: Params) {
   try {
+    const ctx = await requireTeamAccess('content:update');
+    if (isErrorResponse(ctx)) return ctx;
+
     const { id } = await props.params;
     const body = await request.json();
 
@@ -36,7 +43,7 @@ export async function PUT(request: Request, props: Params) {
     }
 
     const { dbUpdateTemplate } = await import('@/lib/templates/templates-db');
-    const updated = await dbUpdateTemplate(id, body);
+    const updated = await dbUpdateTemplate(id, body, { teamId: ctx.teamId });
     return NextResponse.json(updated);
   } catch (error) {
     console.error('[TemplatesAPI] 更新模版失败:', error);
@@ -47,9 +54,12 @@ export async function PUT(request: Request, props: Params) {
 
 export async function DELETE(request: Request, props: Params) {
   try {
+    const ctx = await requireTeamAccess('content:delete');
+    if (isErrorResponse(ctx)) return ctx;
+
     const { id } = await props.params;
     const { dbDeleteTemplate } = await import('@/lib/templates/templates-db');
-    await dbDeleteTemplate(id);
+    await dbDeleteTemplate(id, { teamId: ctx.teamId });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[TemplatesAPI] 删除模版失败:', error);

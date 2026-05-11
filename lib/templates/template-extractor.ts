@@ -8,7 +8,7 @@
 import { aiService } from '@/lib/ai/ai-service';
 import type { AIGenerateTextRequest } from '@/lib/ai/types';
 import { generateEmbedding } from '@/lib/vector-search';
-import { dbCreateTemplate, dbStoreTemplateEmbedding } from './templates-db';
+import { dbCreateTemplate, dbStoreTemplateEmbedding, dbUpsertTemplateMaterialRelation } from './templates-db';
 import type { MaterialTemplate, TemplateScene, TemplateCreateInput } from '@/data/template.schema';
 import type { Material } from '@/data/material.schema';
 
@@ -99,34 +99,19 @@ ${options?.style ? `**风格偏好**：${options.style}` : ''}
     responseFormat: 'text',
   };
 
-  const response = await aiService.generateText(aiRequest);
-  const rawText = response.text.trim();
-
   // 3. 解析 AI 输出（复用 script-generator 的 JSON 清理逻辑）
-  let parsed: any;
+  let parsed: any = null;
   try {
+    const response = await aiService.generateText(aiRequest);
+    const rawText = response.text.trim();
     const jsonStr = rawText
       .replace(/^```json?\s*/i, '')
       .replace(/\s*```$/i, '')
       .trim();
     parsed = JSON.parse(jsonStr);
-  } catch {
-    console.error('[TemplateExtractor] AI 输出 JSON 解析失败:', rawText.substring(0, 200));
-    // 降级：生成一个基础模版
-    parsed = {
-      name: `爆款模版 - ${materials[0].name}`,
-      description: '从爆款素材自动提取的模版',
-      hook_pattern: '悬念型',
-      structure: [
-        { order: 0, type: 'hook', description: '强烈的开头钩子', durationSec: 3, tips: '前3秒决定生死' },
-        { order: 1, type: 'selling_point', description: '核心卖点展示', durationSec: 8, tips: '突出差异化' },
-        { order: 2, type: 'emotion', description: '情感高潮', durationSec: 5, tips: '引发共鸣或对比反差' },
-        { order: 3, type: 'cta', description: '行动号召', durationSec: 4, tips: '带紧迫感' },
-      ],
-      target_emotion: '好奇',
-      recommended_duration: 20,
-      tags: ['通用'],
-    };
+  } catch (error) {
+    console.error('[TemplateExtractor] AI 提取失败，使用基础模版兜底:', error);
+    parsed = createFallbackTemplatePayload(materials);
   }
 
   // 4. 构建结构化数据
@@ -161,6 +146,16 @@ ${options?.style ? `**风格偏好**：${options.style}` : ''}
     userId: options?.userId,
   });
 
+  await Promise.all(
+    materials.map(material =>
+      dbUpsertTemplateMaterialRelation(template.id, {
+        materialId: material.id,
+        relationType: material.source === 'competitor' ? 'competitor_reference' : 'source',
+        createdBy: options?.userId,
+      })
+    )
+  );
+
   // 8. 生成并存储 embedding（异步，不阻塞返回）
   generateAndStoreEmbedding(template).catch(err => {
     console.error('[TemplateExtractor] Embedding 存储失败:', err);
@@ -170,6 +165,33 @@ ${options?.style ? `**风格偏好**：${options.style}` : ''}
 }
 
 // ==================== 辅助函数 ====================
+
+function createFallbackTemplatePayload(materials: Material[]) {
+  const sourceNames = materials.map(m => m.name).filter(Boolean);
+  const sourcePrefix = sourceNames[0] || '爆款素材';
+  const hasCompetitor = materials.some(m => m.source === 'competitor');
+  const avgDuration = Math.round(
+    materials
+      .map(m => m.duration || 0)
+      .filter(Boolean)
+      .reduce((sum, duration, _, arr) => sum + duration / arr.length, 0)
+  );
+
+  return {
+    name: `兜底爆款模版 - ${sourcePrefix}`,
+    description: `基于 ${sourceNames.length || materials.length} 条素材生成的基础可用模版，AI 服务不可用时保证拆解链路不断。`,
+    hook_pattern: hasCompetitor ? '对比型' : '悬念型',
+    structure: [
+      { order: 0, type: 'hook', description: '前三秒直接抛出强刺激结果或反差问题', durationSec: 3, tips: '用结果、福利或失败反差抢注意力' },
+      { order: 1, type: 'selling_point', description: '展示核心玩法/卖点带来的即时收益', durationSec: 6, tips: '一屏只讲一个卖点，避免信息过载' },
+      { order: 2, type: 'emotion', description: '放大前后对比，制造爽感、紧迫感或代入感', durationSec: 5, tips: '让用户看到变化，而不只是听到描述' },
+      { order: 3, type: 'cta', description: '给出明确行动理由和下载/试玩引导', durationSec: 4, tips: '收口要短，保留强动词' },
+    ],
+    target_emotion: hasCompetitor ? '紧迫' : '好奇',
+    recommended_duration: avgDuration || 18,
+    tags: ['兜底模版', hasCompetitor ? '竞品参考' : '内部爆款'],
+  };
+}
 
 /**
  * 计算效果评分（0-100）

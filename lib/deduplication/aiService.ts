@@ -12,10 +12,15 @@ export type ChatServiceType = 'zhipu' | 'openrouter' | 'tuyoo';
 function useTuyooGateway(forDedup: boolean): boolean {
   const inBrowser = typeof window !== 'undefined';
   const enabled = inBrowser
-    ? (process.env as any).TUYOO_GATEWAY_ENABLED === true || (process.env as any).TUYOO_GATEWAY_ENABLED === 'true'
+    ? (process.env as any).NEXT_PUBLIC_TUYOO_GATEWAY_ENABLED === true
+      || (process.env as any).NEXT_PUBLIC_TUYOO_GATEWAY_ENABLED === 'true'
+      || (process.env as any).TUYOO_GATEWAY_ENABLED === true
+      || (process.env as any).TUYOO_GATEWAY_ENABLED === 'true'
     : !!(process.env as any).LLM_TOKEN;
   if (!enabled) return false;
-  const scope = (process.env as any).TUYOO_GATEWAY_SCOPE;
+  const scope = inBrowser
+    ? (process.env as any).NEXT_PUBLIC_TUYOO_GATEWAY_SCOPE || (process.env as any).TUYOO_GATEWAY_SCOPE
+    : (process.env as any).TUYOO_GATEWAY_SCOPE;
   if (scope === 'dedup_only') return forDedup === true;
   return true;
 }

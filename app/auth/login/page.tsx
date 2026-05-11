@@ -15,6 +15,27 @@ const LOGIN_CSS = `
   .login-right{width:50%}
 }`;
 
+function normalizeCallbackUrl(value: string | null): string {
+  if (!value) return '/materials';
+  if (value.startsWith('/') && !value.startsWith('//')) return value;
+
+  try {
+    const url = new URL(value);
+    const isKnownAppHost =
+      url.hostname === 'www.factory-buy.com' ||
+      url.hostname === 'factory-buy.com' ||
+      url.hostname.endsWith('.vercel.app');
+
+    if (isKnownAppHost) {
+      return `${url.pathname}${url.search}${url.hash}` || '/materials';
+    }
+  } catch {
+    return '/materials';
+  }
+
+  return '/materials';
+}
+
 /* ───── 登录表单 ───── */
 
 function LoginForm() {
@@ -26,7 +47,7 @@ function LoginForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const callbackUrl = searchParams.get('callbackUrl') || '/materials';
+  const callbackUrl = normalizeCallbackUrl(searchParams.get('callbackUrl'));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +75,7 @@ function LoginForm() {
         setError(errorMessage);
         setPassword('');
       } else if (result?.ok) {
-        window.location.href = callbackUrl;
+        window.location.assign(callbackUrl);
       } else {
         router.push(callbackUrl);
         router.refresh();

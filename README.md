@@ -27,6 +27,7 @@ npm run dev
 
 ## 文档
 
+- **[docs/PROJECT_CONSTITUTION.md](./docs/PROJECT_CONSTITUTION.md)** — 项目宪法（多人协作 + AI agent 开发约束）
 - **[CLAUDE.md](./CLAUDE.md)** — 项目入口（技术栈 + 约束 + 模块 + 当前状态）
 - **[docs/ROADMAP.md](./docs/ROADMAP.md)** — 产品路线图 + 开发进度
 - **[ENV_VARIABLES.md](./ENV_VARIABLES.md)** — 环境变量配置

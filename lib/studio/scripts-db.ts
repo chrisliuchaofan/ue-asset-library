@@ -45,13 +45,19 @@ function rowToScript(row: ScriptRow): Script {
 // ==================== CRUD ====================
 
 /** 获取当前用户的所有脚本 */
-export async function dbGetScripts(): Promise<Script[]> {
+export async function dbGetScripts(options?: { teamId?: string }): Promise<Script[]> {
   const supabase = supabaseAdmin;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('scripts')
     .select('*')
     .order('created_at', { ascending: false });
+
+  if (options?.teamId) {
+    query = query.eq('team_id', options.teamId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[ScriptsDB] 查询脚本失败:', error);
@@ -62,14 +68,19 @@ export async function dbGetScripts(): Promise<Script[]> {
 }
 
 /** 根据 ID 获取脚本 */
-export async function dbGetScriptById(id: string): Promise<Script | null> {
+export async function dbGetScriptById(id: string, options?: { teamId?: string }): Promise<Script | null> {
   const supabase = supabaseAdmin;
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('scripts')
     .select('*')
-    .eq('id', id)
-    .single();
+    .eq('id', id);
+
+  if (options?.teamId) {
+    query = query.eq('team_id', options.teamId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error) {
     if (error.code === 'PGRST116') return null;
@@ -123,7 +134,11 @@ export async function dbCreateScript(script: Script, options?: {
 }
 
 /** 更新脚本 */
-export async function dbUpdateScript(id: string, updates: Partial<Script>): Promise<Script> {
+export async function dbUpdateScript(
+  id: string,
+  updates: Partial<Script>,
+  options?: { teamId?: string }
+): Promise<Script> {
   const supabase = supabaseAdmin;
 
   const updateData: Record<string, unknown> = {};
@@ -132,12 +147,16 @@ export async function dbUpdateScript(id: string, updates: Partial<Script>): Prom
   if (updates.totalDuration !== undefined) updateData.total_duration = updates.totalDuration;
   if (updates.materialId !== undefined) updateData.material_id = updates.materialId;
 
-  const { data, error } = await (supabase
+  let query = (supabase
     .from('scripts') as any)
     .update(updateData)
-    .eq('id', id)
-    .select()
-    .single();
+    .eq('id', id);
+
+  if (options?.teamId) {
+    query = query.eq('team_id', options.teamId);
+  }
+
+  const { data, error } = await query.select().single();
 
   if (error) {
     console.error('[ScriptsDB] 更新脚本失败:', error);
@@ -148,13 +167,19 @@ export async function dbUpdateScript(id: string, updates: Partial<Script>): Prom
 }
 
 /** 删除脚本 */
-export async function dbDeleteScript(id: string): Promise<void> {
+export async function dbDeleteScript(id: string, options?: { teamId?: string }): Promise<void> {
   const supabase = supabaseAdmin;
 
-  const { error } = await supabase
+  let query = supabase
     .from('scripts')
     .delete()
     .eq('id', id);
+
+  if (options?.teamId) {
+    query = query.eq('team_id', options.teamId);
+  }
+
+  const { error } = await query;
 
   if (error) {
     console.error('[ScriptsDB] 删除脚本失败:', error);

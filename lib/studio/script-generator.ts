@@ -94,6 +94,73 @@ ${sellingPointsText}
 请严格按模版的场景数量和类型输出 JSON 数组。`;
 }
 
+function fallbackNarration(scene: TemplateScene, topic: string): string {
+    const label = SCENE_TYPE_LABELS[scene.type] || '创意';
+    const copyByType: Record<string, string> = {
+        hook: `${topic}开局就给反差，三秒看到爽点`,
+        selling_point: `${topic}核心卖点直接展示，收益马上可见`,
+        emotion: `前后变化拉满，让玩家立刻产生代入`,
+        cta: `现在试玩，直接领取开局福利`,
+        transition: `${label}转场承接节奏，继续推进卖点`,
+    };
+    return copyByType[scene.type] || `${topic}${label}场景，突出核心吸引点`;
+}
+
+function buildFallbackScenes(req: ScriptGenerateRequest, isTemplateMode: boolean): SceneBlock[] {
+    if (isTemplateMode && req.templateStructure?.length) {
+        return req.templateStructure.map((scene, i) => ({
+            id: generateId(),
+            order: i,
+            narration: fallbackNarration(scene, req.topic),
+            visualPrompt: scene.description || `${req.topic} ${SCENE_TYPE_LABELS[scene.type] || scene.type} 场景`,
+            durationSec: scene.durationSec || 3,
+            sceneType: scene.type,
+            imageStatus: 'idle' as const,
+        }));
+    }
+
+    const targetDuration = Math.max(8, req.targetDuration || 20);
+    const middleDuration = Math.max(3, targetDuration - 10);
+    return [
+        {
+            id: generateId(),
+            order: 0,
+            narration: `${req.topic}开局抛出强反差，三秒抓住注意`,
+            visualPrompt: `${req.topic}高对比开场，角色遇到强烈冲突`,
+            durationSec: 3,
+            sceneType: 'hook',
+            imageStatus: 'idle' as const,
+        },
+        {
+            id: generateId(),
+            order: 1,
+            narration: '核心玩法直接展示，奖励和成长同步出现',
+            visualPrompt: '展示核心玩法循环，奖励弹出，节奏紧凑',
+            durationSec: middleDuration,
+            sceneType: 'selling_point',
+            imageStatus: 'idle' as const,
+        },
+        {
+            id: generateId(),
+            order: 2,
+            narration: '前后变化形成爽感，让用户想继续看',
+            visualPrompt: '前后对比镜头，弱到强的视觉反差',
+            durationSec: 4,
+            sceneType: 'emotion',
+            imageStatus: 'idle' as const,
+        },
+        {
+            id: generateId(),
+            order: 3,
+            narration: '现在试玩，开局福利马上到账',
+            visualPrompt: '下载按钮与福利奖励同屏出现，收束明确',
+            durationSec: 3,
+            sceneType: 'cta',
+            imageStatus: 'idle' as const,
+        },
+    ];
+}
+
 // ==================== 统一生成入口 ====================
 
 export async function generateScript(req: ScriptGenerateRequest): Promise<Script> {
@@ -110,12 +177,12 @@ export async function generateScript(req: ScriptGenerateRequest): Promise<Script
         responseFormat: 'text',
     };
 
-    const response = await aiService.generateText(aiRequest);
-    const rawText = response.text.trim();
-
     // 解析 AI 返回的 JSON
     let scenes: SceneBlock[];
+    let rawText = '';
     try {
+        const response = await aiService.generateText(aiRequest);
+        rawText = response.text.trim();
         const jsonStr = rawText
             .replace(/^```json?\s*/i, '')
             .replace(/\s*```$/i, '')
@@ -133,16 +200,9 @@ export async function generateScript(req: ScriptGenerateRequest): Promise<Script
             sceneType: s.sceneType || undefined,
             imageStatus: 'idle' as const,
         }));
-    } catch {
-        // JSON 解析失败，生成单场景兜底
-        scenes = [{
-            id: generateId(),
-            order: 0,
-            narration: rawText.substring(0, 100),
-            visualPrompt: '画面待补充',
-            durationSec: req.targetDuration,
-            imageStatus: 'idle' as const,
-        }];
+    } catch (error) {
+        console.error('[ScriptGenerator] AI 脚本生成失败，使用基础分镜兜底:', error);
+        scenes = buildFallbackScenes(req, Boolean(isTemplateMode));
     }
 
     // 模版模式：强制对齐场景数 + 回填 sceneType

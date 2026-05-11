@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
 import { dbUpdateMaterial, dbGetMaterialById } from '@/lib/materials-db';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { z } from 'zod';
 
 /**
@@ -18,10 +18,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
-      return NextResponse.json({ message: '未登录' }, { status: 401 });
-    }
+    const ctx = await requireTeamAccess('content:update');
+    if (isErrorResponse(ctx)) return ctx;
 
     const { id } = await params;
     const json = await request.json();
@@ -35,12 +33,33 @@ export async function PATCH(
     }
 
     // 验证素材存在
-    const existing = await dbGetMaterialById(id);
+    const existing = await dbGetMaterialById(id, {
+      teamId: ctx.teamId,
+      includeGlobal: false,
+    });
     if (!existing) {
       return NextResponse.json({ message: '素材不存在' }, { status: 404 });
     }
 
-    const updated = await dbUpdateMaterial(id, { status: parsed.data.status } as any);
+    const nextStatus = parsed.data.status;
+    const requiresNaming = nextStatus === 'approved' || nextStatus === 'published';
+    if (requiresNaming && (!existing.namingVerified || !existing.materialNaming)) {
+      return NextResponse.json(
+        { message: '请先完成标准命名，再标记为已通过或已投放' },
+        { status: 400 },
+      );
+    }
+
+    if (nextStatus === 'published' && !existing.platformName?.trim()) {
+      return NextResponse.json(
+        { message: '请先回填投放平台素材名，再标记为已投放' },
+        { status: 400 },
+      );
+    }
+
+    const updated = await dbUpdateMaterial(id, { status: nextStatus } as any, {
+      teamId: ctx.teamId,
+    });
     return NextResponse.json(updated);
   } catch (error) {
     console.error('[material/status] 更新失败:', error);

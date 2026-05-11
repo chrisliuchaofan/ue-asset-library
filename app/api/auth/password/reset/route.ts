@@ -95,10 +95,15 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(profile.id);
     const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(profile.id, {
       password,
       email_confirm: true,
-      user_metadata: { username: profile.username || email.split('@')[0] },
+      user_metadata: {
+        ...(authUserData.user?.user_metadata || {}),
+        username: profile.username || email.split('@')[0],
+        must_change_password: false,
+      },
     });
 
     if (updateAuthError) {

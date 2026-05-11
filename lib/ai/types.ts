@@ -4,6 +4,18 @@
 
 export type AIProviderType = 'qwen' | 'jimeng' | 'kling' | 'deepseek' | 'tuyoo' | 'custom';
 
+export type AIMessageContent =
+  | string
+  | Array<{
+      type: string;
+      text?: string;
+      image?: string;
+      video?: string;
+      image_url?: { url: string };
+      video_url?: { url: string };
+      [key: string]: unknown;
+    }>;
+
 export interface AIGenerateTextRequest {
   prompt: string;
   model?: string;
@@ -12,7 +24,7 @@ export interface AIGenerateTextRequest {
   responseFormat?: 'text' | 'json';
   systemPrompt?: string;
   /** 多轮对话消息（优先级高于 prompt + systemPrompt） */
-  messages?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  messages?: Array<{ role: 'system' | 'user' | 'assistant'; content: AIMessageContent }>;
 }
 
 export interface AIGenerateTextResponse {
@@ -85,4 +97,3 @@ export interface AIProvider {
   // 健康检查
   healthCheck?(): Promise<boolean>;
 }
-

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MaterialStatusBadge } from './material-status-badge';
 import { MATERIAL_STATUS_LABELS } from '@/data/material.schema';
-import { Pencil, Check, X, Rocket, Loader2 } from 'lucide-react';
+import { Pencil, Check, X, Rocket, Loader2, AlertCircle } from 'lucide-react';
 
 interface MaterialLaunchInfoProps {
   materialId: string;
@@ -31,6 +31,7 @@ export function MaterialLaunchInfo({
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [status, setStatus] = useState(initialStatus || 'draft');
   const [platformName, setPlatformName] = useState(initialPlatformName || '');
@@ -41,6 +42,7 @@ export function MaterialLaunchInfo({
 
   const handleSave = async () => {
     setSaving(true);
+    setError(null);
     try {
       const res = await fetch(`/api/materials/${materialId}`, {
         method: 'PUT',
@@ -56,9 +58,13 @@ export function MaterialLaunchInfo({
       });
       if (res.ok) {
         setEditing(false);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.message || '保存投放信息失败');
       }
     } catch (err) {
       console.error('保存失败:', err);
+      setError('保存投放信息失败，请稍后重试');
     } finally {
       setSaving(false);
     }
@@ -66,6 +72,7 @@ export function MaterialLaunchInfo({
 
   const handleStatusChange = async (newStatus: string) => {
     setUpdatingStatus(true);
+    setError(null);
     try {
       const res = await fetch(`/api/materials/${materialId}/status`, {
         method: 'PATCH',
@@ -74,9 +81,13 @@ export function MaterialLaunchInfo({
       });
       if (res.ok) {
         setStatus(newStatus);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.message || '状态更新失败');
       }
     } catch (err) {
       console.error('状态更新失败:', err);
+      setError('状态更新失败，请稍后重试');
     } finally {
       setUpdatingStatus(false);
     }
@@ -120,6 +131,12 @@ export function MaterialLaunchInfo({
         </div>
       </CardHeader>
       <CardContent>
+        {error && (
+          <div className="mb-3 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
         {!editing ? (
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-3 text-sm">
