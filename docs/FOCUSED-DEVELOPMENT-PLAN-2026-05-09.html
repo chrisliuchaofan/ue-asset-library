@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>爆款工坊专项优化开发计划</title>
+  <style>
+    :root {
+      --bg: #f7f4ee;
+      --paper: #fffdfa;
+      --ink: #1f2428;
+      --muted: #667085;
+      --line: #e6ded2;
+      --accent: #c95f31;
+      --accent-soft: #fff0e8;
+      --green: #28755f;
+      --green-soft: #e9f4ef;
+      --blue: #305f8f;
+      --blue-soft: #eaf1f8;
+      --yellow: #8a6425;
+      --yellow-soft: #fff5d6;
+      --red: #9a3c35;
+      --red-soft: #fae9e7;
+      --shadow: 0 18px 50px rgba(40, 31, 22, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.62;
+    }
+
+    main {
+      width: min(1120px, calc(100vw - 40px));
+      margin: 40px auto 72px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    header {
+      padding: 44px 48px 30px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: .08em;
+      font-size: 13px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(32px, 5vw, 54px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 790px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: #f2eee7;
+      border: 1px solid var(--line);
+      color: #4b5563;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    section {
+      padding: 34px 48px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    section:last-child { border-bottom: 0; }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: 24px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      line-height: 1.35;
+    }
+
+    p { margin: 0 0 14px; }
+
+    .lead {
+      font-size: 20px;
+      line-height: 1.55;
+      color: #30363d;
+      max-width: 900px;
+    }
+
+    .highlight {
+      display: inline;
+      background: linear-gradient(transparent 62%, #ffe0cc 0);
+      font-weight: 750;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: #fffaf4;
+      padding: 18px;
+      min-height: 100%;
+    }
+
+    .panel.accent { background: var(--accent-soft); border-color: #f0c6b1; }
+    .panel.green { background: var(--green-soft); border-color: #b7d9cc; }
+    .panel.blue { background: var(--blue-soft); border-color: #bad0e3; }
+    .panel.yellow { background: var(--yellow-soft); border-color: #e8d79d; }
+    .panel.red { background: var(--red-soft); border-color: #e8b9b3; }
+
+    .panel p,
+    .panel li {
+      color: #4b5563;
+      font-size: 14px;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 20px;
+    }
+
+    li { margin: 7px 0; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .flow-step {
+      position: relative;
+      padding: 16px 14px;
+      min-height: 114px;
+      border: 1px solid var(--line);
+      background: #fffaf4;
+    }
+
+    .flow-step strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent);
+      font-size: 15px;
+    }
+
+    .flow-step span {
+      display: block;
+      color: #5d6673;
+      font-size: 13px;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: #fffaf4;
+    }
+
+    .table th,
+    .table td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    .table th {
+      background: #f2eee7;
+      color: #3b4148;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .table tr:last-child td { border-bottom: 0; }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #f2eee7;
+      color: #4b5563;
+      white-space: nowrap;
+    }
+
+    .tag.p0 { background: var(--red-soft); color: var(--red); }
+    .tag.p1 { background: var(--accent-soft); color: var(--accent); }
+    .tag.p2 { background: var(--yellow-soft); color: var(--yellow); }
+    .tag.done { background: var(--green-soft); color: var(--green); }
+
+    .agent-map {
+      display: grid;
+      grid-template-columns: 1.1fr repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .agent {
+      border: 1px solid var(--line);
+      padding: 18px;
+      background: #fffaf4;
+    }
+
+    .agent.master {
+      background: #22272e;
+      color: #fff;
+      border-color: #22272e;
+    }
+
+    .agent.master p,
+    .agent.master li { color: #d6dbe1; }
+
+    .agent small {
+      display: block;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .agent.master small { color: #ffbd9d; }
+
+    .callout {
+      margin-top: 16px;
+      padding: 16px 18px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      color: #5b3b2e;
+    }
+
+    .nowrap { white-space: nowrap; }
+
+    @media (max-width: 860px) {
+      main {
+        width: min(100vw - 20px, 1120px);
+        margin-top: 12px;
+      }
+
+      header,
+      section { padding: 28px 22px; }
+
+      .grid,
+      .grid.two,
+      .flow,
+      .agent-map {
+        grid-template-columns: 1fr;
+      }
+
+      .table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+
+    @media print {
+      body { background: #fff; }
+      main {
+        width: 100%;
+        margin: 0;
+        box-shadow: none;
+        border: 0;
+      }
+      section, header { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">FOCUSED SPRINT PLAN · 2026-05-09</p>
+      <h1>爆款工坊专项优化开发计划</h1>
+      <p class="subtitle">
+        本计划用于重启主项目 <strong>资产库web</strong>，不继续 lite 版，不重构部署，不追求大而全。第一阶段只验证一个核心命题：
+        <strong>爆款模版能否被复刻，并被真实消耗数据验证。</strong>
+      </p>
+      <div class="meta">
+        <span class="pill">主线：爆款拆解 → 模版 → 复刻 → 数据反馈</span>
+        <span class="pill">范围：主项目内开发</span>
+        <span class="pill">策略：先闭环，再扩展</span>
+        <span class="pill">协作：主 Agent + 计划 / 开发 / 验收</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>一、最终聚焦</h2>
+      <p class="lead">
+        第一阶段不做“完整爆款工坊”，只做
+        <span class="highlight">“验证一个爆款模版是否值得继续复刻”</span>。
+      </p>
+      <div class="flow" aria-label="核心闭环流程">
+        <div class="flow-step">
+          <strong>1. 已验证爆款</strong>
+          <span>从内部高消耗素材或竞品素材中选出母版候选。</span>
+        </div>
+        <div class="flow-step">
+          <strong>2. 提炼模版</strong>
+          <span>固定输出 5 要素，而不是泛泛的 AI 分析。</span>
+        </div>
+        <div class="flow-step">
+          <strong>3. 绑定复刻</strong>
+          <span>把同一公式下的新素材绑定为复刻子素材。</span>
+        </div>
+        <div class="flow-step">
+          <strong>4. 回收数据</strong>
+          <span>通过周报或 TD 导出回写消耗、点击、成本等指标。</span>
+        </div>
+        <div class="flow-step">
+          <strong>5. 判断有效</strong>
+          <span>模版进入有效、观察中或暂停，反哺下一轮创作。</span>
+        </div>
+      </div>
+      <div class="callout">
+        判断标准不是“页面看起来完整”，而是能不能跑通一条黄金路径：选爆款素材 → 提炼模版 → 绑定复刻素材 → 上传数据 → 模版页显示复刻效果。
+      </div>
+    </section>
+
+    <section>
+      <h2>二、为什么要这样减法</h2>
+      <div class="grid">
+        <div class="panel red">
+          <h3>之前的风险</h3>
+          <p>计划同时包含爆款池、Studio、TD 接入、驾驶舱和复杂趋势，容易重新发散成五个半成品。</p>
+        </div>
+        <div class="panel yellow">
+          <h3>现在的取舍</h3>
+          <p>TD 实时同步先不做，完整 ROI 大盘先不做。先让主项目把反馈数据吃进去，并聚合到模版上。</p>
+        </div>
+        <div class="panel green">
+          <h3>比赛最强叙事</h3>
+          <p>不是“AI 能生成素材”，而是“AI 提炼的公式能被复刻，并由投放数据验证”。</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>三、第一阶段只做四件事</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>优先级</th>
+            <th>任务</th>
+            <th>要解决的问题</th>
+            <th>验收标准</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tag p0">P0</span></td>
+            <td><strong>补齐投放指标字段映射</strong></td>
+            <td>主项目已有字段，但周报 / TD 导出里的展示、点击、CTR、CPC、CPM、新增成本、付费成本等不一定都能稳定解析和回写。</td>
+            <td>上传一份数据后，素材详情能看到消耗、展示、点击、CTR、CPC、CPM、新增成本、新付费数、新付费成本。</td>
+          </tr>
+          <tr>
+            <td><span class="tag p0">P0</span></td>
+            <td><strong>建立模版 - 素材关系</strong></td>
+            <td>当前 `sourceMaterialIds` 只能表达来源素材，不能表达母版、复刻、竞品参考的关系。</td>
+            <td>一个模版能绑定三类素材：来源爆款、复刻素材、竞品参考；复刻素材只能清楚地归属于某个模版。</td>
+          </tr>
+          <tr>
+            <td><span class="tag p1">P1</span></td>
+            <td><strong>做模版效果详情页</strong></td>
+            <td>需要一个能给评委和团队一眼看懂的页面：这个模版来自哪里，复刻了什么，结果怎样。</td>
+            <td>页面显示来源爆款、模版 5 要素、复刻素材列表、累计消耗、最好复刻素材、当前判断。</td>
+          </tr>
+          <tr>
+            <td><span class="tag p1">P1</span></td>
+            <td><strong>跑通黄金演示链路</strong></td>
+            <td>避免“页面存在但业务不通”。</td>
+            <td>从素材库选一条高消耗素材，到模版页看到复刻素材消耗反馈，全链路可演示。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>四、数据设计</h2>
+      <div class="grid two">
+        <div class="panel blue">
+          <h3>1. 指标字段</h3>
+          <ul>
+            <li>消耗：`consumption`</li>
+            <li>展示：`impressions`</li>
+            <li>点击：`clicks`</li>
+            <li>点击率：`ctr`</li>
+            <li>点击成本：`cpc`</li>
+            <li>千次展示成本：`cpm`</li>
+            <li>新增成本：`newUserCost`</li>
+            <li>新付费数：`firstDayPayCount`</li>
+            <li>新付费成本：`firstDayPayCost`</li>
+            <li>ROI：`roi`，第一阶段可选</li>
+          </ul>
+        </div>
+        <div class="panel accent">
+          <h3>2. 匹配优先级</h3>
+          <ol>
+            <li>`platformId` 对 TD 的视频 md5 / 素材 ID / 创意 ID。</li>
+            <li>`platformName` 对投放平台素材命名。</li>
+            <li>`materialNaming` 对系统标准命名。</li>
+            <li>`name` 做兜底模糊匹配。</li>
+          </ol>
+          <p>第一阶段不直接接 TD API，只保证 Excel / 导出数据能稳定进入主项目。</p>
+        </div>
+      </div>
+
+      <table class="table" style="margin-top: 16px;">
+        <thead>
+          <tr>
+            <th>新增关系模型</th>
+            <th>说明</th>
+            <th>第一阶段字段</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>template_material_relations</strong></td>
+            <td>用于表达一个模版和多个素材之间的关系。</td>
+            <td>`template_id`、`material_id`、`relation_type`、`note`、`created_at`</td>
+          </tr>
+          <tr>
+            <td><span class="tag">source</span></td>
+            <td>来源爆款素材，说明这个模版从哪里提炼。</td>
+            <td>用于展示“母版来源”。</td>
+          </tr>
+          <tr>
+            <td><span class="tag">replica</span></td>
+            <td>复刻素材，说明这个模版后来产出了什么。</td>
+            <td>用于聚合复刻素材数据。</td>
+          </tr>
+          <tr>
+            <td><span class="tag">competitor_reference</span></td>
+            <td>竞品参考素材，说明外部爆点依据。</td>
+            <td>用于竞品拆解，不要求有真实投放回写。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>五、模版 5 要素</h2>
+      <p>AI 拆解不能只输出一段分析，必须沉淀成稳定结构。模版详情页只认这 5 个字段：</p>
+      <div class="grid">
+        <div class="panel"><h3>核心结构</h3><p>这条素材为什么成立，前中后段怎么组织。</p></div>
+        <div class="panel"><h3>开头钩子</h3><p>前 3 秒靠什么抓住用户。</p></div>
+        <div class="panel"><h3>爽点 / 付费点</h3><p>用户继续看或愿意点击的核心刺激。</p></div>
+        <div class="panel"><h3>可变变量</h3><p>复刻时可以替换的人设、场景、文案、资产。</p></div>
+        <div class="panel"><h3>不能改的部分</h3><p>一改就失效的节奏、冲突、镜头或承诺。</p></div>
+        <div class="panel accent"><h3>判断结果</h3><p>基于复刻素材表现，标记有效、观察中、暂停。</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>六、多 Agent 协作模式</h2>
+      <div class="agent-map">
+        <div class="agent master">
+          <small>Main Agent</small>
+          <h3>主 Agent：统筹，不开放</h3>
+          <ul>
+            <li>只做任务派发、范围控制、合并判断。</li>
+            <li>不直接沉迷写代码，避免视角被局部实现带偏。</li>
+            <li>每个阶段只问：是否服务“模版被数据验证”这件事。</li>
+          </ul>
+        </div>
+        <div class="agent">
+          <small>Planner</small>
+          <h3>计划 Agent</h3>
+          <ul>
+            <li>拆今日任务。</li>
+            <li>明确今天不做什么。</li>
+            <li>检查数据模型和接口边界。</li>
+          </ul>
+        </div>
+        <div class="agent">
+          <small>Developer</small>
+          <h3>开发 Agent</h3>
+          <ul>
+            <li>只改主项目。</li>
+            <li>按优先级完成字段映射、关系表、API、页面。</li>
+            <li>不碰 lite 项目和部署结构。</li>
+          </ul>
+        </div>
+        <div class="agent">
+          <small>Acceptance</small>
+          <h3>验收 Agent</h3>
+          <ul>
+            <li>跑类型检查、构建和关键路径。</li>
+            <li>检查数据是否真实写回。</li>
+            <li>输出可演示、不可演示、风险点。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>七、开发顺序</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>顺序</th>
+            <th>开发内容</th>
+            <th>验收动作</th>
+            <th>是否可延期</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>补周报 / 导出字段解析与回写。</td>
+            <td>上传样例数据，检查素材表指标是否更新。</td>
+            <td><span class="tag p0">不可延期</span></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>新增模版 - 素材关系表和服务函数。</td>
+            <td>能把一个素材绑定为来源，另一个素材绑定为复刻。</td>
+            <td><span class="tag p0">不可延期</span></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>给模版详情页聚合复刻素材数据。</td>
+            <td>页面显示累计消耗、最好复刻素材、最近数据时间。</td>
+            <td><span class="tag p1">尽量完成</span></td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>从素材详情或素材库增加“提炼为模版 / 绑定到模版”。</td>
+            <td>不进数据库后台也能完成一次演示操作。</td>
+            <td><span class="tag p1">尽量完成</span></td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>修演示链路和文案。</td>
+            <td>录屏或现场演示时不需要解释太多。</td>
+            <td><span class="tag p2">可压缩</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>八、明确不做</h2>
+      <div class="grid two">
+        <div class="panel red">
+          <h3>第一阶段不做</h3>
+          <ul>
+            <li>不做 TD 实时自动同步。</li>
+            <li>不做完整 ROI 驾驶舱。</li>
+            <li>不做新的 lite 项目。</li>
+            <li>不做全量竞品爬取。</li>
+            <li>不做复杂多维趋势图。</li>
+            <li>不重构主项目导航和部署。</li>
+          </ul>
+        </div>
+        <div class="panel green">
+          <h3>只保留的演示重点</h3>
+          <ul>
+            <li>一条爆款素材能成为模版。</li>
+            <li>一个模版能绑定复刻素材。</li>
+            <li>复刻素材能接收数据反馈。</li>
+            <li>模版页能判断这个公式是否有效。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>九、验收清单</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>检查项</th>
+            <th>通过标准</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>数据回写</td>
+            <td>素材表至少能写入消耗、展示、点击、CTR、CPC、CPM、新增成本、新付费数、新付费成本。</td>
+          </tr>
+          <tr>
+            <td>关系表达</td>
+            <td>一个模版能同时拥有来源素材和复刻素材，不靠人工记忆。</td>
+          </tr>
+          <tr>
+            <td>模版效果</td>
+            <td>模版详情页能看到复刻素材表现，并给出有效 / 观察中 / 暂停判断。</td>
+          </tr>
+          <tr>
+            <td>黄金路径</td>
+            <td>从素材库进入，到模版页看到复刻效果，全程不需要切到 lite 项目。</td>
+          </tr>
+          <tr>
+            <td>技术验证</td>
+            <td>类型检查、构建、关键页面手动验证通过。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>十、第一刀</h2>
+      <p class="lead">
+        建议立刻开工的不是页面，而是两个根基：
+        <span class="highlight">投放指标字段映射</span> 和
+        <span class="highlight">模版 - 素材关系表</span>。
+      </p>
+      <p>
+        这两个稳了，后面的模版效果页、素材库入口、Studio 复刻入口都会沿着正确的数据结构生长，不会再变成一组互相看起来相关但业务上断开的页面。
+      </p>
+    </section>
+  </main>
+</body>
+</html>

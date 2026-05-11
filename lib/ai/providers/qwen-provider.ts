@@ -1,4 +1,12 @@
-import type { AIProvider, AIGenerateTextRequest, AIGenerateImageRequest, AIGenerateTextResponse, AIGenerateImageResponse } from '../types';
+import type { AIProvider, AIGenerateTextRequest, AIGenerateImageRequest, AIGenerateTextResponse, AIGenerateImageResponse, AIMessageContent } from '../types';
+
+function messageContentToText(content: AIMessageContent): string {
+  if (typeof content === 'string') return content;
+  return content
+    .map((item) => item.text || item.image_url?.url || item.video_url?.url || item.image || item.video || '')
+    .filter(Boolean)
+    .join('\n');
+}
 
 export class QwenProvider implements AIProvider {
   name = '千问 (Qwen)';
@@ -25,7 +33,7 @@ export class QwenProvider implements AIProvider {
     // 构建 messages（优先使用 messages 数组，支持多轮对话）
     let messages: Array<{ role: string; content: string }>;
     if (request.messages && request.messages.length > 0) {
-      messages = request.messages.map(m => ({ role: m.role, content: m.content }));
+      messages = request.messages.map(m => ({ role: m.role, content: messageContentToText(m.content) }));
     } else {
       messages = [];
       if (request.systemPrompt) {

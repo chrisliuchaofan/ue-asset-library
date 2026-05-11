@@ -380,6 +380,33 @@ function StudioPageInner() {
         }
     }, [searchParams]);
 
+    // 从模版详情页进入：自动选中模版并进入模版生成输入
+    useEffect(() => {
+        const templateId = searchParams.get('templateId');
+        if (!templateId) return;
+
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch(`/api/templates/${templateId}`);
+                if (!res.ok) return;
+                const template: MaterialTemplate = await res.json();
+                if (cancelled) return;
+                setMode('template');
+                setSelectedTemplate(template);
+                if (template.style) setStyle(template.style);
+                if (template.recommendedDuration) setTargetDuration(template.recommendedDuration);
+                setCurrentStep('input');
+            } catch (err) {
+                console.error('[Studio] 加载模版失败:', err);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [searchParams]);
+
     // ==================== 持久化 ====================
 
     const persist = useCallback((updated: Script[]) => {
@@ -416,6 +443,10 @@ function StudioPageInner() {
 
     const handleGenerate = async () => {
         if (!topic.trim()) return;
+        if (mode === 'template' && !selectedTemplate) {
+            toast.error('请选择爆款模版', '模版复刻需要先选一个已提取的模版');
+            return;
+        }
         setGenerating(true);
 
         try {
@@ -985,6 +1016,7 @@ function StudioPageInner() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     scriptId: activeScript.id,
+                    templateId: activeScript.templateId,
                     scriptTitle: activeScript.title,
                     project: '项目A',
                     scenes: scenesToSave.map(s => ({

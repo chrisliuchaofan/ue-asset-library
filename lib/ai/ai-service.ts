@@ -13,8 +13,8 @@ import { createLRUCache } from '@/lib/lru-cache';
 
 class AIServiceManager {
   private providers = new Map<AIProviderType, AIProvider>();
-  // 优先使用 DeepSeek，如果未配置则降级到 qwen
-  private defaultProvider: AIProviderType = process.env.DEEPSEEK_API_KEY ? 'deepseek' : 'qwen';
+  // 文本分析优先走公司太石网关，其次 DeepSeek，千问仅保留为最后兼容兜底。
+  private defaultProvider: AIProviderType = this.resolveDefaultProvider();
 
   // 缓存层（性能优化）
   // 注意：文本生成结果缓存需谨慎，避免敏感信息泄露，主要用于公开模板或重复的高频查询
@@ -22,6 +22,14 @@ class AIServiceManager {
 
   constructor() {
     this.registerProviders();
+  }
+
+  private resolveDefaultProvider(): AIProviderType {
+    const configured = process.env.AI_TEXT_PROVIDER as AIProviderType | undefined;
+    if (configured) return configured;
+    if (process.env.LLM_TOKEN) return 'tuyoo';
+    if (process.env.DEEPSEEK_API_KEY) return 'deepseek';
+    return 'qwen';
   }
 
   private registerProviders() {
@@ -133,4 +141,3 @@ class AIServiceManager {
 
 // 单例导出
 export const aiService = new AIServiceManager();
-

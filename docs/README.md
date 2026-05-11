@@ -6,6 +6,7 @@
 
 | 文档 | 说明 |
 |------|------|
+| [PROJECT_CONSTITUTION.md](./PROJECT_CONSTITUTION.md) | 项目宪法：多人协作、数据归属、AI agent 开发约束 |
 | [ROADMAP.md](./ROADMAP.md) | 产品路线图 + 开发进度 |
 | [V2-PLAN.md](./V2-PLAN.md) | V2 全链路闭环详细计划 |
 | [V3-LANDING-PLAN.md](./V3-LANDING-PLAN.md) | Landing Page Dreamina 风格改造计划 |
@@ -19,4 +20,4 @@
 
 ---
 
-最后更新: 2026-03-11
+最后更新: 2026-05-11

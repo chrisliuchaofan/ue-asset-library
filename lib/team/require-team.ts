@@ -56,7 +56,17 @@ export async function requireTeamAccess(
   }
 
   // 3. 验证用户是否是该团队的成员
-  const role = await getMemberRole(teamId, userId);
+  // 浏览器里可能残留旧的 active_team_id cookie。旧团队不可访问时，自动回到用户默认团队，
+  // 避免接口 403 后前端只呈现“空数据”的误导状态。
+  let role = await getMemberRole(teamId, userId);
+  if (!role) {
+    const defaultTeam = await getDefaultTeam(userId);
+    if (defaultTeam && defaultTeam.teamId !== teamId) {
+      teamId = defaultTeam.teamId;
+      role = defaultTeam.role;
+    }
+  }
+
   if (!role) {
     return NextResponse.json(
       { message: '您不是该团队的成员' },

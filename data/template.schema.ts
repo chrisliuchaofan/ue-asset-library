@@ -57,6 +57,37 @@ export interface MaterialTemplate {
   updatedAt: string;
 }
 
+// ==================== 模版 - 素材关系 ====================
+
+/** 模版与素材之间的业务关系 */
+export type TemplateMaterialRelationType = 'source' | 'replica' | 'competitor_reference';
+
+export const TEMPLATE_MATERIAL_RELATION_TYPES: TemplateMaterialRelationType[] = [
+  'source',
+  'replica',
+  'competitor_reference',
+];
+
+/** 模版 - 素材关系记录 */
+export interface TemplateMaterialRelation {
+  id: string;
+  templateId: string;
+  materialId: string;
+  relationType: TemplateMaterialRelationType;
+  note?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 创建模版 - 素材关系输入 */
+export interface TemplateMaterialRelationInput {
+  materialId: string;
+  relationType: TemplateMaterialRelationType;
+  note?: string;
+  createdBy?: string;
+}
+
 // ==================== 创建/更新输入类型 ====================
 
 /** 创建模版输入 */
@@ -107,4 +138,11 @@ export const SCENE_TYPE_COLORS: Record<TemplateSceneType, string> = {
   emotion: 'bg-orange-500',
   cta: 'bg-green-500',
   transition: 'bg-gray-400',
+};
+
+/** 模版 - 素材关系中文标签 */
+export const TEMPLATE_MATERIAL_RELATION_LABELS: Record<TemplateMaterialRelationType, string> = {
+  source: '来源爆款',
+  replica: '复刻素材',
+  competitor_reference: '竞品参考',
 };

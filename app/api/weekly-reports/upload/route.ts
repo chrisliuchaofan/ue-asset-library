@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { parseExcelFile, analyzeMaterials } from '@/lib/weekly-report/material-analyzer';
 import { generateReportSummary } from '@/lib/weekly-report/ai-service';
 import { createWeeklyReport, updateWeeklyReport } from '@/lib/weekly-report/db-service';
-import { matchReportMaterials, applyMatchResults } from '@/lib/weekly-report/material-matcher';
+import { matchReportMaterials, applyMatchResults, writebackMetrics } from '@/lib/weekly-report/material-matcher';
 import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import type { CreateWeeklyReportRequest, ReportMaterial } from '@/types/weekly-report';
 
@@ -136,35 +136,36 @@ export async function POST(request: Request) {
     const saveDuration = Date.now() - saveStartTime;
     console.log(`[Weekly Report] 报告保存成功，耗时 ${saveDuration}ms`);
 
-    // 7. 立即返回响应（不等待任何 AI 操作）
+    // 7.5 素材匹配与数据反标是本阶段核心闭环，必须在响应前可靠完成
+    let responseReport = report;
+    try {
+      console.log('[Weekly Report] 开始素材匹配...');
+      const matchSummary = await matchReportMaterials(materials, 0.7, { teamId: ctx.teamId });
+      if (matchSummary.matched > 0) {
+        const enrichedMaterials = applyMatchResults(materials, matchSummary);
+        const writebackResult = await writebackMetrics(enrichedMaterials, weekDateRange, { teamId: ctx.teamId });
+        responseReport = await updateWeeklyReport(
+          report.id,
+          { report_data: enrichedMaterials } as any,
+          ctx.teamId
+        );
+        console.log(
+          `[Weekly Report] 素材匹配完成: ${matchSummary.matched}/${matchSummary.total} ` +
+          `(精确 ${matchSummary.exactMatches}, 模糊 ${matchSummary.fuzzyMatches}); ` +
+          `反标 ${writebackResult.updated}/${writebackResult.total}`
+        );
+      } else {
+        console.log('[Weekly Report] 素材匹配完成: 未找到匹配');
+      }
+    } catch (err) {
+      console.error('[Weekly Report] 素材匹配失败（不影响报告保存）:', err);
+    }
+
+    // 7. 立即返回响应（AI 总结仍在后台生成）
     const response = NextResponse.json({
       success: true,
-      data: report,
-      message: '报告已生成，AI 总结正在后台生成中...',
-    });
-
-    // 7.5 后台素材匹配 — 将周报素材关联到素材库
-    setTimeout(async () => {
-      try {
-        console.log('[Weekly Report] 开始后台素材匹配...');
-        const matchSummary = await matchReportMaterials(materials);
-        if (matchSummary.matched > 0) {
-          const enrichedMaterials = applyMatchResults(materials, matchSummary);
-          await updateWeeklyReport(
-            report.id,
-            { report_data: enrichedMaterials } as any,
-            ctx.teamId
-          );
-          console.log(
-            `[Weekly Report] 素材匹配完成: ${matchSummary.matched}/${matchSummary.total} ` +
-            `(精确 ${matchSummary.exactMatches}, 模糊 ${matchSummary.fuzzyMatches})`
-          );
-        } else {
-          console.log('[Weekly Report] 素材匹配完成: 未找到匹配');
-        }
-      } catch (err) {
-        console.error('[Weekly Report] 素材匹配失败（不影响主流程）:', err);
-      }
+      data: responseReport,
+      message: '报告已生成，素材匹配已完成，AI 总结正在后台生成中...',
     });
 
     // 8. AI 总结完全在后台异步生成（如果 skipAI 为 false）

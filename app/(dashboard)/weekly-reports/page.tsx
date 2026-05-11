@@ -78,11 +78,18 @@ export default function WeeklyReportsPage() {
     try {
       const response = await fetch('/api/weekly-reports?limit=10');
       const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || '加载报告列表失败');
+      }
+
       if (data.success) {
         setReports(data.data || []);
+        setError(null);
       }
     } catch (err) {
       console.error('加载报告列表失败:', err);
+      setReports([]);
+      setError(err instanceof Error ? err.message : '加载报告列表失败');
     } finally {
       setLoadingReports(false);
     }
@@ -500,6 +507,63 @@ export default function WeeklyReportsPage() {
             {/* 当前报告展示 */}
             {currentReport && (
               <div className="mb-8 space-y-6">
+                {(() => {
+                  const reportData = (currentReport.report_data || []) as ReportMaterial[];
+                  const matchedCount = reportData.filter(m => m.material_id).length;
+                  const totalConsumption = currentReport.total_consumption
+                    ?? reportData.reduce((sum, material) => sum + Number(material.consumption || 0), 0);
+                  const topMaterial = [...reportData].sort(
+                    (a, b) => Number(b.consumption || 0) - Number(a.consumption || 0)
+                  )[0];
+                  const topMaterialName = topMaterial?.name
+                    ? topMaterial.name.length > 28
+                      ? `${topMaterial.name.slice(0, 28)}...`
+                      : topMaterial.name
+                    : '暂无';
+
+                  return (
+                    <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
+                      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-primary">闭环验收</p>
+                          <h2 className="text-xl font-semibold text-foreground">数据已进入爆款复刻链路</h2>
+                          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                            从这份消耗数据出发，继续检查素材关联、模板沉淀和创意复刻，最后回到数据洞察判断复刻是否值得放量。
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Link
+                            href="/materials?project=项目A"
+                            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-muted"
+                          >
+                            素材库
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </Link>
+                          <Link
+                            href="/templates"
+                            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-muted"
+                          >
+                            爆款模板
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </Link>
+                          <Link
+                            href="/studio"
+                            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                          >
+                            创意复刻
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </Link>
+                        </div>
+                      </div>
+                      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                        <FlowMetric label="数据回填消耗" value={formatReportMoney(totalConsumption)} />
+                        <FlowMetric label="素材库关联" value={`${matchedCount}/${reportData.length}`} />
+                        <FlowMetric label="当前 Top 素材" value={topMaterialName} />
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* AI 总结 */}
                 <ReportSummary
                   summary={currentReport.summary_text}
@@ -637,4 +701,21 @@ export default function WeeklyReportsPage() {
       {/* Removed BottomNavigation */}
     </div>
   );
+}
+
+function FlowMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/25 px-4 py-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate text-base font-semibold text-foreground" title={value}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function formatReportMoney(value: number) {
+  if (!Number.isFinite(value)) return '0';
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}w`;
+  return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
 }

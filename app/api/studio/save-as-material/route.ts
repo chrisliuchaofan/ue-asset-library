@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
 import { dbCreateMaterial } from '@/lib/materials-db';
-import type { MaterialCreateInput } from '@/data/material.schema';
+import { dbUpsertTemplateMaterialRelation } from '@/lib/templates/templates-db';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { z } from 'zod';
 
 /**
@@ -26,6 +27,8 @@ const SceneSchema = z.object({
 const RequestSchema = z.object({
   /** 脚本 ID */
   scriptId: z.string(),
+  /** 脚本关联模版 ID */
+  templateId: z.string().optional(),
   /** 脚本标题 */
   scriptTitle: z.string(),
   /** 项目 */
@@ -34,12 +37,24 @@ const RequestSchema = z.object({
   scenes: z.array(SceneSchema).min(1, '至少需要一个场景'),
 });
 
+async function canUseTemplate(templateId: string, teamId: string, userId: string): Promise<boolean> {
+  const { data, error } = await (supabaseAdmin as any)
+    .from('material_templates')
+    .select('id, team_id, user_id')
+    .eq('id', templateId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`查询模版失败: ${error.message}`);
+  }
+
+  return Boolean(data && (data.team_id === teamId || (data.team_id === null && data.user_id === userId)));
+}
+
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.email) {
-      return NextResponse.json({ message: '未登录' }, { status: 401 });
-    }
+    const ctx = await requireTeamAccess('content:create');
+    if (isErrorResponse(ctx)) return ctx;
 
     const json = await request.json();
     const parsed = RequestSchema.safeParse(json);
@@ -51,7 +66,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const { scriptId, scriptTitle, project, scenes } = parsed.data;
+    const { scriptId, templateId, scriptTitle, project, scenes } = parsed.data;
+    if (templateId && !(await canUseTemplate(templateId, ctx.teamId, ctx.userId))) {
+      return NextResponse.json({ message: '模版不存在' }, { status: 404 });
+    }
+
     const results: Array<{ sceneId: string; materialId?: string; success: boolean; error?: string }> = [];
 
     for (const scene of scenes) {
@@ -76,9 +95,18 @@ export async function POST(request: Request) {
           thumbnail: scene.thumbnailUrl || scene.mediaUrl,
           duration: scene.durationSec,
           source: 'internal' as const,
+          sourceScriptId: templateId,
         };
 
-        const material = await dbCreateMaterial(input);
+        const material = await dbCreateMaterial(input, { teamId: ctx.teamId });
+        if (templateId) {
+          await dbUpsertTemplateMaterialRelation(templateId, {
+            materialId: material.id,
+            relationType: 'replica',
+            note: `来自脚本 ${scriptId}`,
+            createdBy: ctx.userId,
+          });
+        }
         results.push({ sceneId: scene.sceneId, materialId: material.id, success: true });
       } catch (err) {
         const msg = err instanceof Error ? err.message : '创建失败';

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { updateMaterial, deleteMaterial } from '@/lib/materials-data';
 import { MaterialQualityEnum, MaterialTagEnum, MaterialTypeEnum, type Material } from '@/data/material.schema';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 
 type MaterialsBatchAction = 'update-type' | 'update-tag' | 'update-quality' | 'update-status' | 'delete';
 
@@ -20,11 +21,27 @@ export async function POST(request: Request) {
     const json = (await request.json()) as BatchActionRequest;
     const { materialIds, action, payload } = json;
 
+    const ctx = await requireTeamAccess(action === 'delete' ? 'content:delete' : 'content:update');
+    if (isErrorResponse(ctx)) return ctx;
+
     if (!Array.isArray(materialIds) || materialIds.length === 0) {
       return NextResponse.json({ message: 'materialIds 不能为空' }, { status: 400 });
     }
 
     const validIds = new Set(materialIds);
+    const { dbGetMaterialsByIds } = await import('@/lib/materials-db');
+    const ownedMaterials = await dbGetMaterialsByIds(Array.from(validIds), {
+      teamId: ctx.teamId,
+      includeGlobal: false,
+    });
+
+    if (ownedMaterials.length !== validIds.size) {
+      return NextResponse.json(
+        { message: '部分素材不存在或无权限操作' },
+        { status: 404 }
+      );
+    }
+
     const errors: string[] = [];
     let processed = 0;
 
@@ -36,7 +53,7 @@ export async function POST(request: Request) {
 
       for (const materialId of validIds) {
         try {
-          await updateMaterial(materialId, { type: nextType as Material['type'] });
+          await updateMaterial(materialId, { type: nextType as Material['type'] }, { teamId: ctx.teamId });
           processed++;
         } catch (error) {
           errors.push(`更新素材 ${materialId} 类型失败：${error instanceof Error ? error.message : '未知错误'}`);
@@ -58,7 +75,7 @@ export async function POST(request: Request) {
 
       for (const materialId of validIds) {
         try {
-          await updateMaterial(materialId, { tag: nextTag as Material['tag'] });
+          await updateMaterial(materialId, { tag: nextTag as Material['tag'] }, { teamId: ctx.teamId });
           processed++;
         } catch (error) {
           errors.push(`更新素材 ${materialId} 标签失败：${error instanceof Error ? error.message : '未知错误'}`);
@@ -88,7 +105,7 @@ export async function POST(request: Request) {
 
       for (const materialId of validIds) {
         try {
-          await updateMaterial(materialId, { quality: dedupedQuality });
+          await updateMaterial(materialId, { quality: dedupedQuality }, { teamId: ctx.teamId });
           processed++;
         } catch (error) {
           errors.push(`更新素材 ${materialId} 质量失败：${error instanceof Error ? error.message : '未知错误'}`);
@@ -111,7 +128,7 @@ export async function POST(request: Request) {
 
       for (const materialId of validIds) {
         try {
-          await updateMaterial(materialId, { status: nextStatus } as any);
+          await updateMaterial(materialId, { status: nextStatus } as any, { teamId: ctx.teamId });
           processed++;
         } catch (error) {
           errors.push(`更新素材 ${materialId} 状态失败：${error instanceof Error ? error.message : '未知错误'}`);
@@ -128,7 +145,7 @@ export async function POST(request: Request) {
     if (action === 'delete') {
       for (const materialId of validIds) {
         try {
-          await deleteMaterial(materialId);
+          await deleteMaterial(materialId, { teamId: ctx.teamId });
           processed++;
         } catch (error) {
           errors.push(`删除素材 ${materialId} 失败：${error instanceof Error ? error.message : '未知错误'}`);

@@ -6,6 +6,44 @@
 import * as XLSX from 'xlsx';
 import type { ReportMaterial, AnalysisResult } from '@/types/weekly-report';
 
+function parseMetricNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+
+  const cleaned = String(value)
+    .trim()
+    .replace(/,/g, '')
+    .replace(/[¥￥]/g, '')
+    .replace(/%$/g, '');
+
+  if (!cleaned) return undefined;
+
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parsePercentMetric(value: unknown): number | undefined {
+  const parsed = parseMetricNumber(value);
+  if (parsed === undefined) return undefined;
+
+  return typeof value === 'string' && value.trim().endsWith('%')
+    ? Number((parsed / 100).toFixed(10))
+    : parsed;
+}
+
+function parseMetricText(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  const text = String(value).trim();
+  if (!text) return undefined;
+
+  const lower = text.toLowerCase();
+  if (lower === 'null' || lower === 'undefined' || lower === 'nan' || text === '-' || text === '--') {
+    return undefined;
+  }
+
+  return text;
+}
+
 /**
  * 解析 Excel 文件
  * 
@@ -81,6 +119,32 @@ export async function parseExcelFile(file: File): Promise<ReportMaterial[]> {
     '素材': 'name',
     'Material Name': 'name',
     'Name': 'name',
+    'video_name': 'name',
+    'videoName': 'name',
+
+    // 稳定标识映射（优先用于匹配，降低同名/改名误匹配）
+    '素材ID': 'platformId',
+    '素材 ID': 'platformId',
+    'Material ID': 'platformId',
+    'material_id': 'platformId',
+    'platform_id': 'platformId',
+    '平台素材ID': 'platformId',
+    '平台素材 ID': 'platformId',
+    '投放平台素材ID': 'platformId',
+    '投放平台素材 ID': 'platformId',
+    '创意ID': 'creativeId',
+    '创意 ID': 'creativeId',
+    'Creative ID': 'creativeId',
+    'creative_id': 'creativeId',
+    'ad_id': 'creativeId',
+    '视频md5值': 'videoMd5',
+    '视频MD5值': 'videoMd5',
+    '视频 MD5': 'videoMd5',
+    'video_md5': 'videoMd5',
+    'md5': 'videoMd5',
+    'MD5': 'videoMd5',
+    'signature': 'videoMd5',
+    'Signature': 'videoMd5',
 
     // 分类映射
     '分类': 'category',
@@ -133,7 +197,39 @@ export async function parseExcelFile(file: File): Promise<ReportMaterial[]> {
     '花费': 'consumption',
     'Consumption': 'consumption',
     'Cost': 'consumption',
+    'cost': 'consumption',
     'Spend': 'consumption',
+    'spend': 'consumption',
+
+    // 展示/点击/成本指标映射
+    '展示': 'impressions',
+    '展示数': 'impressions',
+    '展现': 'impressions',
+    '展现数': 'impressions',
+    '曝光': 'impressions',
+    '曝光数': 'impressions',
+    'Impressions': 'impressions',
+    'Impression': 'impressions',
+    'show': 'impressions',
+    'shows': 'impressions',
+    '点击': 'clicks',
+    '点击数': 'clicks',
+    'Clicks': 'clicks',
+    'Click': 'clicks',
+    'click': 'clicks',
+    'clicks': 'clicks',
+    'CTR': 'ctr',
+    'ctr': 'ctr',
+    '点击率': 'ctr',
+    'Click Through Rate': 'ctr',
+    'CPC': 'cpc',
+    'cpc': 'cpc',
+    '点击成本': 'cpc',
+    '平均点击成本': 'cpc',
+    'CPM': 'cpm',
+    'cpm': 'cpm',
+    '千次展示成本': 'cpm',
+    '千次曝光成本': 'cpm',
 
     // ROI 映射
     'ROI': 'roi',
@@ -150,6 +246,18 @@ export async function parseExcelFile(file: File): Promise<ReportMaterial[]> {
 
     // 成本相关映射
     '新增成本': 'newCost',
+    '新增用户成本': 'newCost',
+    '新用户成本': 'newCost',
+    'new_user_cost': 'newCost',
+    '新付费数': 'newPaidCount',
+    '新增付费数': 'newPaidCount',
+    '首日付费数': 'newPaidCount',
+    '新付费人数': 'newPaidCount',
+    'new_paid_user': 'newPaidCount',
+    '新付费成本': 'newPaidCost',
+    '新增付费成本': 'newPaidCost',
+    '首日付费成本': 'newPaidCost',
+    'new_paid_user_cost': 'newPaidCost',
     '付费成本': 'paidCost',
     '付费率': 'paymentRate',
 
@@ -246,6 +354,18 @@ export async function parseExcelFile(file: File): Promise<ReportMaterial[]> {
       material.name = String(row[fieldIndexMap.name] || '').trim();
     }
 
+    if (fieldIndexMap.platformId !== undefined) {
+      material.platformId = parseMetricText(row[fieldIndexMap.platformId]);
+    }
+
+    if (fieldIndexMap.creativeId !== undefined) {
+      material.creativeId = parseMetricText(row[fieldIndexMap.creativeId]);
+    }
+
+    if (fieldIndexMap.videoMd5 !== undefined) {
+      material.videoMd5 = parseMetricText(row[fieldIndexMap.videoMd5]);
+    }
+
     if (fieldIndexMap.category !== undefined) {
       material.category = String(row[fieldIndexMap.category] || '').trim() || undefined;
     }
@@ -255,17 +375,31 @@ export async function parseExcelFile(file: File): Promise<ReportMaterial[]> {
     }
 
     if (fieldIndexMap.consumption !== undefined) {
-      const consumptionValue = row[fieldIndexMap.consumption];
-      if (consumptionValue !== null && consumptionValue !== undefined) {
-        material.consumption = parseFloat(String(consumptionValue)) || undefined;
-      }
+      material.consumption = parseMetricNumber(row[fieldIndexMap.consumption]);
+    }
+
+    if (fieldIndexMap.impressions !== undefined) {
+      material.impressions = parseMetricNumber(row[fieldIndexMap.impressions]);
+    }
+
+    if (fieldIndexMap.clicks !== undefined) {
+      material.clicks = parseMetricNumber(row[fieldIndexMap.clicks]);
+    }
+
+    if (fieldIndexMap.ctr !== undefined) {
+      material.ctr = parsePercentMetric(row[fieldIndexMap.ctr]);
+    }
+
+    if (fieldIndexMap.cpc !== undefined) {
+      material.cpc = parseMetricNumber(row[fieldIndexMap.cpc]);
+    }
+
+    if (fieldIndexMap.cpm !== undefined) {
+      material.cpm = parseMetricNumber(row[fieldIndexMap.cpm]);
     }
 
     if (fieldIndexMap.roi !== undefined) {
-      const roiValue = row[fieldIndexMap.roi];
-      if (roiValue !== null && roiValue !== undefined) {
-        material.roi = parseFloat(String(roiValue)) || undefined;
-      }
+      material.roi = parseMetricNumber(row[fieldIndexMap.roi]);
     }
 
     // 推广类型
@@ -317,53 +451,51 @@ export async function parseExcelFile(file: File): Promise<ReportMaterial[]> {
 
     // ROI 相关字段
     if (fieldIndexMap.firstDayRoi !== undefined) {
-      const roiValue = row[fieldIndexMap.firstDayRoi];
-      if (roiValue !== null && roiValue !== undefined) {
-        material.firstDayRoi = parseFloat(String(roiValue)) || undefined;
-      }
+      material.firstDayRoi = parseMetricNumber(row[fieldIndexMap.firstDayRoi]);
     }
 
     if (fieldIndexMap.day3Roi !== undefined) {
-      const roiValue = row[fieldIndexMap.day3Roi];
-      if (roiValue !== null && roiValue !== undefined) {
-        material.day3Roi = parseFloat(String(roiValue)) || undefined;
-      }
+      material.day3Roi = parseMetricNumber(row[fieldIndexMap.day3Roi]);
     }
 
     if (fieldIndexMap.day7Roi !== undefined) {
-      const roiValue = row[fieldIndexMap.day7Roi];
-      if (roiValue !== null && roiValue !== undefined) {
-        material.day7Roi = parseFloat(String(roiValue)) || undefined;
-      }
+      material.day7Roi = parseMetricNumber(row[fieldIndexMap.day7Roi]);
     }
 
     if (fieldIndexMap.cumulativeRoi !== undefined) {
-      const roiValue = row[fieldIndexMap.cumulativeRoi];
-      if (roiValue !== null && roiValue !== undefined) {
-        material.cumulativeRoi = parseFloat(String(roiValue)) || undefined;
-      }
+      material.cumulativeRoi = parseMetricNumber(row[fieldIndexMap.cumulativeRoi]);
     }
 
     // 成本相关字段
     if (fieldIndexMap.newCost !== undefined) {
-      const costValue = row[fieldIndexMap.newCost];
-      if (costValue !== null && costValue !== undefined) {
-        material.newCost = parseFloat(String(costValue)) || undefined;
-      }
+      const cost = parseMetricNumber(row[fieldIndexMap.newCost]);
+      material.newCost = cost;
+      material.newUserCost = cost;
+    }
+
+    if (fieldIndexMap.newPaidCount !== undefined) {
+      const count = parseMetricNumber(row[fieldIndexMap.newPaidCount]);
+      material.newPaidCount = count;
+      material.firstDayPayCount = count;
+    }
+
+    if (fieldIndexMap.newPaidCost !== undefined) {
+      const cost = parseMetricNumber(row[fieldIndexMap.newPaidCost]);
+      material.newPaidCost = cost;
+      material.paidCost = cost;
+      material.firstDayPayCost = cost;
     }
 
     if (fieldIndexMap.paidCost !== undefined) {
-      const costValue = row[fieldIndexMap.paidCost];
-      if (costValue !== null && costValue !== undefined) {
-        material.paidCost = parseFloat(String(costValue)) || undefined;
+      const cost = parseMetricNumber(row[fieldIndexMap.paidCost]);
+      material.paidCost = cost;
+      if (material.firstDayPayCost === undefined) {
+        material.firstDayPayCost = cost;
       }
     }
 
     if (fieldIndexMap.paymentRate !== undefined) {
-      const rateValue = row[fieldIndexMap.paymentRate];
-      if (rateValue !== null && rateValue !== undefined) {
-        material.paymentRate = parseFloat(String(rateValue)) || undefined;
-      }
+      material.paymentRate = parsePercentMetric(row[fieldIndexMap.paymentRate]);
     }
 
     // 视频链接（媒体文件）

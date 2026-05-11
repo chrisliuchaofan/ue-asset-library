@@ -6,6 +6,27 @@ import { useSession } from 'next-auth/react';
 import { Eye, EyeOff } from 'lucide-react';
 import { LoginShowcase } from '@/components/auth/LoginShowcase';
 
+function normalizeCallbackUrl(value: string | null): string {
+  if (!value) return '/materials';
+  if (value.startsWith('/') && !value.startsWith('//')) return value;
+
+  try {
+    const url = new URL(value);
+    const isKnownAppHost =
+      url.hostname === 'www.factory-buy.com' ||
+      url.hostname === 'factory-buy.com' ||
+      url.hostname.endsWith('.vercel.app');
+
+    if (isKnownAppHost) {
+      return `${url.pathname}${url.search}${url.hash}` || '/materials';
+    }
+  } catch {
+    return '/materials';
+  }
+
+  return '/materials';
+}
+
 function ChangePasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -17,7 +38,7 @@ function ChangePasswordForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const callbackUrl = searchParams.get('callbackUrl') || '/materials';
+  const callbackUrl = normalizeCallbackUrl(searchParams.get('callbackUrl'));
 
   useEffect(() => {
     if (status === 'unauthenticated') {

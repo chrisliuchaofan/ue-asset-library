@@ -1,14 +1,13 @@
 /**
  * POST /api/analysis/video-analyze — 竞品视频 AI 多模态分析
- * 接收视频 URL（已上传到 OSS），调用 Qwen VL 分析
+ * 接收视频 URL（已上传到 OSS），通过太石 LLM 网关调用多模态模型分析
  */
 
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import { aiService } from '@/lib/ai/ai-service';
 
-const QWEN_ENDPOINT = process.env.AI_IMAGE_API_ENDPOINT || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
-const QWEN_API_KEY = process.env.AI_IMAGE_API_KEY;
-const VISION_MODEL = process.env.AI_VISION_MODEL || 'qwen-vl-plus-latest';
+const VISION_MODEL = process.env.TUYOO_LLM_VIDEO_MODEL || 'gemini-3-pro-preview';
 
 export async function POST(request: Request) {
     try {
@@ -22,8 +21,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: '缺少视频 URL' }, { status: 400 });
         }
 
-        if (!QWEN_API_KEY) {
-            return NextResponse.json({ message: 'AI 视觉分析服务未配置' }, { status: 500 });
+        if (!process.env.LLM_TOKEN) {
+            return NextResponse.json({ message: '太石 LLM 网关未配置（缺少 LLM_TOKEN）' }, { status: 500 });
         }
 
         const systemPrompt = `你是一位资深的游戏广告创意分析师。分析用户提供的广告视频，输出结构化的竞品分析报告。
@@ -64,36 +63,25 @@ export async function POST(request: Request) {
 
 只输出 JSON，不要额外解释。`;
 
-        const res = await fetch(`${QWEN_ENDPOINT}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${QWEN_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: VISION_MODEL,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    {
-                        role: 'user',
-                        content: [
-                            { type: 'video', video: videoUrl },
-                            { type: 'text', text: '请分析这个广告视频。' },
-                        ],
-                    },
-                ],
-                max_tokens: 4096,
-            }),
-        });
+        const result = await aiService.generateText({
+            prompt: '请分析这个广告视频。',
+            systemPrompt,
+            model: VISION_MODEL,
+            maxTokens: 4096,
+            temperature: 0.2,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                {
+                    role: 'user',
+                    content: [
+                        { type: 'video_url', video_url: { url: videoUrl } },
+                        { type: 'text', text: '请分析这个广告视频。' },
+                    ],
+                },
+            ],
+        }, 'tuyoo');
 
-        if (!res.ok) {
-            const errText = await res.text();
-            console.error('[VideoAnalyze] Qwen VL 调用失败:', res.status, errText);
-            return NextResponse.json({ message: `AI 分析失败: ${res.status}` }, { status: 502 });
-        }
-
-        const data = await res.json();
-        const content = data.choices?.[0]?.message?.content || '';
+        const content = result.text || '';
 
         // 尝试提取 JSON
         let analysis;
@@ -104,10 +92,11 @@ export async function POST(request: Request) {
             analysis = { raw: content };
         }
 
-        return NextResponse.json({ analysis, videoUrl });
+        return NextResponse.json({ analysis, videoUrl, provider: 'tuyoo', model: VISION_MODEL });
     } catch (error) {
         console.error('[VideoAnalyze] 分析失败:', error);
         const message = error instanceof Error ? error.message : '分析失败';
-        return NextResponse.json({ message }, { status: 500 });
+        const status = /限额|额度|quota|rate limit/i.test(message) ? 429 : 500;
+        return NextResponse.json({ message }, { status });
     }
 }

@@ -3,9 +3,9 @@
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { MaterialTemplate } from '@/data/template.schema';
+import type { MaterialTemplate, TemplateMaterialRelation, TemplateMaterialRelationType } from '@/data/template.schema';
 import { TemplateStructureTimeline } from '@/components/templates/template-structure-timeline';
-import { SCENE_TYPE_LABELS } from '@/data/template.schema';
+import { SCENE_TYPE_LABELS, TEMPLATE_MATERIAL_RELATION_LABELS } from '@/data/template.schema';
 import {
   ArrowLeft,
   Loader2,
@@ -20,10 +20,41 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+interface RelationMaterialSummary {
+  id: string;
+  name: string;
+  source: string | null;
+  tag: string | null;
+  consumption: number | null;
+  roi: number | null;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  cpc: number | null;
+  cpm: number | null;
+  new_user_cost: number | null;
+  first_day_pay_count: number | null;
+  first_day_pay_cost: number | null;
+  thumbnail: string | null;
+}
+
+interface RelationSummary {
+  count: number;
+  totalConsumption: number;
+  avgRoi: number | null;
+}
+
+interface RelationPayload {
+  relations: TemplateMaterialRelation[];
+  materials: RelationMaterialSummary[];
+  summary: Partial<Record<TemplateMaterialRelationType, RelationSummary>>;
+}
+
 export default function TemplateDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [template, setTemplate] = useState<MaterialTemplate | null>(null);
+  const [relationData, setRelationData] = useState<RelationPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +72,11 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
         }
         const data = await res.json();
         setTemplate(data);
+
+        const relationsRes = await fetch(`/api/templates/${id}/materials`);
+        if (relationsRes.ok) {
+          setRelationData(await relationsRes.json());
+        }
       } catch {
         setError('获取模版详情失败');
       } finally {
@@ -69,8 +105,33 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="flex-1 overflow-auto">
+        <div className="max-w-4xl mx-auto p-6 space-y-6">
+          <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            正在加载模版详情
+          </div>
+          <div className="space-y-3">
+            <div className="h-8 w-64 rounded-lg bg-muted animate-pulse" />
+            <div className="h-4 w-full max-w-xl rounded bg-muted/70 animate-pulse" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-20 rounded-xl border border-border bg-card p-4">
+                <div className="h-3 w-14 rounded bg-muted animate-pulse" />
+                <div className="mt-3 h-4 w-20 rounded bg-muted/70 animate-pulse" />
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl border border-border p-6 space-y-4">
+            <div className="h-5 w-24 rounded bg-muted animate-pulse" />
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-14 rounded-lg bg-muted/60 animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -92,6 +153,10 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
 
   const scoreStars = Math.round(template.effectivenessScore / 20);
   const totalDuration = template.structure.reduce((sum, s) => sum + s.durationSec, 0);
+  const materialMap = new Map((relationData?.materials || []).map(material => [material.id, material]));
+  const sourceRelations = (relationData?.relations || []).filter(r => r.relationType === 'source' || r.relationType === 'competitor_reference');
+  const replicaRelations = (relationData?.relations || []).filter(r => r.relationType === 'replica');
+  const replicaSummary = relationData?.summary?.replica;
 
   return (
     <div className="flex-1 overflow-auto">
@@ -218,21 +283,56 @@ export default function TemplateDetailPage({ params }: { params: Promise<{ id: s
           <TemplateStructureTimeline scenes={template.structure} />
         </div>
 
-        {/* 来源素材 */}
-        {template.sourceMaterialIds && template.sourceMaterialIds.length > 0 && (
-          <div className="rounded-xl border border-border p-6">
-            <h2 className="text-lg font-semibold mb-3">来源素材</h2>
-            <div className="flex flex-wrap gap-2">
-              {template.sourceMaterialIds.map((materialId) => (
-                <Link
-                  key={materialId}
-                  href={`/materials/${materialId}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-accent text-sm transition-colors"
-                >
-                  素材 {materialId.slice(0, 8)}...
-                </Link>
-              ))}
+        {/* 数据反馈 */}
+        <div className="rounded-xl border border-border p-6">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">复刻反馈</h2>
+              <p className="text-sm text-muted-foreground mt-1">保存为素材后会自动绑定到这里，周报回填后用于判断模版是否值得继续复用。</p>
             </div>
+            <Link
+              href={`/studio?templateId=${template.id}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+            >
+              <Play className="w-4 h-4" />
+              继续复刻
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+            <MiniMetric label="复刻素材" value={`${replicaSummary?.count ?? 0} 个`} />
+            <MiniMetric label="复刻消耗" value={formatMoney(replicaSummary?.totalConsumption)} />
+            <MiniMetric label="平均 ROI" value={formatRatio(replicaSummary?.avgRoi)} />
+          </div>
+
+          {replicaRelations.length > 0 ? (
+            <RelationList relations={replicaRelations} materialMap={materialMap} />
+          ) : (
+            <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+              还没有复刻素材。用这个模版生成创意，并在 Studio 保存为素材后，会自动出现在这里。
+            </div>
+          )}
+        </div>
+
+        {/* 来源素材 */}
+        {(sourceRelations.length > 0 || template.sourceMaterialIds?.length > 0) && (
+          <div className="rounded-xl border border-border p-6">
+            <h2 className="text-lg font-semibold mb-3">来源爆款</h2>
+            {sourceRelations.length > 0 ? (
+              <RelationList relations={sourceRelations} materialMap={materialMap} />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {template.sourceMaterialIds.map((materialId) => (
+                  <Link
+                    key={materialId}
+                    href={`/materials/${materialId}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-accent text-sm transition-colors"
+                  >
+                    素材 {materialId.slice(0, 8)}...
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -271,4 +371,59 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
       </div>
     </div>
   );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-muted/50 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-base font-semibold mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+function RelationList({
+  relations,
+  materialMap,
+}: {
+  relations: TemplateMaterialRelation[];
+  materialMap: Map<string, RelationMaterialSummary>;
+}) {
+  return (
+    <div className="space-y-2">
+      {relations.map((relation) => {
+        const material = materialMap.get(relation.materialId);
+        return (
+          <Link
+            key={relation.id}
+            href={`/materials/${relation.materialId}`}
+            className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 hover:bg-accent transition-colors"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{material?.name || `素材 ${relation.materialId.slice(0, 8)}...`}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {TEMPLATE_MATERIAL_RELATION_LABELS[relation.relationType]} · 消耗 {formatMoney(material?.consumption)} · ROI {formatRatio(material?.roi)}
+              </p>
+            </div>
+            {material?.tag && (
+              <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                {material.tag}
+              </span>
+            )}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatMoney(value?: number | null): string {
+  if (typeof value !== 'number') return '-';
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}w`;
+  return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+}
+
+function formatRatio(value?: number | null): string {
+  if (typeof value !== 'number') return '-';
+  return value.toFixed(2);
 }

@@ -25,6 +25,7 @@
 
 ## 核心约束 (必读)
 
+0. **先读项目宪法** — 多人协作、AI agent 开发、数据归属以 `docs/PROJECT_CONSTITUTION.md` 为最高优先级
 1. **DB 操作必须用 `supabaseAdmin`** — service role key，绕过 RLS 避免 team_members 递归
 2. **`user_id` 是 TEXT 类型** — NextAuth 用 email 做 ID，不是 Supabase Auth UUID
 3. **开发端口 3001** — `NEXTAUTH_URL=http://localhost:3001`，端口需与 NEXTAUTH_URL 一致

@@ -148,10 +148,31 @@ export const MaterialUpdateSchema = z.object({
   estimatedSpend: z.number().optional(),
   firstSeen: z.number().optional(),
   lastSeen: z.number().optional(),
+  // V2: 投放与状态字段
+  status: MaterialStatusEnum.optional(),
+  platformName: z.string().optional(),
+  platformId: z.string().optional(),
+  campaignId: z.string().optional(),
+  adAccount: z.string().optional(),
+  launchDate: z.string().optional(),
+  sourceScriptId: z.string().optional(),
+  // V3: 命名系统
+  materialNaming: z.string().optional(),
+  namingFields: z.any().optional(),
+  namingVerified: z.boolean().optional(),
+  // V3: 投放数据反标
+  impressions: z.coerce.number().optional(),
+  clicks: z.coerce.number().optional(),
+  ctr: z.coerce.number().optional(),
+  cpc: z.coerce.number().optional(),
+  cpm: z.coerce.number().optional(),
+  newUserCost: z.coerce.number().optional(),
+  firstDayPayCount: z.coerce.number().optional(),
+  firstDayPayCost: z.coerce.number().optional(),
+  reportPeriod: z.string().optional(),
 });
 
 export type Material = z.infer<typeof MaterialSchema>;
 export type MaterialsManifest = z.infer<typeof MaterialsManifestSchema>;
 export type MaterialCreateInput = z.infer<typeof MaterialCreateSchema>;
 export type MaterialUpdateInput = z.infer<typeof MaterialUpdateSchema>;
-

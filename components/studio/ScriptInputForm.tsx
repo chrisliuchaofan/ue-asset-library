@@ -40,6 +40,8 @@ export function ScriptInputForm({
     onGenerate,
     fromAnalysis,
 }: ScriptInputFormProps) {
+    const missingTopic = !topic.trim();
+
     return (
         <div className="space-y-4">
             {fromAnalysis && (
@@ -114,12 +116,17 @@ export function ScriptInputForm({
 
             <button
                 onClick={onGenerate}
-                disabled={generating || !topic.trim()}
+                disabled={generating || missingTopic}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition-all bg-white text-black hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
             >
                 {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                 {generating ? 'AI 正在撰写...' : '生成 AI 脚本'}
             </button>
+            {missingTopic && !generating && (
+                <p className="text-xs leading-5 text-white/40">
+                    填入主题或产品名后即可生成，若从模版进入，会沿用当前爆款结构。
+                </p>
+            )}
         </div>
     );
 }

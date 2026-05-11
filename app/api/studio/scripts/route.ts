@@ -5,11 +5,15 @@
 
 import { NextResponse } from 'next/server';
 import type { Script } from '@/lib/studio/types';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 
 export async function GET() {
   try {
+    const ctx = await requireTeamAccess('content:read');
+    if (isErrorResponse(ctx)) return ctx;
+
     const { dbGetScripts } = await import('@/lib/studio/scripts-db');
-    const scripts = await dbGetScripts();
+    const scripts = await dbGetScripts({ teamId: ctx.teamId });
     return NextResponse.json({ scripts });
   } catch (error) {
     console.error('[ScriptsAPI] 获取脚本列表失败:', error);
@@ -20,6 +24,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const ctx = await requireTeamAccess('content:create');
+    if (isErrorResponse(ctx)) return ctx;
+
     const body = await request.json();
     const script: Script = body.script;
     const options = body.options ?? {};
@@ -29,7 +36,11 @@ export async function POST(request: Request) {
     }
 
     const { dbCreateScript } = await import('@/lib/studio/scripts-db');
-    const saved = await dbCreateScript(script, options);
+    const saved = await dbCreateScript(script, {
+      ...options,
+      teamId: ctx.teamId,
+      userId: ctx.userId,
+    });
     return NextResponse.json(saved, { status: 201 });
   } catch (error) {
     console.error('[ScriptsAPI] 保存脚本失败:', error);

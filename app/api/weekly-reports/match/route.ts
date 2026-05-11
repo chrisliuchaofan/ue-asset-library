@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { matchReportMaterials, applyMatchResults, writebackMetrics } from '@/lib/weekly-report/material-matcher';
 import type { ReportMaterial } from '@/types/weekly-report';
 import { z } from 'zod';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 
 /**
  * POST /api/weekly-reports/match
@@ -35,10 +36,13 @@ export async function POST(request: Request) {
     }
 
     const { materials, fuzzyThreshold, writeback, reportPeriod } = parsed.data;
+    const ctx = await requireTeamAccess(writeback ? 'content:update' : 'content:read');
+    if (isErrorResponse(ctx)) return ctx;
+
     const reportMaterials = materials as ReportMaterial[];
 
     // 执行匹配
-    const matchSummary = await matchReportMaterials(reportMaterials, fuzzyThreshold);
+    const matchSummary = await matchReportMaterials(reportMaterials, fuzzyThreshold, { teamId: ctx.teamId });
 
     // 回填 material_id
     const enrichedMaterials = applyMatchResults(reportMaterials, matchSummary);
@@ -46,7 +50,7 @@ export async function POST(request: Request) {
     // V3: 数据反标 — 将投放数据回写到素材库
     let writebackResult = null;
     if (writeback && reportPeriod && matchSummary.matched > 0) {
-      writebackResult = await writebackMetrics(enrichedMaterials, reportPeriod);
+      writebackResult = await writebackMetrics(enrichedMaterials, reportPeriod, { teamId: ctx.teamId });
     }
 
     return NextResponse.json({

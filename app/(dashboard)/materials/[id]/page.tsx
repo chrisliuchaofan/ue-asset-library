@@ -12,6 +12,7 @@ import { MaterialNamingSection } from '@/components/materials/material-naming-se
 import { MaterialMetricsSection } from '@/components/materials/material-metrics-section';
 import { MaterialDataChart } from '@/components/charts/material-data-chart';
 import { getMaterialById } from '@/lib/materials-data';
+import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { getLinkHostname, isLinkMaterial } from '@/lib/material-link';
 import { formatFileSize, formatDuration, getAssetUrl } from '@/lib/utils';
 import type { Metadata } from 'next';
@@ -37,7 +38,10 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const material = await getMaterialById(id);
+  const ctx = await requireTeamAccess('content:read');
+  const material = isErrorResponse(ctx)
+    ? null
+    : await getMaterialById(id, { teamId: ctx.teamId });
 
   if (!material) {
     return {
@@ -94,7 +98,12 @@ export default async function MaterialDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const material = await getMaterialById(id);
+  const ctx = await requireTeamAccess('content:read');
+  if (isErrorResponse(ctx)) {
+    notFound();
+  }
+
+  const material = await getMaterialById(id, { teamId: ctx.teamId });
 
   if (!material) {
     notFound();
