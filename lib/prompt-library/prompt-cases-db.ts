@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { dbCreateKnowledgeEntry } from '@/lib/knowledge/knowledge-db';
 import type { PromptCase, PromptCaseMediaType, PromptCaseQuery, PromptDoc } from './types';
-import { samplePromptDocs } from './sample-data';
+import { samplePromptCases, samplePromptDocs } from './sample-data';
 import { migratedPromptDocs } from './legacy-docs';
 
 const PROMPT_LIBRARY_TAG = 'prompt-library';
@@ -50,6 +50,15 @@ export interface PromptCaseCreateInput {
   tags?: string[];
   mediaType: PromptCaseMediaType;
   sourceMaterialId: string;
+}
+
+export interface PromptDocCreateInput {
+  title: string;
+  content: string;
+  category?: string;
+  tags?: string[];
+  attachmentUrl?: string;
+  attachmentName?: string;
 }
 
 function isMissingKnowledgeTableError(error: any) {
@@ -195,7 +204,7 @@ export async function dbGetPromptCases(query: PromptCaseQuery = {}): Promise<Pro
   }
 
   const rows = data as KnowledgePromptRow[];
-  if (rows.length === 0) return [];
+  if (rows.length === 0) return filterCases(samplePromptCases, query);
 
   const materialMap = await getMaterialMap(
     rows.map((row) => row.source_material_id).filter((id): id is string => Boolean(id)),
@@ -223,7 +232,9 @@ export async function dbGetPromptCaseById(id: string, teamId: string): Promise<P
     throw new Error(`Failed to query prompt case: ${error.message}`);
   }
 
-  if (!data) return null;
+  if (!data) {
+    return samplePromptCases.find((item) => item.id === id) ?? null;
+  }
 
   const row = data as KnowledgePromptRow;
   const materialMap = await getMaterialMap(row.source_material_id ? [row.source_material_id] : [], teamId);
@@ -261,6 +272,46 @@ export async function dbCreatePromptCase(
   const created = await dbGetPromptCaseById(entry.id, options.teamId);
   if (!created) throw new Error('Prompt case was created but could not be loaded');
   return created;
+}
+
+export async function dbCreatePromptDoc(
+  input: PromptDocCreateInput,
+  options: { teamId: string; userId: string },
+): Promise<PromptDoc> {
+  const tags = normalizeTags([...(input.tags ?? []), PROMPT_LIBRARY_TAG]);
+  const category = input.category?.trim() || 'general';
+  const attachmentUrl = input.attachmentUrl?.trim();
+  const attachmentName = input.attachmentName?.trim() || '附件';
+  const content = attachmentUrl
+    ? `${input.content.trim()}\n\n---\n\n附件：[${attachmentName}](${attachmentUrl})`.trim()
+    : input.content.trim();
+
+  const entry = await dbCreateKnowledgeEntry(
+    {
+      title: input.title.trim(),
+      content,
+      category: category as any,
+      tags,
+      criteria: {
+        promptLibrary: true,
+        docCategory: category,
+        attachmentUrl: attachmentUrl || '',
+        attachmentName: attachmentUrl ? attachmentName : '',
+      },
+      sourceType: attachmentUrl ? 'import' : 'manual',
+      status: 'approved',
+    },
+    options,
+  );
+
+  return {
+    id: entry.id,
+    title: entry.title,
+    content: entry.content,
+    category: entry.category,
+    tags: entry.tags,
+    updatedAt: entry.updatedAt,
+  };
 }
 
 export async function dbGetPromptDocs(teamId: string): Promise<PromptDoc[]> {

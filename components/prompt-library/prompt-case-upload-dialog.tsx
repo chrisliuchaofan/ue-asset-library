@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, UploadCloud, X } from 'lucide-react';
 import { uploadFileDirect } from '@/lib/client/direct-upload';
 import { PROJECTS } from '@/lib/constants';
@@ -11,16 +12,14 @@ const MATERIAL_TYPE_AI_VIDEO = 'AI\u89c6\u9891';
 const MATERIAL_TAG_STANDARD = '\u8fbe\u6807';
 const MATERIAL_QUALITY_NORMAL = '\u5e38\u89c4';
 
+const DEFAULT_TYPE_OPTIONS = ['剧情', '角色展示', '场景展示', '进阶展示', '第一人称'];
+const DEFAULT_STYLE_OPTIONS = ['3D', '三渲二', '动漫', 'Q版', '写实'];
+const DEFAULT_SUBJECT_OPTIONS = ['末日', '修仙', '热梗'];
+const DEFAULT_TOOL_OPTIONS = ['即梦', '可灵', 'GPT', 'nano banana', '海螺'];
+
 type PromptCaseUploadDialogProps = {
   onCreated: (item: PromptCase) => void;
 };
-
-function splitTags(value: string) {
-  return value
-    .split(/[,，\n]/)
-    .map((tag) => tag.trim())
-    .filter(Boolean);
-}
 
 function fileTitle(file: File) {
   return file.name.replace(/\.[^.]+$/, '').trim() || file.name;
@@ -32,10 +31,14 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [negativePrompt, setNegativePrompt] = useState('');
-  const [category, setCategory] = useState('');
-  const [tool, setTool] = useState('');
-  const [tags, setTags] = useState('');
+  const [category, setCategory] = useState(DEFAULT_TYPE_OPTIONS[0]);
+  const [style, setStyle] = useState(DEFAULT_STYLE_OPTIONS[0]);
+  const [subject, setSubject] = useState(DEFAULT_SUBJECT_OPTIONS[0]);
+  const [tool, setTool] = useState(DEFAULT_TOOL_OPTIONS[0]);
+  const [typeOptions, setTypeOptions] = useState(DEFAULT_TYPE_OPTIONS);
+  const [styleOptions, setStyleOptions] = useState(DEFAULT_STYLE_OPTIONS);
+  const [subjectOptions, setSubjectOptions] = useState(DEFAULT_SUBJECT_OPTIONS);
+  const [toolOptions, setToolOptions] = useState(DEFAULT_TOOL_OPTIONS);
   const [project, setProject] = useState<string>(PROJECTS[0]);
   const [progress, setProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -51,13 +54,27 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
     setTitle('');
     setDescription('');
     setPrompt('');
-    setNegativePrompt('');
-    setCategory('');
-    setTool('');
-    setTags('');
+    setCategory(DEFAULT_TYPE_OPTIONS[0]);
+    setStyle(DEFAULT_STYLE_OPTIONS[0]);
+    setSubject(DEFAULT_SUBJECT_OPTIONS[0]);
+    setTool(DEFAULT_TOOL_OPTIONS[0]);
     setProject(PROJECTS[0]);
     setProgress(0);
     setError(null);
+  }
+
+  function addOption(
+    label: string,
+    options: string[],
+    setOptions: (options: string[]) => void,
+    setValue: (value: string) => void,
+  ) {
+    const next = window.prompt(`请输入新的${label}`);
+    const value = next?.trim();
+    if (!value) return;
+    const merged = Array.from(new Set([...options, value]));
+    setOptions(merged);
+    setValue(value);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -109,10 +126,9 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
           title: title.trim(),
           description: description.trim() || undefined,
           prompt: prompt.trim(),
-          negativePrompt: negativePrompt.trim() || undefined,
           tool: tool.trim() || undefined,
           category: category.trim() || undefined,
-          tags: splitTags(tags),
+          tags: Array.from(new Set([category, style, subject, tool].filter(Boolean))),
           mediaType,
           sourceMaterialId: material.id,
         }),
@@ -145,28 +161,29 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
         上传案例
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 text-white backdrop-blur-sm">
-          <form
-            onSubmit={handleSubmit}
-            className="flex max-h-[calc(100vh-32px)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-white/12 bg-[#090909] shadow-2xl shadow-black"
-          >
-            <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <div>
-                <h2 className="text-lg font-semibold">上传提示词案例</h2>
-                <p className="mt-1 text-xs text-white/50">文件进入 OSS，素材记录进入 materials，案例沉淀到 knowledge_entries。</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!submitting) setOpen(false);
-                }}
-                className="rounded-full p-1.5 text-white/55 transition hover:bg-white/10 hover:text-white"
-                aria-label="关闭"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </header>
+      {open &&
+        createPortal(
+          <div className="fixed left-0 top-0 z-[120] flex h-[100dvh] w-[100vw] items-center justify-center overflow-hidden bg-black/70 p-4 text-white backdrop-blur-sm">
+            <form
+              onSubmit={handleSubmit}
+              className="flex h-[min(760px,calc(100dvh-32px))] w-[min(672px,calc(100vw-32px))] flex-col overflow-hidden rounded-xl border border-white/12 bg-[#090909] shadow-2xl shadow-black"
+            >
+              <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <h2 className="text-lg font-semibold">上传提示词案例</h2>
+                  <p className="mt-1 text-xs text-white/50">文件进入 OSS，素材记录进入 materials，案例沉淀到 knowledge_entries。</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!submitting) setOpen(false);
+                  }}
+                  className="rounded-full p-1.5 text-white/55 transition hover:bg-white/10 hover:text-white"
+                  aria-label="关闭"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </header>
 
             <div className="grid gap-4 overflow-y-auto px-5 py-5">
               <label className="grid gap-2 text-sm">
@@ -217,8 +234,8 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                   disabled={submitting}
-                  rows={5}
-                  className="resize-none rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2 outline-none focus:border-cyan-300"
+                  rows={9}
+                  className="min-h-48 resize-y rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2 outline-none focus:border-cyan-300"
                 />
               </label>
 
@@ -234,49 +251,39 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
               </label>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm">
-                  <span className="text-white/75">分类</span>
-                  <input
-                    value={category}
-                    onChange={(event) => setCategory(event.target.value)}
-                    disabled={submitting}
-                    placeholder="剧情 / 角色展示 / 场景展示"
-                    className="h-10 rounded-lg border border-white/15 bg-white/[0.06] px-3 outline-none placeholder:text-white/30 focus:border-cyan-300"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm">
-                  <span className="text-white/75">工具</span>
-                  <input
-                    value={tool}
-                    onChange={(event) => setTool(event.target.value)}
-                    disabled={submitting}
-                    placeholder="即梦 / 可灵 / Runway"
-                    className="h-10 rounded-lg border border-white/15 bg-white/[0.06] px-3 outline-none placeholder:text-white/30 focus:border-cyan-300"
-                  />
-                </label>
+                <SelectWithAdd
+                  label="类型"
+                  value={category}
+                  options={typeOptions}
+                  disabled={submitting}
+                  onChange={setCategory}
+                  onAdd={() => addOption('类型', typeOptions, setTypeOptions, setCategory)}
+                />
+                <SelectWithAdd
+                  label="风格"
+                  value={style}
+                  options={styleOptions}
+                  disabled={submitting}
+                  onChange={setStyle}
+                  onAdd={() => addOption('风格', styleOptions, setStyleOptions, setStyle)}
+                />
+                <SelectWithAdd
+                  label="题材"
+                  value={subject}
+                  options={subjectOptions}
+                  disabled={submitting}
+                  onChange={setSubject}
+                  onAdd={() => addOption('题材', subjectOptions, setSubjectOptions, setSubject)}
+                />
+                <SelectWithAdd
+                  label="工具"
+                  value={tool}
+                  options={toolOptions}
+                  disabled={submitting}
+                  onChange={setTool}
+                  onAdd={() => addOption('工具', toolOptions, setToolOptions, setTool)}
+                />
               </div>
-
-              <label className="grid gap-2 text-sm">
-                <span className="text-white/75">负面提示词</span>
-                <textarea
-                  value={negativePrompt}
-                  onChange={(event) => setNegativePrompt(event.target.value)}
-                  disabled={submitting}
-                  rows={2}
-                  className="resize-none rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2 outline-none focus:border-cyan-300"
-                />
-              </label>
-
-              <label className="grid gap-2 text-sm">
-                <span className="text-white/75">标签</span>
-                <input
-                  value={tags}
-                  onChange={(event) => setTags(event.target.value)}
-                  disabled={submitting}
-                  placeholder="用逗号分隔"
-                  className="h-10 rounded-lg border border-white/15 bg-white/[0.06] px-3 outline-none placeholder:text-white/30 focus:border-cyan-300"
-                />
-              </label>
 
               {submitting && (
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
@@ -305,9 +312,54 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
                 {submitting ? '上传中' : '保存案例'}
               </button>
             </footer>
-          </form>
-        </div>
-      )}
+            </form>
+          </div>,
+          document.body,
+        )}
     </>
+  );
+}
+
+function SelectWithAdd({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+  onAdd,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  disabled: boolean;
+  onChange: (value: string) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="grid gap-2 text-sm">
+      <label className="grid gap-2">
+        <span className="text-white/75">{label}</span>
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
+          className="h-10 rounded-lg border border-white/15 bg-[#111] px-3 outline-none focus:border-cyan-300"
+        >
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onAdd}
+        className="w-fit text-xs text-cyan-300 transition hover:text-cyan-200 disabled:opacity-50"
+      >
+        增加选项
+      </button>
+    </div>
   );
 }

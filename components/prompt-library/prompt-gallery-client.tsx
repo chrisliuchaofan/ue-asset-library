@@ -12,6 +12,7 @@ type MediaFilter = 'all' | PromptCaseMediaType;
 const typeOptions = ['全部', '剧情', '角色展示', '场景展示', '进阶展示', '第一人称'];
 const styleOptions = ['全部', '3D', '三渲二', '动漫', 'Q版', '写实'];
 const subjectOptions = ['全部', '末日', '修仙', '热梗'];
+const toolOptions = ['全部', '即梦', '可灵', 'GPT', 'nano banana', '海螺'];
 
 function matchesOption(item: PromptCase, option: string) {
   if (option === '全部') return true;
@@ -36,6 +37,7 @@ export function PromptGalleryClient() {
   const [typeFilter, setTypeFilter] = useState('全部');
   const [styleFilter, setStyleFilter] = useState('全部');
   const [subjectFilter, setSubjectFilter] = useState('全部');
+  const [toolFilter, setToolFilter] = useState('全部');
   const [galleryColumns, setGalleryColumns] = useState(5);
 
   const loadCases = useCallback(() => {
@@ -85,6 +87,7 @@ export function PromptGalleryClient() {
       if (!matchesOption(item, typeFilter)) return false;
       if (!matchesOption(item, styleFilter)) return false;
       if (!matchesOption(item, subjectFilter)) return false;
+      if (!matchesOption(item, toolFilter)) return false;
 
       if (!keyword) return true;
       return [item.title, item.description, item.prompt, item.negativePrompt, item.tool, item.category, ...item.tags]
@@ -93,7 +96,7 @@ export function PromptGalleryClient() {
         .toLowerCase()
         .includes(keyword);
     });
-  }, [cases, mediaFilter, query, styleFilter, subjectFilter, typeFilter]);
+  }, [cases, mediaFilter, query, styleFilter, subjectFilter, toolFilter, typeFilter]);
 
   function resetFilters() {
     setMediaFilter('all');
@@ -101,6 +104,7 @@ export function PromptGalleryClient() {
     setTypeFilter('全部');
     setStyleFilter('全部');
     setSubjectFilter('全部');
+    setToolFilter('全部');
   }
 
   const mediaTabs = [
@@ -108,14 +112,13 @@ export function PromptGalleryClient() {
     { key: 'image' as const, label: '图片', icon: ImageIcon },
     { key: 'video' as const, label: '视频', icon: Video },
   ];
-
   return (
     <main className="min-h-full flex-1 overflow-y-auto bg-black text-white">
       <div className="mx-auto w-full max-w-[1920px] px-6 py-5">
         <header className="sticky top-0 z-30 -mx-6 border-b border-white/10 bg-black/75 px-6 pb-4 pt-4 backdrop-blur-xl">
-          <div className="mb-8 flex items-center justify-between gap-4">
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
             <h1 className="text-3xl font-bold tracking-normal text-white">AI知识库</h1>
-            <nav className="flex shrink-0 items-center gap-3 text-sm text-white/70">
+            <nav className="flex flex-wrap items-center justify-end gap-3 text-sm text-white/70">
               <HardNavLink href="/prompt-library" className="rounded-full bg-white px-4 py-2 font-semibold text-black">
                 案例库
               </HardNavLink>
@@ -177,6 +180,7 @@ export function PromptGalleryClient() {
                     <FilterRow label="类型" options={typeOptions} value={typeFilter} onChange={setTypeFilter} />
                     <FilterRow label="风格" options={styleOptions} value={styleFilter} onChange={setStyleFilter} />
                     <FilterRow label="题材" options={subjectOptions} value={subjectFilter} onChange={setSubjectFilter} />
+                    <FilterRow label="工具" options={toolOptions} value={toolFilter} onChange={setToolFilter} />
                   </div>
                 )}
               </div>

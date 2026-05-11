@@ -1,17 +1,19 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { BookOpen, ChevronDown, ChevronRight, FileText, Loader2, Search } from 'lucide-react';
 import type { PromptDoc } from '@/lib/prompt-library/types';
 import { HardNavLink } from './hard-nav-link';
+import { PromptDocUploadDialog } from './prompt-doc-upload-dialog';
 
-function groupDocs(docs: PromptDoc[]) {
+function groupDocs(docs: PromptDoc[], categories: string[] = []) {
   return docs.reduce<Record<string, PromptDoc[]>>((groups, doc) => {
     const category = doc.category || '未分类';
     groups[category] = groups[category] || [];
     groups[category].push(doc);
     return groups;
-  }, {});
+  }, Object.fromEntries(categories.map((category) => [category, [] as PromptDoc[]])) as Record<string, PromptDoc[]>);
 }
 
 function stripHtml(content: string) {
@@ -24,6 +26,26 @@ function markdownBlocks(content: string) {
     .split(/\n{2,}/)
     .map((block) => block.trim())
     .filter(Boolean);
+}
+
+function renderInlineMarkdownLinks(text: string) {
+  const parts: ReactNode[] = [];
+  const linkPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkPattern.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    parts.push(
+      <a key={`${match[2]}-${match.index}`} href={match[2]} target="_blank" rel="noreferrer" className="text-cyan-300 hover:text-cyan-200">
+        {match[1]}
+      </a>,
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts.length > 0 ? parts : text;
 }
 
 function decodeHtmlEntities(content: string) {
@@ -95,7 +117,7 @@ function MarkdownView({ content }: { content: string }) {
             <ul key={index} className="my-6 space-y-3 pl-4">
               {block.split('\n').map((line) => (
                 <li key={line} className="list-disc pl-2 marker:text-zinc-600">
-                  {line.replace(/^[-*]\s+/, '')}
+                  {renderInlineMarkdownLinks(line.replace(/^[-*]\s+/, ''))}
                 </li>
               ))}
             </ul>
@@ -104,7 +126,7 @@ function MarkdownView({ content }: { content: string }) {
 
         return (
           <p key={index} className="my-6 whitespace-pre-wrap">
-            {block}
+            {renderInlineMarkdownLinks(block)}
           </p>
         );
       })}
@@ -118,6 +140,7 @@ export function PromptDocsClient() {
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [manualCategories, setManualCategories] = useState<string[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -155,11 +178,26 @@ export function PromptDocsClient() {
     );
   }, [docs, query]);
 
-  const grouped = useMemo(() => groupDocs(filteredDocs), [filteredDocs]);
+  const grouped = useMemo(() => groupDocs(filteredDocs, manualCategories), [filteredDocs, manualCategories]);
   const selected = docs.find((doc) => doc.id === selectedId) || filteredDocs[0] || null;
+  const categoryOptions = useMemo(
+    () => Array.from(new Set([...manualCategories, ...docs.map((doc) => doc.category || '未分类')].filter(Boolean))),
+    [docs, manualCategories],
+  );
 
   function toggleGroup(category: string) {
     setOpenGroups((current) => ({ ...current, [category]: !current[category] }));
+  }
+
+  function handleDocCreated(doc: PromptDoc) {
+    setDocs((current) => [doc, ...current.filter((existing) => existing.id !== doc.id)]);
+    setSelectedId(doc.id);
+    setOpenGroups((current) => ({ ...current, [doc.category || '未分类']: true }));
+  }
+
+  function handleCategoryCreated(category: string) {
+    setManualCategories((current) => Array.from(new Set([...current, category])));
+    setOpenGroups((current) => ({ ...current, [category]: true }));
   }
 
   return (
@@ -183,6 +221,11 @@ export function PromptDocsClient() {
             <HardNavLink href="/prompt-library/docs" className="rounded-full bg-white px-4 py-2 font-semibold text-black">
               文档库
             </HardNavLink>
+            <PromptDocUploadDialog
+              onCreated={handleDocCreated}
+              categoryOptions={categoryOptions}
+              onCategoryCreated={handleCategoryCreated}
+            />
           </nav>
         </div>
 
@@ -227,6 +270,11 @@ export function PromptDocsClient() {
                     </button>
                     {open && (
                       <div className="mt-4 space-y-3 pl-5">
+                        {items.length === 0 && (
+                          <p className="rounded-md border border-dashed border-white/10 px-3 py-2 text-xs font-light tracking-[0.08em] text-zinc-600">
+                            暂无文档
+                          </p>
+                        )}
                         {items.map((doc) => {
                           const active = selected?.id === doc.id;
                           return (
@@ -248,7 +296,7 @@ export function PromptDocsClient() {
                   </section>
                 );
               })}
-              {filteredDocs.length === 0 && (
+              {Object.keys(grouped).length === 0 && (
                 <p className="text-sm font-light tracking-[0.08em] text-zinc-600">没有匹配的文档</p>
               )}
             </nav>

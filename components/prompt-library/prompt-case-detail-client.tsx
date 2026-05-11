@@ -16,7 +16,7 @@ const tagStyles = [
 ];
 
 function uniqueTags(item: PromptCase) {
-  return [item.tool, item.category, item.mediaType === 'image' ? '图片案例' : '视频案例', ...item.tags]
+  return item.tags
     .filter((tag): tag is string => Boolean(tag))
     .filter((tag, index, tags) => tags.indexOf(tag) === index);
 }
@@ -82,7 +82,7 @@ export function PromptCaseDetailClient({ id }: { id: string }) {
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/70 text-white">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
       {item.mediaUrl && (
         <>
           <div className="pointer-events-none absolute left-10 top-2 hidden h-4/5 w-72 overflow-hidden rounded-sm opacity-20 blur-[1px] lg:block">
@@ -169,15 +169,6 @@ export function PromptCaseDetailClient({ id }: { id: string }) {
                   <p className="whitespace-pre-wrap">{item.prompt}</p>
                 </div>
               </section>
-
-              {item.negativePrompt && (
-                <section className="mt-6">
-                  <h2 className="text-sm font-medium text-zinc-300">负面提示词</h2>
-                  <div className="mt-3 rounded-xl bg-white/[0.045] p-4 text-sm leading-7 text-zinc-300">
-                    <p className="whitespace-pre-wrap">{item.negativePrompt}</p>
-                  </div>
-                </section>
-              )}
 
               <section className="mt-6 pb-6">
                 <h2 className="text-sm font-medium text-zinc-300">标签</h2>

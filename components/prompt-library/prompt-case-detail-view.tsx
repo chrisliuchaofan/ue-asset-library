@@ -15,7 +15,7 @@ const tagStyles = [
 ];
 
 function collectTags(item: PromptCase) {
-  return [item.tool, item.category, ...item.tags]
+  return item.tags
     .filter((tag): tag is string => Boolean(tag))
     .filter((tag, index, tags) => tags.indexOf(tag) === index);
 }
@@ -76,8 +76,8 @@ export function PromptCaseDetailView({ id }: { id: string }) {
   const tags = collectTags(item);
 
   return (
-    <div className="fixed inset-0 z-[100] overflow-hidden bg-black/45 text-white">
-      <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px]" />
+    <div className="fixed inset-0 z-[100] overflow-hidden bg-black/70 text-white">
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
 
       <main className="relative z-10 flex h-screen items-center justify-center p-6">
         <article
@@ -135,15 +135,6 @@ export function PromptCaseDetailView({ id }: { id: string }) {
               <div className="mt-3 rounded-xl bg-white/[0.055] p-4 text-sm font-medium leading-7 text-zinc-200">
                 <p className="whitespace-pre-wrap">{item.prompt}</p>
               </div>
-
-              {item.negativePrompt && (
-                <>
-                  <h2 className="mt-6 text-sm font-medium text-zinc-300">负面提示词</h2>
-                  <div className="mt-3 rounded-xl bg-white/[0.045] p-4 text-sm leading-7 text-zinc-300">
-                    <p className="whitespace-pre-wrap">{item.negativePrompt}</p>
-                  </div>
-                </>
-              )}
 
               <h2 className="mt-6 text-sm font-medium text-zinc-300">标签</h2>
               <div className="mt-4 flex flex-wrap gap-2 pb-6">
