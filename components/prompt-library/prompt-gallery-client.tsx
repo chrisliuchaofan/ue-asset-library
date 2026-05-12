@@ -1,13 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Filter, Grid2X2, ImageIcon, Loader2, Search, Video } from 'lucide-react';
 import type { PromptCase, PromptCaseMediaType } from '@/lib/prompt-library/types';
 import { HardNavLink } from './hard-nav-link';
+import { PromptCaseDetailView } from './prompt-case-detail-view';
 import { PromptCaseCard } from './prompt-case-tile-client';
 import { PromptCaseUploadDialog } from './prompt-case-upload-dialog';
 
 type MediaFilter = 'all' | PromptCaseMediaType;
+const PROMPT_GALLERY_CACHE_KEY = 'prompt-library:gallery-cases';
 
 const typeOptions = ['全部', '剧情', '角色展示', '场景展示', '进阶展示', '第一人称'];
 const styleOptions = ['全部', '3D', '三渲二', '动漫', 'Q版', '写实'];
@@ -28,9 +30,28 @@ function filterPillClass(active: boolean) {
     : 'border-white/12 bg-white/[0.055] text-white/72 hover:border-white/24 hover:bg-white/10 hover:text-white';
 }
 
+function readCachedCases() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(PROMPT_GALLERY_CACHE_KEY) || '[]');
+    return Array.isArray(parsed) ? (parsed as PromptCase[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedCases(items: PromptCase[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(PROMPT_GALLERY_CACHE_KEY, JSON.stringify(items));
+  } catch {
+    // Cache failures should not block the prompt library.
+  }
+}
+
 export function PromptGalleryClient() {
-  const [cases, setCases] = useState<PromptCase[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [cases, setCases] = useState<PromptCase[]>(() => readCachedCases());
+  const [loading, setLoading] = useState(() => readCachedCases().length === 0);
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
   const [query, setQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -39,17 +60,26 @@ export function PromptGalleryClient() {
   const [subjectFilter, setSubjectFilter] = useState('全部');
   const [toolFilter, setToolFilter] = useState('全部');
   const [galleryColumns, setGalleryColumns] = useState(5);
+  const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
+  const casesRef = useRef<PromptCase[]>(cases);
+
+  useEffect(() => {
+    casesRef.current = cases;
+  }, [cases]);
 
   const loadCases = useCallback(() => {
     let mounted = true;
-    setLoading(true);
+    if (casesRef.current.length === 0) setLoading(true);
     fetch('/api/prompt-library/cases')
       .then((res) => res.json())
       .then((data) => {
-        if (mounted) setCases(data.cases || []);
+        if (!mounted) return;
+        const nextCases = data.cases || [];
+        setCases(nextCases);
+        writeCachedCases(nextCases);
       })
       .catch(() => {
-        if (mounted) setCases([]);
+        if (mounted && casesRef.current.length === 0) setCases([]);
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -62,8 +92,35 @@ export function PromptGalleryClient() {
   useEffect(() => loadCases(), [loadCases]);
 
   function handleCaseCreated(item: PromptCase) {
-    setCases((current) => [item, ...current.filter((existing) => existing.id !== item.id)]);
+    setCases((current) => {
+      const nextCases = [item, ...current.filter((existing) => existing.id !== item.id)];
+      writeCachedCases(nextCases);
+      return nextCases;
+    });
   }
+
+  function openCaseDetail(id: string) {
+    window.history.pushState({ promptLibraryModal: true, caseId: id }, '', '/prompt-library');
+    setActiveCaseId(id);
+  }
+
+  useEffect(() => {
+    function syncModalWithUrl() {
+      setActiveCaseId(window.history.state?.promptLibraryModal ? window.history.state.caseId || null : null);
+    }
+
+    function closeModal() {
+      setActiveCaseId(null);
+    }
+
+    window.addEventListener('popstate', syncModalWithUrl);
+    window.addEventListener('prompt-library:close-detail', closeModal);
+    syncModalWithUrl();
+    return () => {
+      window.removeEventListener('popstate', syncModalWithUrl);
+      window.removeEventListener('prompt-library:close-detail', closeModal);
+    };
+  }, []);
 
   useEffect(() => {
     function syncGalleryColumns() {
@@ -97,6 +154,11 @@ export function PromptGalleryClient() {
         .includes(keyword);
     });
   }, [cases, mediaFilter, query, styleFilter, subjectFilter, toolFilter, typeFilter]);
+
+  const activeCase = useMemo(
+    () => (activeCaseId ? cases.find((item) => item.id === activeCaseId) : undefined),
+    [activeCaseId, cases],
+  );
 
   function resetFilters() {
     setMediaFilter('all');
@@ -207,11 +269,12 @@ export function PromptGalleryClient() {
         ) : (
           <section className="prompt-library-gallery mt-4" style={{ columnCount: galleryColumns, columnGap: '1rem' }}>
             {filtered.map((item) => (
-              <PromptCaseCard key={item.id} item={item} />
+              <PromptCaseCard key={item.id} item={item} onOpen={openCaseDetail} />
             ))}
           </section>
         )}
       </div>
+      {activeCaseId && <PromptCaseDetailView id={activeCaseId} initialItem={activeCase} />}
     </main>
   );
 }

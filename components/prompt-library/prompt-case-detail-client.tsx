@@ -5,6 +5,7 @@ import { ArrowLeft, Film, ImageIcon, Loader2, X } from 'lucide-react';
 import type { PromptCase } from '@/lib/prompt-library/types';
 import { CopyPromptButton } from './copy-prompt-button';
 import { HardNavLink } from './hard-nav-link';
+import { PromptLibraryBackLink } from './prompt-library-back-link';
 import { UseInStudioButton } from './use-in-studio-button';
 
 const tagStyles = [
@@ -124,9 +125,6 @@ export function PromptCaseDetailClient({ id }: { id: string }) {
                     src={mediaSrc}
                     poster={item.coverUrl}
                     controls
-                    muted
-                    autoPlay
-                    loop
                     playsInline
                     preload="metadata"
                     className="block h-full w-full rounded-md object-contain"
@@ -148,13 +146,13 @@ export function PromptCaseDetailClient({ id }: { id: string }) {
           <aside className="flex min-h-0 min-w-0 flex-col bg-[#080808]">
             <header className="shrink-0 border-b border-white/10 px-5 py-5 lg:px-6">
               <div className="mb-5 flex items-center justify-between gap-4 text-sm text-zinc-400">
-                <HardNavLink href="/prompt-library" className="inline-flex items-center gap-2 transition hover:text-white">
+                <PromptLibraryBackLink className="inline-flex items-center gap-2 transition hover:text-white">
                   <ArrowLeft className="h-4 w-4" />
                   返回画廊
-                </HardNavLink>
-                <HardNavLink href="/prompt-library" aria-label="关闭详情" className="rounded-full p-1 text-zinc-400 transition hover:bg-white/10 hover:text-white">
+                </PromptLibraryBackLink>
+                <PromptLibraryBackLink aria-label="关闭详情" className="rounded-full p-1 text-zinc-400 transition hover:bg-white/10 hover:text-white">
                   <X className="h-5 w-5" />
-                </HardNavLink>
+                </PromptLibraryBackLink>
               </div>
               <div className="text-sm text-indigo-300">
                 {[item.tool, item.category].filter(Boolean).join(' / ') || 'AI 视频案例'}

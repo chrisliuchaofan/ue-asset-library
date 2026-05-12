@@ -21,6 +21,8 @@ type PromptCaseUploadDialogProps = {
   onCreated: (item: PromptCase) => void;
 };
 
+type OptionTarget = 'type' | 'style' | 'subject' | 'tool';
+
 function fileTitle(file: File) {
   return file.name.replace(/\.[^.]+$/, '').trim() || file.name;
 }
@@ -43,6 +45,8 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
   const [progress, setProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addTarget, setAddTarget] = useState<OptionTarget | null>(null);
+  const [addValue, setAddValue] = useState('');
 
   const mediaType = useMemo(() => {
     if (!file) return 'image';
@@ -63,18 +67,49 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
     setError(null);
   }
 
-  function addOption(
-    label: string,
-    options: string[],
-    setOptions: (options: string[]) => void,
-    setValue: (value: string) => void,
-  ) {
-    const next = window.prompt(`请输入新的${label}`);
-    const value = next?.trim();
+  function optionTargetLabel(target: OptionTarget) {
+    return {
+      type: '类型',
+      style: '风格',
+      subject: '题材',
+      tool: '工具',
+    }[target];
+  }
+
+  function openAddOption(target: OptionTarget) {
+    if (submitting) return;
+    setAddTarget(target);
+    setAddValue('');
+  }
+
+  function commitAddOption() {
+    if (!addTarget) return;
+    const value = addValue.trim();
     if (!value) return;
-    const merged = Array.from(new Set([...options, value]));
-    setOptions(merged);
-    setValue(value);
+
+    if (addTarget === 'type') {
+      const merged = Array.from(new Set([...typeOptions, value]));
+      setTypeOptions(merged);
+      setCategory(value);
+    }
+    if (addTarget === 'style') {
+      const merged = Array.from(new Set([...styleOptions, value]));
+      setStyleOptions(merged);
+      setStyle(value);
+    }
+    if (addTarget === 'subject') {
+      const merged = Array.from(new Set([...subjectOptions, value]));
+      setSubjectOptions(merged);
+      setSubject(value);
+    }
+    if (addTarget === 'tool') {
+      const merged = Array.from(new Set([...toolOptions, value]));
+      setToolOptions(merged);
+      setTool(value);
+    }
+
+    setAddTarget(null);
+    setAddValue('');
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -257,7 +292,7 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
                   options={typeOptions}
                   disabled={submitting}
                   onChange={setCategory}
-                  onAdd={() => addOption('类型', typeOptions, setTypeOptions, setCategory)}
+                  onAdd={() => openAddOption('type')}
                 />
                 <SelectWithAdd
                   label="风格"
@@ -265,7 +300,7 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
                   options={styleOptions}
                   disabled={submitting}
                   onChange={setStyle}
-                  onAdd={() => addOption('风格', styleOptions, setStyleOptions, setStyle)}
+                  onAdd={() => openAddOption('style')}
                 />
                 <SelectWithAdd
                   label="题材"
@@ -273,7 +308,7 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
                   options={subjectOptions}
                   disabled={submitting}
                   onChange={setSubject}
-                  onAdd={() => addOption('题材', subjectOptions, setSubjectOptions, setSubject)}
+                  onAdd={() => openAddOption('subject')}
                 />
                 <SelectWithAdd
                   label="工具"
@@ -281,7 +316,7 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
                   options={toolOptions}
                   disabled={submitting}
                   onChange={setTool}
-                  onAdd={() => addOption('工具', toolOptions, setToolOptions, setTool)}
+                  onAdd={() => openAddOption('tool')}
                 />
               </div>
 
@@ -312,6 +347,51 @@ export function PromptCaseUploadDialog({ onCreated }: PromptCaseUploadDialogProp
                 {submitting ? '上传中' : '保存案例'}
               </button>
             </footer>
+            {addTarget && (
+              <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
+                <div className="w-[min(360px,calc(100vw-32px))] rounded-xl border border-white/12 bg-[#111] p-5 shadow-2xl shadow-black">
+                  <h3 className="text-base font-semibold text-white">新增{optionTargetLabel(addTarget)}选项</h3>
+                  <p className="mt-1 text-xs text-white/45">输入后会加入对应下拉选项，并自动选中。</p>
+                  <input
+                    value={addValue}
+                    onChange={(event) => setAddValue(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commitAddOption();
+                      }
+                      if (event.key === 'Escape') {
+                        setAddTarget(null);
+                        setAddValue('');
+                      }
+                    }}
+                    autoFocus
+                    placeholder={`请输入新的${optionTargetLabel(addTarget)}`}
+                    className="mt-4 h-10 w-full rounded-lg border border-white/15 bg-black px-3 text-sm text-white outline-none focus:border-cyan-300"
+                  />
+                  <div className="mt-5 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddTarget(null);
+                        setAddValue('');
+                      }}
+                      className="h-9 rounded-lg border border-white/15 px-4 text-sm text-white/70 transition hover:bg-white/10"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      onClick={commitAddOption}
+                      disabled={!addValue.trim()}
+                      className="h-9 rounded-lg bg-cyan-400 px-4 text-sm font-semibold text-black transition hover:bg-cyan-300 disabled:opacity-50"
+                    >
+                      添加
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             </form>
           </div>,
           document.body,

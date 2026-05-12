@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Film, ImageIcon } from 'lucide-react';
 import type { PromptCase } from '@/lib/prompt-library/types';
 import { HardNavLink } from './hard-nav-link';
 
-export function PromptCaseCard({ item }: { item: PromptCase }) {
+export function PromptCaseCard({ item, onOpen }: { item: PromptCase; onOpen?: (id: string) => void }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState('9 / 16');
   const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
@@ -37,13 +37,19 @@ export function PromptCaseCard({ item }: { item: PromptCase }) {
     setAspectRatio(`${video.videoWidth} / ${video.videoHeight}`);
   }
 
+  function openCase(event: MouseEvent<HTMLAnchorElement>) {
+    if (!onOpen || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    onOpen(item.id);
+  }
+
   return (
     <article
       className="group mb-4 break-inside-avoid overflow-hidden rounded-xl"
       onMouseEnter={playPreview}
       onMouseLeave={pausePreview}
     >
-      <HardNavLink href={`/prompt-library/${item.id}`} className="block">
+      <HardNavLink href={`/prompt-library/${item.id}`} onClick={openCase} className="block">
         <div className="relative overflow-hidden rounded-xl bg-transparent" style={{ aspectRatio }}>
           {item.mediaType === 'video' && item.mediaUrl && (!item.coverUrl || shouldLoadVideo) ? (
             <video

@@ -7,6 +7,7 @@ import { getAllMaterials, getMaterialsSummary, type MaterialsSummary } from '@/l
 import { getReviewStatusMap } from '@/lib/review/review-data';
 import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { getAllowedProjectsForEmail, isProjectAllowed } from '@/lib/project-permissions';
+import { dbGetPromptCaseMaterialIds } from '@/lib/prompt-library/prompt-cases-db';
 import type { Material } from '@/data/material.schema';
 import type { Metadata } from 'next';
 
@@ -32,13 +33,15 @@ export default async function MaterialsPage() {
     allMaterials = [];
     summary = { total: 0, types: {}, tags: {}, qualities: {}, projects: {} };
   } else {
-    const [mats, reviewMap] = await Promise.all([
+    const [mats, reviewMap, promptCaseMaterialIds] = await Promise.all([
       getAllMaterials({ teamId: ctx.teamId }),
       getReviewStatusMap(),
+      dbGetPromptCaseMaterialIds(ctx.teamId),
     ]);
+    const promptCaseMaterialIdSet = new Set(promptCaseMaterialIds);
     // 注入审核状态到素材对象
     allMaterials = mats
-      .filter((m) => isProjectAllowed(m.project, allowedProjects))
+      .filter((m) => isProjectAllowed(m.project, allowedProjects) && !promptCaseMaterialIdSet.has(m.id))
       .map(m => ({
         ...m,
         reviewStatus: (reviewMap[m.id] as Material['reviewStatus']) || undefined,

@@ -241,6 +241,30 @@ export async function dbGetPromptCaseById(id: string, teamId: string): Promise<P
   return rowToPromptCase(row, row.source_material_id ? materialMap.get(row.source_material_id) : undefined);
 }
 
+export async function dbGetPromptCaseMaterialIds(teamId: string): Promise<string[]> {
+  if (!teamId) return [];
+
+  const { data, error } = await (supabaseAdmin.from('knowledge_entries') as any)
+    .select('source_material_id')
+    .eq('category', 'example')
+    .contains('tags', [PROMPT_LIBRARY_TAG])
+    .eq('team_id', teamId)
+    .not('source_material_id', 'is', null);
+
+  if (error) {
+    if (isMissingKnowledgeTableError(error)) return [];
+    throw new Error(`Failed to query prompt case material ids: ${error.message}`);
+  }
+
+  return Array.from(
+    new Set(
+      ((data || []) as Array<{ source_material_id: string | null }>)
+        .map((row) => row.source_material_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+}
+
 export async function dbCreatePromptCase(
   input: PromptCaseCreateInput,
   options: { teamId: string; userId: string },

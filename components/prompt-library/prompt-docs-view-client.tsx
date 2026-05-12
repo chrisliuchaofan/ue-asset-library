@@ -79,7 +79,7 @@ function MarkdownView({ content }: { content: string }) {
     return (
       <div
         data-render-mode="html"
-        className="max-w-[760px] pb-24 text-[15px] font-light leading-8 tracking-[0.02em] text-zinc-300 [&_a]:text-cyan-300 [&_h1]:mb-8 [&_h1]:mt-10 [&_h1]:text-4xl [&_h1]:font-light [&_h1]:leading-tight [&_h1]:tracking-[0.04em] [&_h1]:text-white [&_h2]:mb-5 [&_h2]:mt-12 [&_h2]:text-2xl [&_h2]:font-normal [&_h2]:tracking-[0.04em] [&_h2]:text-white [&_h3]:mb-3 [&_h3]:mt-9 [&_h3]:text-lg [&_h3]:font-normal [&_h3]:tracking-[0.04em] [&_h3]:text-white [&_img]:my-5 [&_img]:max-w-full [&_img]:rounded-sm [&_img]:bg-white [&_li]:my-1 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-white [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-5"
+        className="max-w-[760px] pb-24 text-[15px] font-light leading-8 tracking-[0.02em] text-zinc-300 [&_a]:text-cyan-300 [&_h1]:mb-8 [&_h1]:mt-10 [&_h1]:text-4xl [&_h1]:font-light [&_h1]:leading-tight [&_h1]:tracking-[0.04em] [&_h1]:text-white [&_h2]:mb-5 [&_h2]:mt-12 [&_h2]:text-2xl [&_h2]:font-normal [&_h2]:tracking-[0.04em] [&_h2]:text-white [&_h3]:mb-3 [&_h3]:mt-9 [&_h3]:text-lg [&_h3]:font-normal [&_h3]:tracking-[0.04em] [&_h3]:text-white [&_img]:my-5 [&_img]:max-w-full [&_img]:rounded-sm [&_img]:bg-white [&_li]:my-1 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-white [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-5 [&_video]:my-5 [&_video]:w-full [&_video]:max-w-full [&_video]:rounded-sm [&_video]:bg-black"
         dangerouslySetInnerHTML={{ __html: sanitizeTrustedDocHtml(decodedContent) }}
       />
     );

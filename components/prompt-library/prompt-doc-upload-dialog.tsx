@@ -253,7 +253,13 @@ export function PromptDocUploadDialog({ onCreated, categoryOptions = [], onCateg
                 </div>
               </div>
 
-              <RichTextEditor value={content} disabled={submitting} onChange={setContent} onUploadProgress={setProgress} />
+              <RichTextEditor
+                value={content}
+                disabled={submitting}
+                onChange={setContent}
+                onUploadProgress={setProgress}
+                onError={setError}
+              />
 
               <label className="grid gap-2 text-sm">
                 <span className="text-white/75">附件（可选）</span>
@@ -309,14 +315,17 @@ function RichTextEditor({
   disabled,
   onChange,
   onUploadProgress,
+  onError,
 }: {
   value: string;
   disabled: boolean;
   onChange: (value: string) => void;
   onUploadProgress: (progress: number) => void;
+  onError: (message: string | null) => void;
 }) {
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
   const [fontSize, setFontSize] = useState('16');
   const [letterSpacing, setLetterSpacing] = useState('0');
   const [lineHeight, setLineHeight] = useState('1.7');
@@ -387,12 +396,23 @@ function RichTextEditor({
     serializeContent();
   }
 
-  async function handleMediaChange(event: ChangeEvent<HTMLInputElement>) {
+  async function handleMediaChange(event: ChangeEvent<HTMLInputElement>, mediaType: 'image' | 'video') {
     const selected = event.target.files?.[0];
     event.target.value = '';
     if (!selected) return;
 
+    if (mediaType === 'image' && !selected.type.startsWith('image/')) {
+      onError('请选择图片文件');
+      return;
+    }
+
+    if (mediaType === 'video' && !selected.type.startsWith('video/')) {
+      onError('请选择视频文件');
+      return;
+    }
+
     setUploadingMedia(true);
+    onError(null);
     onUploadProgress(0);
 
     try {
@@ -400,9 +420,9 @@ function RichTextEditor({
       const url = escapeAttribute(uploadResult.fileUrl);
       const name = escapeAttribute(selected.name);
 
-      if (selected.type.startsWith('video/')) {
+      if (mediaType === 'video') {
         insertHtml(
-          `<p><video src="${url}" controls playsinline style="max-width:100%;border-radius:8px;background:#000;margin:12px 0;"></video></p>`,
+          `<p><video src="${url}" controls playsinline preload="metadata" style="display:block;width:100%;max-width:100%;border-radius:8px;background:#000;margin:12px 0;"></video></p>`,
         );
       } else {
         insertHtml(`<p><img src="${url}" alt="${name}" style="max-width:100%;border-radius:8px;margin:12px 0;" /></p>`);
@@ -477,11 +497,14 @@ function RichTextEditor({
           <ToolbarButton label="有序列表" disabled={disabled} onClick={() => runCommand('insertOrderedList')}>
             <ListOrdered className="h-4 w-4" />
           </ToolbarButton>
-          <ToolbarButton label="插入图片或视频" disabled={disabled || uploadingMedia} onClick={() => mediaInputRef.current?.click()}>
+          <ToolbarButton label="插入图片" disabled={disabled || uploadingMedia} onClick={() => imageInputRef.current?.click()}>
             {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
           </ToolbarButton>
-          <Video className="h-4 w-4 text-white/35" />
-          <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleMediaChange} />
+          <ToolbarButton label="插入视频" disabled={disabled || uploadingMedia} onClick={() => videoInputRef.current?.click()}>
+            {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+          </ToolbarButton>
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => handleMediaChange(event, 'image')} />
+          <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={(event) => handleMediaChange(event, 'video')} />
         </div>
 
         <div

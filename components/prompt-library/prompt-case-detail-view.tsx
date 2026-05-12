@@ -5,6 +5,7 @@ import { ArrowLeft, Film, ImageIcon, Loader2, X } from 'lucide-react';
 import type { PromptCase } from '@/lib/prompt-library/types';
 import { CopyPromptButton } from './copy-prompt-button';
 import { HardNavLink } from './hard-nav-link';
+import { PromptLibraryBackLink } from './prompt-library-back-link';
 import { UseInStudioButton } from './use-in-studio-button';
 
 const tagStyles = [
@@ -28,12 +29,19 @@ function EmptyMedia({ mediaType }: { mediaType: PromptCase['mediaType'] }) {
   );
 }
 
-export function PromptCaseDetailView({ id }: { id: string }) {
-  const [item, setItem] = useState<PromptCase | null>(null);
-  const [loading, setLoading] = useState(true);
+export function PromptCaseDetailView({ id, initialItem }: { id: string; initialItem?: PromptCase }) {
+  const [item, setItem] = useState<PromptCase | null>(initialItem ?? null);
+  const [loading, setLoading] = useState(!initialItem);
 
   useEffect(() => {
+    if (initialItem?.id === id) {
+      setItem(initialItem);
+      setLoading(false);
+      return;
+    }
+
     let mounted = true;
+    setLoading(true);
     fetch(`/api/prompt-library/cases/${id}`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data) => {
@@ -48,7 +56,7 @@ export function PromptCaseDetailView({ id }: { id: string }) {
     return () => {
       mounted = false;
     };
-  }, [id]);
+  }, [id, initialItem]);
 
   if (loading) {
     return (
@@ -98,11 +106,8 @@ export function PromptCaseDetailView({ id }: { id: string }) {
                     src={mediaSrc}
                     poster={item.coverUrl}
                     controls
-                    muted
-                    autoPlay
-                    loop
                     playsInline
-                    preload="auto"
+                    preload="metadata"
                     className="h-full w-full rounded-md object-contain"
                   />
                 ) : (
@@ -118,13 +123,13 @@ export function PromptCaseDetailView({ id }: { id: string }) {
           <aside className="flex min-h-0 min-w-0 flex-col bg-[#080808]">
             <header className="shrink-0 border-b border-white/10 px-6 py-5">
               <div className="mb-5 flex items-center justify-between text-sm text-zinc-400">
-                <HardNavLink href="/prompt-library" className="inline-flex items-center gap-2 hover:text-white">
+                <PromptLibraryBackLink className="inline-flex items-center gap-2 hover:text-white">
                   <ArrowLeft className="h-4 w-4" />
                   返回画廊
-                </HardNavLink>
-                <HardNavLink href="/prompt-library" aria-label="关闭详情" className="rounded-full p-1 text-zinc-400 hover:bg-white/10 hover:text-white">
+                </PromptLibraryBackLink>
+                <PromptLibraryBackLink aria-label="关闭详情" className="rounded-full p-1 text-zinc-400 hover:bg-white/10 hover:text-white">
                   <X className="h-5 w-5" />
-                </HardNavLink>
+                </PromptLibraryBackLink>
               </div>
               <div className="text-sm text-indigo-300">{[item.tool, item.category].filter(Boolean).join(' / ')}</div>
               <h1 className="mt-2 text-2xl font-semibold leading-tight text-white">{item.title}</h1>
