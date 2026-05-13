@@ -1,8 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { dbCreateKnowledgeEntry } from '@/lib/knowledge/knowledge-db';
 import type { PromptCase, PromptCaseMediaType, PromptCaseQuery, PromptDoc } from './types';
-import { samplePromptCases, samplePromptDocs } from './sample-data';
-import { migratedPromptDocs } from './legacy-docs';
 
 const PROMPT_LIBRARY_TAG = 'prompt-library';
 
@@ -169,14 +167,15 @@ function filterCases(cases: PromptCase[], query: PromptCaseQuery): PromptCase[] 
     .slice(0, query.limit ?? 100);
 }
 
-async function getMaterialMap(ids: string[], teamId: string): Promise<Map<string, MaterialRow>> {
+async function getMaterialMap(ids: string[], teamId?: string): Promise<Map<string, MaterialRow>> {
   const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
   if (uniqueIds.length === 0) return new Map();
 
   let request = (supabaseAdmin.from('materials') as any)
     .select('id,name,type,thumbnail,src,gallery')
-    .in('id', uniqueIds)
-    .eq('team_id', teamId);
+    .in('id', uniqueIds);
+
+  request = teamId ? request.eq('team_id', teamId) : request.is('team_id', null);
 
   const { data, error } = await request;
   if (error) throw new Error(`Failed to query prompt case materials: ${error.message}`);
@@ -185,8 +184,6 @@ async function getMaterialMap(ids: string[], teamId: string): Promise<Map<string
 }
 
 export async function dbGetPromptCases(query: PromptCaseQuery = {}): Promise<PromptCase[]> {
-  if (!query.teamId) return [];
-
   let request = (supabaseAdmin.from('knowledge_entries') as any)
     .select('id,team_id,user_id,title,content,category,tags,prompt_template,criteria,source_material_id,status,created_at,updated_at')
     .eq('category', 'example')
@@ -194,7 +191,7 @@ export async function dbGetPromptCases(query: PromptCaseQuery = {}): Promise<Pro
     .contains('tags', [PROMPT_LIBRARY_TAG])
     .order('created_at', { ascending: false });
 
-  request = request.eq('team_id', query.teamId);
+  request = query.teamId ? request.eq('team_id', query.teamId) : request.is('team_id', null);
   if (query.limit) request = request.limit(query.limit);
 
   const { data, error } = await request;
@@ -204,7 +201,7 @@ export async function dbGetPromptCases(query: PromptCaseQuery = {}): Promise<Pro
   }
 
   const rows = data as KnowledgePromptRow[];
-  if (rows.length === 0) return filterCases(samplePromptCases, query);
+  if (rows.length === 0) return [];
 
   const materialMap = await getMaterialMap(
     rows.map((row) => row.source_material_id).filter((id): id is string => Boolean(id)),
@@ -217,14 +214,16 @@ export async function dbGetPromptCases(query: PromptCaseQuery = {}): Promise<Pro
   return filterCases(cases, query);
 }
 
-export async function dbGetPromptCaseById(id: string, teamId: string): Promise<PromptCase | null> {
+export async function dbGetPromptCaseById(id: string, teamId?: string): Promise<PromptCase | null> {
   let request = (supabaseAdmin.from('knowledge_entries') as any)
     .select('id,team_id,user_id,title,content,category,tags,prompt_template,criteria,source_material_id,status,created_at,updated_at')
     .eq('id', id)
     .eq('category', 'example')
+    .eq('status', 'approved')
     .contains('tags', [PROMPT_LIBRARY_TAG])
-    .eq('team_id', teamId)
     .limit(1);
+
+  request = teamId ? request.eq('team_id', teamId) : request.is('team_id', null);
 
   const { data, error } = await request.maybeSingle();
   if (error) {
@@ -232,9 +231,7 @@ export async function dbGetPromptCaseById(id: string, teamId: string): Promise<P
     throw new Error(`Failed to query prompt case: ${error.message}`);
   }
 
-  if (!data) {
-    return samplePromptCases.find((item) => item.id === id) ?? null;
-  }
+  if (!data) return null;
 
   const row = data as KnowledgePromptRow;
   const materialMap = await getMaterialMap(row.source_material_id ? [row.source_material_id] : [], teamId);
@@ -338,19 +335,20 @@ export async function dbCreatePromptDoc(
   };
 }
 
-export async function dbGetPromptDocs(teamId: string): Promise<PromptDoc[]> {
+export async function dbGetPromptDocs(teamId?: string): Promise<PromptDoc[]> {
   let request = (supabaseAdmin.from('knowledge_entries') as any)
     .select('id,title,content,category,tags,updated_at')
     .eq('status', 'approved')
     .neq('category', 'example')
     .order('updated_at', { ascending: false })
-    .limit(80)
-    .eq('team_id', teamId);
+    .limit(80);
+
+  request = teamId ? request.eq('team_id', teamId) : request.is('team_id', null);
 
   const { data, error } = await request;
   if (error) {
-    if (isMissingKnowledgeTableError(error)) return migratedPromptDocs.length > 0 ? migratedPromptDocs : samplePromptDocs;
-    return migratedPromptDocs.length > 0 ? migratedPromptDocs : samplePromptDocs;
+    if (isMissingKnowledgeTableError(error)) return [];
+    return [];
   }
 
   const docs = (data as KnowledgeDocRow[])
@@ -368,5 +366,5 @@ export async function dbGetPromptDocs(teamId: string): Promise<PromptDoc[]> {
       updatedAt: row.updated_at,
     }));
 
-  return docs.length > 0 ? docs : migratedPromptDocs.length > 0 ? migratedPromptDocs : samplePromptDocs;
+  return docs;
 }

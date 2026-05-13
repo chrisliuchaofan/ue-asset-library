@@ -26,6 +26,10 @@ export default auth((req) => {
     '/auth/login',
     '/auth/register',
     '/api/auth',
+    '/prompt-library',
+    '/api/prompt-library/cases',
+    '/api/prompt-library/docs',
+    '/api/prompt-library/media',
     '/api/billing/webhook', // Stripe webhook 不需要用户认证
     '/api/landing',         // Landing page 公共 API（hero 视频等）
     '/interview',           // 公开访谈页（token 验证，免登录）
@@ -64,7 +68,6 @@ export default auth((req) => {
     '/review',
     '/inspirations',
     '/templates',
-    '/prompt-library',
     '/knowledge',
     '/assets',
     '/weekly-reports',

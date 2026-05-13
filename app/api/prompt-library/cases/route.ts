@@ -18,9 +18,6 @@ const CreatePromptCaseSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const ctx = await requireTeamAccess('content:read');
-    if (isErrorResponse(ctx)) return ctx;
-
     const { searchParams } = new URL(request.url);
     const cases = await dbGetPromptCases({
       q: searchParams.get('q') || undefined,
@@ -29,7 +26,6 @@ export async function GET(request: Request) {
       tag: searchParams.get('tag') || undefined,
       mediaType: (searchParams.get('mediaType') as any) || 'all',
       status: 'published',
-      teamId: ctx.teamId,
       limit: 200,
     });
 

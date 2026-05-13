@@ -137,6 +137,7 @@ function MarkdownView({ content }: { content: string }) {
 export function PromptDocsClient() {
   const [docs, setDocs] = useState<PromptDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -146,17 +147,32 @@ export function PromptDocsClient() {
     let mounted = true;
 
     fetch('/api/prompt-library/docs')
-      .then((res) => res.json())
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const message =
+            res.status === 401
+              ? '需要登录后才能访问该内容。'
+              : res.status === 403
+                ? '当前账号没有访问该内容的权限。'
+                : data.message || data.error || '加载提示词文档失败。';
+          throw new Error(message);
+        }
+        return data;
+      })
       .then((data) => {
         if (!mounted) return;
 
         const nextDocs: PromptDoc[] = data.docs || [];
+        setErrorMessage(null);
         setDocs(nextDocs);
         setSelectedId((current) => current || nextDocs[0]?.id || null);
         setOpenGroups(Object.fromEntries(Object.keys(groupDocs(nextDocs)).map((category) => [category, true])));
       })
-      .catch(() => {
-        if (mounted) setDocs([]);
+      .catch((error) => {
+        if (!mounted) return;
+        setErrorMessage(error instanceof Error ? error.message : '加载提示词文档失败。');
+        setDocs([]);
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -254,6 +270,10 @@ export function PromptDocsClient() {
               <Loader2 className="h-4 w-4 animate-spin" />
               加载中
             </div>
+          ) : errorMessage ? (
+            <p className="rounded-md border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-light tracking-[0.08em] text-red-200">
+              {errorMessage}
+            </p>
           ) : (
             <nav className="space-y-6">
               {Object.entries(grouped).map(([category, items]) => {
@@ -304,7 +324,11 @@ export function PromptDocsClient() {
         </aside>
 
         <article className="min-w-0 px-12 py-10 xl:px-24">
-          {selected ? (
+          {errorMessage ? (
+            <div className="flex min-h-[50vh] items-center text-sm font-light tracking-[0.08em] text-red-200">
+              {errorMessage}
+            </div>
+          ) : selected ? (
             <>
               <div className="mb-10">
                 <div className="mb-5 text-xs font-light tracking-[0.08em] text-zinc-600">

@@ -17,10 +17,7 @@ const CreatePromptDocSchema = z.object({
 
 export async function GET() {
   try {
-    const ctx = await requireTeamAccess('content:read');
-    if (isErrorResponse(ctx)) return ctx;
-
-    const docs = await dbGetPromptDocs(ctx.teamId);
+    const docs = await dbGetPromptDocs();
     return NextResponse.json({ docs });
   } catch (error: any) {
     console.error('[PromptLibrary] 获取文档失败:', error);

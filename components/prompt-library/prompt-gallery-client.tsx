@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Filter, Grid2X2, ImageIcon, Loader2, Search, Video } from 'lucide-react';
 import type { PromptCase, PromptCaseMediaType } from '@/lib/prompt-library/types';
 import { HardNavLink } from './hard-nav-link';
@@ -9,7 +9,6 @@ import { PromptCaseCard } from './prompt-case-tile-client';
 import { PromptCaseUploadDialog } from './prompt-case-upload-dialog';
 
 type MediaFilter = 'all' | PromptCaseMediaType;
-const PROMPT_GALLERY_CACHE_KEY = 'prompt-library:gallery-cases';
 
 const typeOptions = ['全部', '剧情', '角色展示', '场景展示', '进阶展示', '第一人称'];
 const styleOptions = ['全部', '3D', '三渲二', '动漫', 'Q版', '写实'];
@@ -30,28 +29,10 @@ function filterPillClass(active: boolean) {
     : 'border-white/12 bg-white/[0.055] text-white/72 hover:border-white/24 hover:bg-white/10 hover:text-white';
 }
 
-function readCachedCases() {
-  if (typeof window === 'undefined') return [];
-  try {
-    const parsed = JSON.parse(sessionStorage.getItem(PROMPT_GALLERY_CACHE_KEY) || '[]');
-    return Array.isArray(parsed) ? (parsed as PromptCase[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeCachedCases(items: PromptCase[]) {
-  if (typeof window === 'undefined') return;
-  try {
-    sessionStorage.setItem(PROMPT_GALLERY_CACHE_KEY, JSON.stringify(items));
-  } catch {
-    // Cache failures should not block the prompt library.
-  }
-}
-
 export function PromptGalleryClient() {
-  const [cases, setCases] = useState<PromptCase[]>(() => readCachedCases());
-  const [loading, setLoading] = useState(() => readCachedCases().length === 0);
+  const [cases, setCases] = useState<PromptCase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
   const [query, setQuery] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -61,25 +42,34 @@ export function PromptGalleryClient() {
   const [toolFilter, setToolFilter] = useState('全部');
   const [galleryColumns, setGalleryColumns] = useState(5);
   const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
-  const casesRef = useRef<PromptCase[]>(cases);
-
-  useEffect(() => {
-    casesRef.current = cases;
-  }, [cases]);
 
   const loadCases = useCallback(() => {
     let mounted = true;
-    if (casesRef.current.length === 0) setLoading(true);
+    setLoading(true);
     fetch('/api/prompt-library/cases')
-      .then((res) => res.json())
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const message =
+            res.status === 401
+              ? '需要登录后才能访问该内容。'
+              : res.status === 403
+                ? '当前账号没有访问该内容的权限。'
+                : data.message || data.error || '加载提示词案例失败。';
+          throw new Error(message);
+        }
+        return data;
+      })
       .then((data) => {
         if (!mounted) return;
         const nextCases = data.cases || [];
+        setErrorMessage(null);
         setCases(nextCases);
-        writeCachedCases(nextCases);
       })
-      .catch(() => {
-        if (mounted && casesRef.current.length === 0) setCases([]);
+      .catch((error) => {
+        if (!mounted) return;
+        setErrorMessage(error instanceof Error ? error.message : '加载提示词案例失败。');
+        setCases([]);
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -94,7 +84,6 @@ export function PromptGalleryClient() {
   function handleCaseCreated(item: PromptCase) {
     setCases((current) => {
       const nextCases = [item, ...current.filter((existing) => existing.id !== item.id)];
-      writeCachedCases(nextCases);
       return nextCases;
     });
   }
@@ -261,6 +250,10 @@ export function PromptGalleryClient() {
         {loading ? (
           <div className="flex items-center justify-center py-28 text-white/50">
             <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : errorMessage ? (
+          <div className="flex min-h-[50vh] items-center justify-center px-6 text-center text-sm text-red-200">
+            {errorMessage}
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex min-h-[50vh] items-center justify-center text-sm text-white/45">

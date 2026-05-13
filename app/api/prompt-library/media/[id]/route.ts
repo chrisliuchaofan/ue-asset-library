@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { getOSSClient } from '@/lib/oss-client';
 import { dbGetPromptCaseById } from '@/lib/prompt-library/prompt-cases-db';
 
@@ -16,10 +15,8 @@ function getOssObjectKey(url: string): string | null {
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ctx = await requireTeamAccess('content:read');
-  if (isErrorResponse(ctx)) return ctx;
 
-  const item = await dbGetPromptCaseById(id, ctx.teamId);
+  const item = await dbGetPromptCaseById(id);
   if (!item?.mediaUrl) {
     return NextResponse.json({ message: '视频不存在' }, { status: 404 });
   }

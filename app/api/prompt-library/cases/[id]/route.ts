@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
-import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 import { dbGetPromptCaseById } from '@/lib/prompt-library/prompt-cases-db';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const ctx = await requireTeamAccess('content:read');
-    if (isErrorResponse(ctx)) return ctx;
-
     const { id } = await params;
-    const promptCase = await dbGetPromptCaseById(id, ctx.teamId);
+    const promptCase = await dbGetPromptCaseById(id);
     if (!promptCase) {
       return NextResponse.json({ message: '未找到案例' }, { status: 404 });
     }

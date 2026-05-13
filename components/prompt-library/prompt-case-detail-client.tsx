@@ -37,16 +37,33 @@ function MediaFallback({ mediaType }: { mediaType: PromptCase['mediaType'] }) {
 export function PromptCaseDetailClient({ id }: { id: string }) {
   const [item, setItem] = useState<PromptCase | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
     fetch(`/api/prompt-library/cases/${id}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((data) => {
-        if (mounted) setItem(data.case || null);
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const message =
+            res.status === 401
+              ? '需要登录后才能访问该案例。'
+              : res.status === 403
+                ? '当前账号没有访问该案例的权限。'
+                : data.message || '未找到案例。';
+          throw new Error(message);
+        }
+        return data;
       })
-      .catch(() => {
-        if (mounted) setItem(null);
+      .then((data) => {
+        if (!mounted) return;
+        setErrorMessage(null);
+        setItem(data.case || null);
+      })
+      .catch((error) => {
+        if (!mounted) return;
+        setErrorMessage(error instanceof Error ? error.message : '加载案例失败。');
+        setItem(null);
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -68,7 +85,7 @@ export function PromptCaseDetailClient({ id }: { id: string }) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black text-white">
         <div className="text-center">
-          <p className="text-sm font-medium">未找到案例</p>
+          <p className="text-sm font-medium">{errorMessage || '未找到案例'}</p>
           <HardNavLink href="/prompt-library" className="mt-3 inline-flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-200">
             <ArrowLeft className="h-4 w-4" />
             返回 AI 提示库
