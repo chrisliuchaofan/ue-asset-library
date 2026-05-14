@@ -33,6 +33,9 @@ export async function executeDimensionCheck(params: {
                 return await executeRuleBasedCheck(dimension, material);
 
             case 'ai_text':
+                if (isVideoMaterial(material)) {
+                    return await executeAIMultimodalCheck(dimension, material, teamId);
+                }
                 return await executeAITextCheck(dimension, material, teamId);
 
             case 'ai_multimodal':
@@ -259,13 +262,8 @@ async function executeAIMultimodalCheck(
             return result;
         }
 
-        const { safeChatCompletion } = await import('@/lib/deduplication/tuyooGatewayService')
-            .catch(() => ({ safeChatCompletion: null }));
-
-        if (!safeChatCompletion) {
-            result.rationale = 'AI 多模态服务未就绪，默认放行，建议人工抽查。';
-            return result;
-        }
+        const isImage = isImageMaterial(material, url);
+        const isVideo = !isImage;
 
         const messages = [
             { role: 'system', content: systemPrompt },
@@ -275,14 +273,21 @@ async function executeAIMultimodalCheck(
             },
         ];
 
-        const resultObjStr = await safeChatCompletion({
-            model: getReviewMultimodalModel(),
-            messages: messages as any,
-            temperature: 0.1,
-        });
+        const resultObjStr = isVideo
+            ? await executeGeminiVideoReview({
+                material,
+                sourceUrl: url,
+                dimensionTitle: dimension.title,
+                systemPrompt,
+            })
+            : await executeImageReview({
+                messages,
+            });
 
         if (!resultObjStr) {
-            result.rationale = '模型未召回有效内容，默认放行。';
+            result.pass = false;
+            result.status = 'failed';
+            result.rationale = '模型未召回有效内容，AI 审核未完成。';
             return result;
         }
 
@@ -290,17 +295,23 @@ async function executeAIMultimodalCheck(
         if (parsed) {
             result.pass = !!parsed.pass;
             result.rationale = parsed.rationale || `AI 完成「${dimension.title}」多模态分析。`;
-            normalizeUncertainResult(result);
+            if (isVideo && isUncertainRationale(result.rationale)) {
+                result.pass = false;
+                result.status = 'failed';
+                result.rationale = `视频审核未完成：${result.rationale}`;
+            } else if (!isVideo) {
+                normalizeUncertainResult(result);
+            }
         } else {
-            result.rationale = '分析结果不标准，默认放行。';
+            result.pass = false;
+            result.status = 'failed';
+            result.rationale = '分析结果不标准，AI 审核未完成。';
         }
     } catch (e: any) {
         console.warn(`[DynamicChecker] AI 多模态分析失败 (${dimension.title}):`, e.message);
-        if (isModelMediaFetchError(e.message)) {
-            return await executeAIMultimodalMetadataFallback(dimension, material, systemPrompt, result);
-        }
-        result.status = 'needs_review';
-        result.rationale = `多模态分析遇到错误，需人工复核: ${e.message}`;
+        result.pass = false;
+        result.status = 'failed';
+        result.rationale = `视频模型未成功读取素材，AI 审核未完成: ${e.message}`;
     }
 
     return result;
@@ -312,16 +323,20 @@ async function executeAIMultimodalCheck(
  * 解析 AI 返回的 JSON（兼容 markdown code block 包裹）
  */
 function parseAIJsonResponse(text: string): { pass: boolean; rationale: string } | null {
+    const cleaned = text
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
     try {
-        // 尝试直接解析
-        const direct = JSON.parse(text);
+        const direct = JSON.parse(cleaned);
         if (typeof direct.pass === 'boolean') return direct;
     } catch {
         // 忽略
     }
 
-    // 尝试提取 JSON 块
-    const jsonMatch = text.match(/\{[\s\S]*?\}/);
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
         try {
             const parsed = JSON.parse(jsonMatch[0]);
@@ -362,54 +377,62 @@ function getReviewMultimodalModel(): string {
 }
 
 function buildMultimodalUserContent(material: Material, url: string, dimensionTitle: string) {
-    const baseText = `请对该素材进行「${dimensionTitle}」维度审核。\n\n${buildMaterialInfoText(material)}\n\n请只返回 JSON，字段包含 "pass" (布尔) 和 "rationale" (50字以内中文理由)。`;
-
-    if (isImageMaterial(material, url)) {
-        return [
-            { type: 'text', text: baseText },
-            { type: 'image_url', image_url: { url: resolveReadableMediaUrl(url) } },
-        ];
-    }
-
-    const frameUrls = getVideoFrameImageUrls(material)
-        .map((frameUrl) => resolveReadableMediaUrl(frameUrl))
-        .slice(0, 6);
-
-    if (frameUrls.length > 0) {
-        const content: any[] = [
-            {
-                type: 'text',
-                text: `${baseText}\n\n注意：以下图片为该视频上传时抽取的关键帧，请基于关键帧评估画面、前3秒钩子、卖点表达和 CTA 可见性；无法仅凭关键帧确认的内容请在 rationale 中说明需人工复核。`,
-            },
-        ];
-
-        frameUrls.forEach((frameUrl, index) => {
-            content.push({ type: 'text', text: `关键帧 ${index + 1}` });
-            content.push({ type: 'image_url', image_url: { url: frameUrl } });
-        });
-
-        return content;
-    }
-
     return [
         {
             type: 'text',
-            text: `${baseText}\n\n注意：该视频暂未生成关键帧，如模型无法直接读取视频 URL，请返回“无法判断/需人工复核”。`,
+            text: buildReviewUserPrompt(material, dimensionTitle),
         },
-        { type: 'video_url', video_url: { url: resolveReadableMediaUrl(url) } },
+        isImageMaterial(material, url)
+            ? { type: 'image_url', image_url: { url: resolveReadableMediaUrl(url) } }
+            : { type: 'video_url', video_url: { url: resolveReadableMediaUrl(url) } },
     ];
 }
 
-function getVideoFrameImageUrls(material: Material): string[] {
+function buildReviewUserPrompt(material: Material, dimensionTitle: string): string {
+    return `请对该素材进行「${dimensionTitle}」维度审核。\n\n${buildMaterialInfoText(material)}\n\n请只返回 JSON，字段包含 "pass" (布尔) 和 "rationale" (50字以内中文理由)。`;
+}
+
+async function executeImageReview(params: {
+    messages: Array<{ role: string; content: any }>;
+}): Promise<string> {
+    const { safeChatCompletion } = await import('@/lib/deduplication/tuyooGatewayService');
+    return safeChatCompletion({
+        model: getReviewMultimodalModel(),
+        messages: params.messages as any,
+        temperature: 0.1,
+    });
+}
+
+async function executeGeminiVideoReview(params: {
+    material: Material;
+    sourceUrl: string;
+    dimensionTitle: string;
+    systemPrompt: string;
+}): Promise<string> {
+    const { generateGeminiVideoContent } = await import('@/lib/deduplication/tuyooGeminiVideoService');
+    const videoUrl = resolveReadableMediaUrl(selectReviewVideoUrl(params.material, params.sourceUrl));
+
+    return generateGeminiVideoContent({
+        model: getReviewMultimodalModel(),
+        videoUrl,
+        systemPrompt: params.systemPrompt,
+        userPrompt: buildReviewUserPrompt(params.material, params.dimensionTitle),
+        temperature: 0.1,
+    });
+}
+
+function selectReviewVideoUrl(material: Material, fallbackUrl: string): string {
     const candidates = [
         ...(Array.isArray(material.gallery) ? material.gallery : []),
-        material.thumbnail,
+        fallbackUrl,
     ].filter((value): value is string => !!value);
 
-    return Array.from(new Set(candidates)).filter((candidate) => {
+    const reviewVideo = candidates.find((candidate) => {
         if (candidate === material.src) return false;
-        return isImageUrl(candidate);
+        return isVideoUrl(candidate) && /review|audit|compressed/i.test(candidate);
     });
+
+    return reviewVideo || fallbackUrl;
 }
 
 function isImageMaterial(material: Material, url: string): boolean {
@@ -418,17 +441,27 @@ function isImageMaterial(material: Material, url: string): boolean {
     return isImageUrl(url);
 }
 
+function isVideoMaterial(material: Material): boolean {
+    const type = String(material.type || '').toLowerCase();
+    if (type.includes('视频') || type.includes('video')) return true;
+    return !!material.src && isVideoUrl(material.src);
+}
+
 function isImageUrl(url: string): boolean {
     return /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(url);
 }
 
-function isModelMediaFetchError(message: string): boolean {
-    return /Cannot fetch content|URL_ERROR|robots\.txt|provided URL|无法读取|无法访问|fetch content|INVALID_ARGUMENT|invalid argument|video_url/i.test(message);
+function isVideoUrl(url: string): boolean {
+    return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
+}
+
+function isUncertainRationale(rationale: string): boolean {
+    return /无法审核|无法判断|不能判断|需人工复核|人工复核|信息不足|仅凭元信息|无法读取|无法访问|无法获取/i.test(rationale);
 }
 
 function normalizeUncertainResult(result: DynamicDimensionCheckResult): void {
     if (result.pass) return;
-    if (!/无法审核|无法判断|不能判断|需人工复核|人工复核|信息不足|仅凭元信息|无法读取|无法访问|无法获取/i.test(result.rationale)) {
+    if (!isUncertainRationale(result.rationale)) {
         return;
     }
     result.pass = true;

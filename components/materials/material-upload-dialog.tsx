@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Upload, X, FileVideo, ImageIcon, Loader2, CheckCircle2, AlertCircle, LinkIcon, ArrowRight } from 'lucide-react';
 import { uploadFileDirect } from '@/lib/client/direct-upload';
 import { PROJECTS, PROJECT_DISPLAY_NAMES, type Project } from '@/lib/constants';
+import { compressVideoForComparison } from '@/lib/deduplication/videoCompressor';
 
 /* ---------- 类型 ---------- */
 
@@ -49,6 +50,7 @@ const MATERIAL_TAGS = ['爆款', '优质', '达标'] as const;
 const MATERIAL_QUALITIES = ['高品质', '常规', '迭代'] as const;
 
 const ACCEPT_TYPES = 'video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp,image/gif';
+const AI_REVIEW_VIDEO_MAX_BYTES = 18 * 1024 * 1024;
 
 /* ---------- 工具函数 ---------- */
 
@@ -93,98 +95,6 @@ function getMediaInfo(file: File): Promise<{ width: number; height: number; dura
       img.src = url;
     }
   });
-}
-
-function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
-  return new Promise((resolve, reject) => {
-    video.onloadedmetadata = () => resolve();
-    video.onerror = () => reject(new Error('无法读取视频元信息'));
-  });
-}
-
-function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      reject(new Error('视频关键帧定位超时'));
-    }, 8000);
-
-    video.onseeked = () => {
-      window.clearTimeout(timeout);
-      resolve();
-    };
-    video.onerror = () => {
-      window.clearTimeout(timeout);
-      reject(new Error('视频关键帧定位失败'));
-    };
-    video.currentTime = Math.max(0, Math.min(time, Math.max(0, video.duration - 0.1)));
-  });
-}
-
-function canvasToJpegFile(canvas: HTMLCanvasElement, fileName: string): Promise<File> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error('关键帧导出失败'));
-          return;
-        }
-        resolve(new File([blob], fileName, { type: 'image/jpeg' }));
-      },
-      'image/jpeg',
-      0.76
-    );
-  });
-}
-
-async function extractReviewFrameFiles(file: File, knownDuration?: number): Promise<File[]> {
-  if (!file.type.startsWith('video/')) return [];
-
-  const objectUrl = URL.createObjectURL(file);
-  const video = document.createElement('video');
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = 'metadata';
-  video.src = objectUrl;
-
-  try {
-    await waitForVideoMetadata(video);
-    const duration = Number.isFinite(knownDuration) && knownDuration ? knownDuration : video.duration;
-    if (!Number.isFinite(duration) || duration <= 0) return [];
-
-    const rawTimes = [
-      0.25,
-      Math.min(1.4, duration * 0.22),
-      Math.min(2.8, duration * 0.38),
-      duration * 0.52,
-      Math.max(0, duration - 2),
-      Math.max(0, duration - 0.5),
-    ];
-    const times = Array.from(
-      new Set(rawTimes.map((time) => Number(Math.max(0, Math.min(time, duration - 0.1)).toFixed(2))))
-    ).filter((time, index, arr) => index === 0 || Math.abs(time - arr[index - 1]) > 0.25);
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('无法创建关键帧画布');
-
-    const maxWidth = 720;
-    const scale = video.videoWidth > maxWidth ? maxWidth / video.videoWidth : 1;
-    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-
-    const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[^\w\u4e00-\u9fa5-]+/g, '_');
-    const frames: File[] = [];
-
-    for (let index = 0; index < Math.min(times.length, 6); index += 1) {
-      await seekVideo(video, times[index]);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      frames.push(await canvasToJpegFile(canvas, `${baseName || 'video'}_review_frame_${index + 1}.jpg`));
-    }
-
-    return frames;
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
 }
 
 async function computeSHA256(file: File): Promise<string> {
@@ -511,28 +421,27 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
 
       setUploadProgress(92);
 
-      // 3. 视频额外抽取关键帧，供 AI 预审读取画面
+      // 3. 视频额外生成一份审核专用压缩视频，供 Gemini 视频接口读取完整时间轴
       const fileUrl = uploadResult.fileUrl;
       let thumbnailUrl = fileUrl;
-      let reviewFrameUrls: string[] = [];
+      let reviewVideoUrl: string | undefined;
 
       if (fileInfo.isVideo) {
         try {
           setUploadProgress(93);
-          const frameFiles = await extractReviewFrameFiles(fileInfo.file, fileInfo.duration);
-          const totalFrames = frameFiles.length || 1;
+          const reviewVideoFile = await compressVideoForComparison(fileInfo.file, {
+            maxSizeBytes: AI_REVIEW_VIDEO_MAX_BYTES,
+            signal: abortRef.current?.signal,
+            onProgress: (p) => setUploadProgress(Math.min(96, 93 + Math.round(p * 3))),
+          });
 
-          for (let index = 0; index < frameFiles.length; index += 1) {
-            const frameResult = await uploadAuxiliaryFile(frameFiles[index], abortRef.current?.signal);
-            reviewFrameUrls.push(frameResult.fileUrl);
-            setUploadProgress(Math.min(98, 93 + Math.round(((index + 1) / totalFrames) * 5)));
+          if (reviewVideoFile !== fileInfo.file || reviewVideoFile.size !== fileInfo.file.size) {
+            const reviewVideoResult = await uploadAuxiliaryFile(reviewVideoFile, abortRef.current?.signal);
+            reviewVideoUrl = reviewVideoResult.fileUrl;
+            setUploadProgress(98);
           }
-
-          if (reviewFrameUrls[0]) {
-            thumbnailUrl = reviewFrameUrls[0];
-          }
-        } catch (frameError) {
-          console.warn('[MaterialUpload] 视频关键帧生成失败，AI 预审将降级:', frameError);
+        } catch (reviewVideoError) {
+          console.warn('[MaterialUpload] AI 审核视频生成失败，后续 AI 视频审核将阻塞:', reviewVideoError);
         }
       }
 
@@ -546,7 +455,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
         source: materialSource,
         src: fileUrl,
         thumbnail: thumbnailUrl,
-        gallery: fileInfo.isVideo ? [fileUrl, ...reviewFrameUrls] : undefined,
+        gallery: fileInfo.isVideo ? [fileUrl, reviewVideoUrl].filter((value): value is string => Boolean(value)) : undefined,
         hash: uploadResult.hash || hash,
         fileSize: fileInfo.file.size,
         width: uploadResult.width ?? fileInfo.width,
