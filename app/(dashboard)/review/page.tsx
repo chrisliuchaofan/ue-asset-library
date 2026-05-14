@@ -69,6 +69,15 @@ interface ManualWorkflow {
     finalizedAt?: string;
 }
 
+type AiRunStatus = 'running' | 'done' | 'error';
+
+interface AiRunState {
+    materialId: string;
+    startedAt: number;
+    status: AiRunStatus;
+    error?: string;
+}
+
 interface ReviewerConfig {
     role: ReviewerRole;
     title: string;
@@ -111,6 +120,51 @@ const SCORE_LEVELS: Record<ScoreLevel, { label: string; commonScore: number; rat
     revise: { label: '需改', commonScore: 18, ratio: 0.62, veto: false, tone: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
     veto: { label: '否决', commonScore: 12, ratio: 0.4, veto: true, tone: 'border-red-500/50 bg-red-500/10 text-red-300' },
 };
+
+const AI_REVIEW_STAGES = [
+    {
+        id: 'prepare',
+        title: '读取素材',
+        description: '确认项目、版本、时长和预览地址',
+        icon: FileVideo,
+        markSec: 0,
+    },
+    {
+        id: 'preview',
+        title: '拉取预览',
+        description: '检查媒体是否可直读，准备元信息兜底',
+        icon: Play,
+        markSec: 4,
+    },
+    {
+        id: 'compliance',
+        title: '合规底线',
+        description: '识别硬性违规、素材完整性和上传风险',
+        icon: ShieldCheck,
+        markSec: 10,
+    },
+    {
+        id: 'quality',
+        title: '质量维度',
+        description: '评估时长、前三秒钩子、CTA 和动态规则',
+        icon: Layers3,
+        markSec: 18,
+    },
+    {
+        id: 'scoring',
+        title: '生成预估',
+        description: '汇总风险、预估分和人工复核提示',
+        icon: Sparkles,
+        markSec: 30,
+    },
+    {
+        id: 'writeback',
+        title: '写入结果',
+        description: '保存审核记录，刷新评分台状态',
+        icon: CheckCircle2,
+        markSec: 42,
+    },
+] as const;
 
 function getManualWorkflow(review?: DynamicMaterialReview): ManualWorkflow | undefined {
     const workflow = (review?.dimension_results as any)?.[MANUAL_WORKFLOW_KEY];
@@ -195,12 +249,64 @@ function formatDate(value?: string | Date) {
     return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+function formatElapsed(seconds: number) {
+    if (seconds < 60) return `${seconds}秒`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}分${secs.toString().padStart(2, '0')}秒`;
+}
+
+function getAiRunSnapshot(run: AiRunState, nowMs: number) {
+    const elapsedSec = Math.max(0, Math.floor((nowMs - run.startedAt) / 1000));
+
+    if (run.status === 'done') {
+        return {
+            ...run,
+            elapsedSec,
+            stageIndex: AI_REVIEW_STAGES.length - 1,
+            progress: 100,
+            stage: AI_REVIEW_STAGES[AI_REVIEW_STAGES.length - 1],
+        };
+    }
+
+    if (run.status === 'error') {
+        return {
+            ...run,
+            elapsedSec,
+            stageIndex: AI_REVIEW_STAGES.length - 1,
+            progress: 100,
+            stage: AI_REVIEW_STAGES[AI_REVIEW_STAGES.length - 1],
+        };
+    }
+
+    const stageIndex = AI_REVIEW_STAGES.reduce((activeIndex, stage, index) => (
+        elapsedSec >= stage.markSec ? index : activeIndex
+    ), 0);
+    const current = AI_REVIEW_STAGES[stageIndex];
+    const next = AI_REVIEW_STAGES[stageIndex + 1];
+    const localSpan = Math.max(1, (next?.markSec ?? current.markSec + 14) - current.markSec);
+    const localProgress = Math.min(1, Math.max(0, (elapsedSec - current.markSec) / localSpan));
+    const progress = Math.min(94, Math.max(6, Math.round(((stageIndex + localProgress) / AI_REVIEW_STAGES.length) * 100)));
+
+    return {
+        ...run,
+        elapsedSec,
+        stageIndex,
+        progress,
+        stage: current,
+    };
+}
+
+type AiRunSnapshot = ReturnType<typeof getAiRunSnapshot>;
+
 export default function ReviewDashboard() {
     const [materials, setMaterials] = useState<Material[]>([]);
     const [reviews, setReviews] = useState<Record<string, DynamicMaterialReview>>({});
     const [dimensions, setDimensions] = useState<{ id: string; title: string }[]>([]);
     const [loading, setLoading] = useState(true);
     const [runningId, setRunningId] = useState<string | null>(null);
+    const [aiRunState, setAiRunState] = useState<AiRunState | null>(null);
+    const [progressNow, setProgressNow] = useState(() => Date.now());
     const [workflowRunning, setWorkflowRunning] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<QueueFilter>('all');
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -213,6 +319,12 @@ export default function ReviewDashboard() {
         if (!review?.material_id) return;
         setReviews(prev => ({ ...prev, [review.material_id]: review }));
     }, []);
+
+    useEffect(() => {
+        if (!aiRunState || aiRunState.status !== 'running') return;
+        const timer = window.setInterval(() => setProgressNow(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, [aiRunState]);
 
     useEffect(() => {
         async function fetchData() {
@@ -294,6 +406,8 @@ export default function ReviewDashboard() {
 
     const handleRunReview = useCallback(async (materialId: string) => {
         setRunningId(materialId);
+        setProgressNow(Date.now());
+        setAiRunState({ materialId, startedAt: Date.now(), status: 'running' });
         try {
             const res = await fetch('/api/review/run', {
                 method: 'POST',
@@ -301,9 +415,26 @@ export default function ReviewDashboard() {
                 body: JSON.stringify({ materialId }),
             });
             const updatedReview = await res.json();
+            if (!res.ok) {
+                throw new Error(updatedReview?.error || updatedReview?.message || 'AI 预审执行失败，请稍后重试。');
+            }
             if (updatedReview?.id) upsertReview(updatedReview);
+            setAiRunState(prev => (
+                prev?.materialId === materialId
+                    ? { ...prev, status: 'done' }
+                    : prev
+            ));
+            window.setTimeout(() => {
+                setAiRunState(prev => (prev?.materialId === materialId && prev.status === 'done' ? null : prev));
+            }, 1800);
         } catch (err) {
             console.error('AI 预审执行失败', err);
+            const message = err instanceof Error ? err.message : 'AI 预审执行失败，请稍后重试。';
+            setAiRunState(prev => (
+                prev?.materialId === materialId
+                    ? { ...prev, status: 'error', error: message }
+                    : { materialId, startedAt: Date.now(), status: 'error', error: message }
+            ));
         } finally {
             setRunningId(null);
         }
@@ -368,6 +499,12 @@ export default function ReviewDashboard() {
     const selectedMaterial = selected?.material;
     const selectedReview = selected?.review;
     const selectedWorkflow = selected?.workflow;
+    const activeAiSnapshot = selectedMaterial && aiRunState?.materialId === selectedMaterial.id
+        ? getAiRunSnapshot(aiRunState, progressNow)
+        : null;
+    const scoredReviewerCount = selectedWorkflow?.scores
+        ? REVIEWERS.filter(config => selectedWorkflow.scores?.[config.role]).length
+        : 0;
 
     return (
         <div className="h-full bg-background flex flex-col text-foreground font-sans overflow-auto">
@@ -425,37 +562,55 @@ export default function ReviewDashboard() {
                                 </div>
                             ) : filteredMaterials.length === 0 ? (
                                 <div className="px-3 py-8 text-center text-sm text-muted-foreground">当前筛选下没有素材</div>
-                            ) : filteredMaterials.map(item => (
-                                <button
-                                    key={item.material.id}
-                                    type="button"
-                                    onClick={() => setSelectedId(item.material.id)}
-                                    className={cn(
-                                        'mb-2 w-full rounded-md border p-3 text-left transition-colors',
-                                        selected?.material.id === item.material.id
-                                            ? 'border-primary/50 bg-primary/10'
-                                            : 'border-border bg-background/30 hover:bg-muted/40'
-                                    )}
-                                >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <div className="truncate text-sm font-medium text-foreground">{item.material.name}</div>
-                                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                                                <span>{getProjectDisplayName(item.material.project) || '未知项目'}</span>
-                                                <span>·</span>
-                                                <span>V{(item.material as any).versionNo || 1}</span>
-                                                {item.aiScore !== null && (
-                                                    <>
-                                                        <span>·</span>
-                                                        <span>AI {item.aiScore}</span>
-                                                    </>
-                                                )}
+                            ) : filteredMaterials.map(item => {
+                                const itemRun = aiRunState?.materialId === item.material.id
+                                    ? getAiRunSnapshot(aiRunState, progressNow)
+                                    : null;
+                                const itemRunning = itemRun?.status === 'running';
+                                return (
+                                    <button
+                                        key={item.material.id}
+                                        type="button"
+                                        onClick={() => setSelectedId(item.material.id)}
+                                        className={cn(
+                                            'mb-2 w-full rounded-md border p-3 text-left transition-colors',
+                                            selected?.material.id === item.material.id
+                                                ? 'border-primary/50 bg-primary/10'
+                                                : 'border-border bg-background/30 hover:bg-muted/40'
+                                        )}
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="truncate text-sm font-medium text-foreground">{item.material.name}</div>
+                                                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                                                    <span>{getProjectDisplayName(item.material.project) || '未知项目'}</span>
+                                                    <span>·</span>
+                                                    <span>V{(item.material as any).versionNo || 1}</span>
+                                                    {item.aiScore !== null && (
+                                                        <>
+                                                            <span>·</span>
+                                                            <span>AI {item.aiScore}</span>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
+                                            <StatusPill
+                                                label={itemRunning ? 'AI 预审中' : item.queueState.label}
+                                                tone={itemRunning ? 'text-orange-300 bg-orange-500/10 border-orange-500/20' : item.queueState.tone}
+                                            />
                                         </div>
-                                        <StatusPill label={item.queueState.label} tone={item.queueState.tone} />
-                                    </div>
-                                </button>
-                            ))}
+                                        {itemRun && (
+                                            <div className="mt-3">
+                                                <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                                                    <span>{itemRun.status === 'running' ? itemRun.stage.title : itemRun.status === 'done' ? '预审完成' : '预审异常'}</span>
+                                                    <span>{itemRun.progress}%</span>
+                                                </div>
+                                                <ProgressLine value={itemRun.progress} tone={itemRun.status === 'error' ? 'red' : 'orange'} />
+                                            </div>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </aside>
 
@@ -475,7 +630,10 @@ export default function ReviewDashboard() {
                                 <div className="flex flex-col gap-4 border-b border-border p-5 lg:flex-row lg:items-start lg:justify-between">
                                     <div className="min-w-0">
                                         <div className="mb-2 flex flex-wrap items-center gap-2">
-                                            <StatusPill label={selected.queueState.label} tone={selected.queueState.tone} />
+                                            <StatusPill
+                                                label={activeAiSnapshot?.status === 'running' ? 'AI 预审中' : selected.queueState.label}
+                                                tone={activeAiSnapshot?.status === 'running' ? 'text-orange-300 bg-orange-500/10 border-orange-500/20' : selected.queueState.tone}
+                                            />
                                             <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
                                                 {getProjectDisplayName(selectedMaterial.project) || '未知项目'}
                                             </span>
@@ -492,10 +650,12 @@ export default function ReviewDashboard() {
                                             variant={selectedReview ? 'outline' : 'default'}
                                             className="gap-1.5"
                                             onClick={() => handleRunReview(selectedMaterial.id)}
-                                            disabled={runningId === selectedMaterial.id}
+                                            disabled={!!runningId}
                                         >
-                                            {runningId === selectedMaterial.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                                            {selectedReview ? '重新 AI 预审' : '执行 AI 预审'}
+                                            {activeAiSnapshot?.status === 'running' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                                            {activeAiSnapshot?.status === 'running'
+                                                ? `预审中 · ${activeAiSnapshot.stage.title}`
+                                                : selectedReview ? '重新 AI 预审' : '执行 AI 预审'}
                                         </Button>
                                         <Link
                                             href={`/materials/${selectedMaterial.id}`}
@@ -511,6 +671,12 @@ export default function ReviewDashboard() {
                                     <div className="min-w-0 space-y-4">
                                         <MediaPreview material={selectedMaterial} />
 
+                                        <AiReviewProgress
+                                            snapshot={activeAiSnapshot}
+                                            hasReview={!!selectedReview}
+                                            dimensionTitles={dimensions.map(dim => dim.title)}
+                                        />
+
                                         <div className="rounded-lg border border-border bg-background/40 p-4">
                                             <div className="mb-3 flex items-center justify-between gap-3">
                                                 <div>
@@ -523,7 +689,13 @@ export default function ReviewDashboard() {
                                                 </div>
                                             </div>
 
-                                            {!selectedReview ? (
+                                            {activeAiSnapshot?.status === 'running' ? (
+                                                <AiLiveSummary snapshot={activeAiSnapshot} dimensionTitles={dimensions.map(dim => dim.title)} />
+                                            ) : activeAiSnapshot?.status === 'error' ? (
+                                                <div className="rounded-md border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+                                                    {activeAiSnapshot.error || 'AI 预审暂未完成，请稍后重试。'}
+                                                </div>
+                                            ) : !selectedReview ? (
                                                 <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
                                                     该素材尚未预审。先执行 AI 预审，系统会检查合规、时长、前三秒钩子、CTA 等动态维度。
                                                 </div>
@@ -582,6 +754,15 @@ export default function ReviewDashboard() {
                                                 下一步
                                             </div>
                                             <div className="mt-3 space-y-2">
+                                                {activeAiSnapshot?.status === 'running' && (
+                                                    <div className="rounded-md border border-orange-500/20 bg-orange-500/10 p-3">
+                                                        <div className="flex items-center justify-between gap-3 text-xs">
+                                                            <span className="font-medium text-orange-200">{activeAiSnapshot.stage.title}</span>
+                                                            <span className="text-orange-200/70">{formatElapsed(activeAiSnapshot.elapsedSec)}</span>
+                                                        </div>
+                                                        <p className="mt-1 text-xs leading-relaxed text-orange-100/70">{activeAiSnapshot.stage.description}</p>
+                                                    </div>
+                                                )}
                                                 {canSubmitManual && (
                                                     <Button
                                                         className="w-full gap-1.5"
@@ -613,7 +794,7 @@ export default function ReviewDashboard() {
                                                         </Button>
                                                     </>
                                                 )}
-                                                {!canSubmitManual && selected.queueState.key === 'precheck' && (
+                                                {!activeAiSnapshot && !canSubmitManual && selected.queueState.key === 'precheck' && (
                                                     <p className="text-xs leading-relaxed text-muted-foreground">先完成 AI 预审，再由上传人决定是否进入人工评分。</p>
                                                 )}
                                                 {selected.queueState.key === 'manual' && (
@@ -639,6 +820,21 @@ export default function ReviewDashboard() {
                             <Sparkles className="h-4 w-4 text-primary" />
                         </div>
 
+                        {selectedMaterial && (
+                            <div className="mb-4 rounded-lg border border-border bg-background/40 p-3">
+                                <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                                    <span className="text-muted-foreground">人工评分进度</span>
+                                    <span className="font-medium text-foreground">{scoredReviewerCount}/3</span>
+                                </div>
+                                <ProgressLine value={Math.round((scoredReviewerCount / REVIEWERS.length) * 100)} tone="blue" />
+                                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                                    {canScore
+                                        ? '等待三位负责人依次点选评分，满员后自动计算最终结论。'
+                                        : 'AI 预审通过上传人确认后，三评委评分才会开放。'}
+                                </p>
+                            </div>
+                        )}
+
                         {!selectedMaterial ? (
                             <div className="py-8 text-center text-sm text-muted-foreground">选择一个素材后开始评分</div>
                         ) : (
@@ -657,7 +853,12 @@ export default function ReviewDashboard() {
                                                         <div className="mt-0.5 text-[11px] text-muted-foreground">{config.dimensions.join(' / ')}</div>
                                                     </div>
                                                 </div>
-                                                <span className="text-sm font-semibold">{score ? `${score.roleScore}/${config.max}` : '--'}</span>
+                                                <div className="shrink-0 text-right">
+                                                    <span className="text-sm font-semibold">{score ? `${score.roleScore}/${config.max}` : '--'}</span>
+                                                    <div className="mt-1 text-[11px] text-muted-foreground">
+                                                        {score ? '已评分' : canScore ? '待点选' : '未开放'}
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div className="mt-3 grid grid-cols-4 gap-1.5">
                                                 {(Object.keys(SCORE_LEVELS) as ScoreLevel[]).map(level => {
@@ -737,6 +938,172 @@ function StatusPill({ label, tone }: { label: string; tone: string }) {
         <span className={cn('inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium', tone)}>
             {label}
         </span>
+    );
+}
+
+function ProgressLine({ value, tone = 'orange' }: { value: number; tone?: 'orange' | 'blue' | 'emerald' | 'red' }) {
+    const tones = {
+        orange: 'bg-orange-400',
+        blue: 'bg-blue-400',
+        emerald: 'bg-emerald-400',
+        red: 'bg-red-400',
+    };
+    return (
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+                className={cn('h-full rounded-full transition-all duration-500 ease-out', tones[tone])}
+                style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+            />
+        </div>
+    );
+}
+
+function AiReviewProgress({
+    snapshot,
+    hasReview,
+    dimensionTitles,
+}: {
+    snapshot: AiRunSnapshot | null;
+    hasReview: boolean;
+    dimensionTitles: string[];
+}) {
+    const status = snapshot?.status;
+    const progress = snapshot?.progress ?? (hasReview ? 100 : 0);
+    const activeIndex = snapshot?.stageIndex ?? (hasReview ? AI_REVIEW_STAGES.length : -1);
+    const title = snapshot && status === 'running'
+        ? `AI 预审中 · ${snapshot.stage.title}`
+        : status === 'done'
+            ? 'AI 预审已完成'
+            : status === 'error'
+                ? 'AI 预审异常'
+                : hasReview
+                    ? 'AI 预审记录'
+                    : 'AI 预审流程预览';
+
+    return (
+        <div className={cn(
+            'rounded-lg border p-4',
+            status === 'running'
+                ? 'border-orange-500/30 bg-orange-500/[0.06]'
+                : status === 'error'
+                    ? 'border-red-500/30 bg-red-500/[0.06]'
+                    : 'border-border bg-background/40'
+        )}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                        {status === 'running' ? <Loader2 className="h-4 w-4 animate-spin text-orange-300" /> : <ShieldCheck className="h-4 w-4 text-muted-foreground" />}
+                        {title}
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        {snapshot && status === 'running'
+                            ? snapshot.stage.description
+                            : '展示 AI 预审会经历的关键阶段，结果回来后会自动回填到摘要和队列状态。'}
+                    </p>
+                </div>
+                <div className="shrink-0 text-left md:text-right">
+                    <div className="text-2xl font-semibold leading-none">{progress}%</div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                        {snapshot ? `已用 ${formatElapsed(snapshot.elapsedSec)}` : hasReview ? '已完成' : '等待执行'}
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-4">
+                <ProgressLine value={progress} tone={status === 'error' ? 'red' : status === 'done' || hasReview ? 'emerald' : 'orange'} />
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3">
+                {AI_REVIEW_STAGES.map((stage, index) => {
+                    const Icon = stage.icon;
+                    const done = status === 'done' || (!snapshot && hasReview) || index < activeIndex;
+                    const active = status === 'running' && index === activeIndex;
+                    const failed = status === 'error' && index === activeIndex;
+                    return (
+                        <div
+                            key={stage.id}
+                            className={cn(
+                                'rounded-md border p-3 transition-colors',
+                                active
+                                    ? 'border-orange-500/40 bg-orange-500/10'
+                                    : failed
+                                        ? 'border-red-500/40 bg-red-500/10'
+                                        : done
+                                            ? 'border-emerald-500/25 bg-emerald-500/[0.06]'
+                                            : 'border-border bg-muted/15'
+                            )}
+                        >
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                                    <Icon className={cn(
+                                        'h-3.5 w-3.5',
+                                        active ? 'text-orange-300' : failed ? 'text-red-300' : done ? 'text-emerald-300' : 'text-muted-foreground'
+                                    )} />
+                                    {stage.title}
+                                </div>
+                                <span className="text-[10px] text-muted-foreground">
+                                    {active ? '进行中' : failed ? '异常' : done ? '完成' : '等待'}
+                                </span>
+                            </div>
+                            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{stage.description}</p>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+                {(dimensionTitles.length > 0 ? dimensionTitles.slice(0, 5) : ['合规底线', '时长规范', '前三秒钩子', 'CTA 指引']).map(title => (
+                    <span key={title} className="rounded-full border border-border bg-muted/20 px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {title}
+                    </span>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function AiLiveSummary({ snapshot, dimensionTitles }: { snapshot: AiRunSnapshot; dimensionTitles: string[] }) {
+    const titles = dimensionTitles.length > 0
+        ? dimensionTitles.slice(0, 4)
+        : ['合规底线', '时长规范', '前三秒钩子', 'CTA 指引'];
+
+    return (
+        <div className="space-y-3">
+            <div className="rounded-md border border-orange-500/25 bg-orange-500/[0.06] p-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-orange-100">
+                        <Loader2 className="h-4 w-4 animate-spin text-orange-300" />
+                        当前阶段：{snapshot.stage.title}
+                    </div>
+                    <span className="text-xs text-orange-100/70">{formatElapsed(snapshot.elapsedSec)}</span>
+                </div>
+                <p className="text-xs leading-relaxed text-orange-100/70">{snapshot.stage.description}</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {titles.map((title, index) => {
+                    const active = snapshot.stageIndex >= 2 && index <= Math.max(0, snapshot.stageIndex - 2);
+                    return (
+                        <div key={title} className="rounded-md border border-border bg-muted/20 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 text-sm font-medium">
+                                    {active ? (
+                                        <Loader2 className="h-4 w-4 animate-spin text-orange-300" />
+                                    ) : (
+                                        <Clock className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    {title}
+                                </div>
+                                <span className="text-[11px] text-muted-foreground">{active ? '检查中' : '排队中'}</span>
+                            </div>
+                            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                                结果会在预审完成后自动回填，未完成前不作为最终判断。
+                            </p>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
     );
 }
 
