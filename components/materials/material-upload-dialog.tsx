@@ -95,11 +95,115 @@ function getMediaInfo(file: File): Promise<{ width: number; height: number; dura
   });
 }
 
+function waitForVideoMetadata(video: HTMLVideoElement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    video.onloadedmetadata = () => resolve();
+    video.onerror = () => reject(new Error('无法读取视频元信息'));
+  });
+}
+
+function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      reject(new Error('视频关键帧定位超时'));
+    }, 8000);
+
+    video.onseeked = () => {
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    video.onerror = () => {
+      window.clearTimeout(timeout);
+      reject(new Error('视频关键帧定位失败'));
+    };
+    video.currentTime = Math.max(0, Math.min(time, Math.max(0, video.duration - 0.1)));
+  });
+}
+
+function canvasToJpegFile(canvas: HTMLCanvasElement, fileName: string): Promise<File> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('关键帧导出失败'));
+          return;
+        }
+        resolve(new File([blob], fileName, { type: 'image/jpeg' }));
+      },
+      'image/jpeg',
+      0.76
+    );
+  });
+}
+
+async function extractReviewFrameFiles(file: File, knownDuration?: number): Promise<File[]> {
+  if (!file.type.startsWith('video/')) return [];
+
+  const objectUrl = URL.createObjectURL(file);
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'metadata';
+  video.src = objectUrl;
+
+  try {
+    await waitForVideoMetadata(video);
+    const duration = Number.isFinite(knownDuration) && knownDuration ? knownDuration : video.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return [];
+
+    const rawTimes = [
+      0.25,
+      Math.min(1.4, duration * 0.22),
+      Math.min(2.8, duration * 0.38),
+      duration * 0.52,
+      Math.max(0, duration - 2),
+      Math.max(0, duration - 0.5),
+    ];
+    const times = Array.from(
+      new Set(rawTimes.map((time) => Number(Math.max(0, Math.min(time, duration - 0.1)).toFixed(2))))
+    ).filter((time, index, arr) => index === 0 || Math.abs(time - arr[index - 1]) > 0.25);
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('无法创建关键帧画布');
+
+    const maxWidth = 720;
+    const scale = video.videoWidth > maxWidth ? maxWidth / video.videoWidth : 1;
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+
+    const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[^\w\u4e00-\u9fa5-]+/g, '_');
+    const frames: File[] = [];
+
+    for (let index = 0; index < Math.min(times.length, 6); index += 1) {
+      await seekVideo(video, times[index]);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      frames.push(await canvasToJpegFile(canvas, `${baseName || 'video'}_review_frame_${index + 1}.jpg`));
+    }
+
+    return frames;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 async function computeSHA256(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
   const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function uploadAuxiliaryFile(
+  file: File,
+  signal?: AbortSignal
+): Promise<UploadResult> {
+  try {
+    return await uploadFileDirect(file, { signal });
+  } catch (directError) {
+    console.warn('[MaterialUpload] 辅助文件 OSS 直传失败，改用服务器上传:', directError);
+    return uploadFileViaServer(file, { signal });
+  }
 }
 
 function isValidHttpUrl(value: string): boolean {
@@ -407,10 +511,30 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
 
       setUploadProgress(92);
 
-      // 3. 生成缩略图 URL（视频用第一帧截图，图片用原图缩略）
-      // 对于视频：OSS 地址就是 src，thumbnail 使用 previewUrl 或同 src
+      // 3. 视频额外抽取关键帧，供 AI 预审读取画面
       const fileUrl = uploadResult.fileUrl;
-      const thumbnailUrl = fileInfo.isVideo ? fileUrl : fileUrl;
+      let thumbnailUrl = fileUrl;
+      let reviewFrameUrls: string[] = [];
+
+      if (fileInfo.isVideo) {
+        try {
+          setUploadProgress(93);
+          const frameFiles = await extractReviewFrameFiles(fileInfo.file, fileInfo.duration);
+          const totalFrames = frameFiles.length || 1;
+
+          for (let index = 0; index < frameFiles.length; index += 1) {
+            const frameResult = await uploadAuxiliaryFile(frameFiles[index], abortRef.current?.signal);
+            reviewFrameUrls.push(frameResult.fileUrl);
+            setUploadProgress(Math.min(98, 93 + Math.round(((index + 1) / totalFrames) * 5)));
+          }
+
+          if (reviewFrameUrls[0]) {
+            thumbnailUrl = reviewFrameUrls[0];
+          }
+        } catch (frameError) {
+          console.warn('[MaterialUpload] 视频关键帧生成失败，AI 预审将降级:', frameError);
+        }
+      }
 
       // 4. 创建素材记录
       const body = {
@@ -422,6 +546,7 @@ export function MaterialUploadDialog({ open, onOpenChange, onSuccess, source = '
         source: materialSource,
         src: fileUrl,
         thumbnail: thumbnailUrl,
+        gallery: fileInfo.isVideo ? [fileUrl, ...reviewFrameUrls] : undefined,
         hash: uploadResult.hash || hash,
         fileSize: fileInfo.file.size,
         width: uploadResult.width ?? fileInfo.width,

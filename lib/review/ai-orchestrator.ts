@@ -118,7 +118,7 @@ export async function runMaterialReview(
 
 function inferDimensionStatus(result: Pick<DynamicDimensionCheckResult, 'pass' | 'rationale'>): 'passed' | 'failed' | 'needs_review' {
     if (!result.pass) return 'failed';
-    if (/预审不确定|需人工复核|人工重点复核|元信息预审|暂不可直读|无法被视频模型读取|无法访问|无法读取|默认放行|默认通过/i.test(result.rationale || '')) {
+    if (/预审不确定|需人工复核|人工重点复核|元信息预审|暂不可直读|无法被视频模型读取|无法访问|无法读取|无法获取|默认放行|默认通过/i.test(result.rationale || '')) {
         return 'needs_review';
     }
     return 'passed';

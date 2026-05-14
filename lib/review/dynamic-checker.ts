@@ -12,6 +12,7 @@ import type { KnowledgeEntry } from '@/data/knowledge.schema';
 import type { DynamicDimensionCheckResult } from './types';
 import { retrieveKnowledgeContext, buildDimensionPrompt } from '@/lib/knowledge/rag-service';
 import { TUYOO_MULTIMODAL_MODEL_IDS } from '@/lib/deduplication/config/tuyoo-models';
+import { resolveReadableMediaUrl } from '@/lib/oss-media';
 
 // ==================== 主入口 ====================
 
@@ -298,7 +299,8 @@ async function executeAIMultimodalCheck(
         if (isModelMediaFetchError(e.message)) {
             return await executeAIMultimodalMetadataFallback(dimension, material, systemPrompt, result);
         }
-        result.rationale = `多模态分析遇到错误，已放行: ${e.message}`;
+        result.status = 'needs_review';
+        result.rationale = `多模态分析遇到错误，需人工复核: ${e.message}`;
     }
 
     return result;
@@ -360,32 +362,73 @@ function getReviewMultimodalModel(): string {
 }
 
 function buildMultimodalUserContent(material: Material, url: string, dimensionTitle: string) {
-    const mediaPart = isImageMaterial(material, url)
-        ? { type: 'image_url', image_url: { url } }
-        : { type: 'video_url', video_url: { url } };
+    const baseText = `请对该素材进行「${dimensionTitle}」维度审核。\n\n${buildMaterialInfoText(material)}\n\n请只返回 JSON，字段包含 "pass" (布尔) 和 "rationale" (50字以内中文理由)。`;
+
+    if (isImageMaterial(material, url)) {
+        return [
+            { type: 'text', text: baseText },
+            { type: 'image_url', image_url: { url: resolveReadableMediaUrl(url) } },
+        ];
+    }
+
+    const frameUrls = getVideoFrameImageUrls(material)
+        .map((frameUrl) => resolveReadableMediaUrl(frameUrl))
+        .slice(0, 6);
+
+    if (frameUrls.length > 0) {
+        const content: any[] = [
+            {
+                type: 'text',
+                text: `${baseText}\n\n注意：以下图片为该视频上传时抽取的关键帧，请基于关键帧评估画面、前3秒钩子、卖点表达和 CTA 可见性；无法仅凭关键帧确认的内容请在 rationale 中说明需人工复核。`,
+            },
+        ];
+
+        frameUrls.forEach((frameUrl, index) => {
+            content.push({ type: 'text', text: `关键帧 ${index + 1}` });
+            content.push({ type: 'image_url', image_url: { url: frameUrl } });
+        });
+
+        return content;
+    }
 
     return [
         {
             type: 'text',
-            text: `请对该素材进行「${dimensionTitle}」维度审核。\n\n${buildMaterialInfoText(material)}\n\n请只返回 JSON，字段包含 "pass" (布尔) 和 "rationale" (50字以内中文理由)。`,
+            text: `${baseText}\n\n注意：该视频暂未生成关键帧，如模型无法直接读取视频 URL，请返回“无法判断/需人工复核”。`,
         },
-        mediaPart,
+        { type: 'video_url', video_url: { url: resolveReadableMediaUrl(url) } },
     ];
+}
+
+function getVideoFrameImageUrls(material: Material): string[] {
+    const candidates = [
+        ...(Array.isArray(material.gallery) ? material.gallery : []),
+        material.thumbnail,
+    ].filter((value): value is string => !!value);
+
+    return Array.from(new Set(candidates)).filter((candidate) => {
+        if (candidate === material.src) return false;
+        return isImageUrl(candidate);
+    });
 }
 
 function isImageMaterial(material: Material, url: string): boolean {
     const type = String(material.type || '').toLowerCase();
     if (type.includes('image') || type.includes('图片')) return true;
+    return isImageUrl(url);
+}
+
+function isImageUrl(url: string): boolean {
     return /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(url);
 }
 
 function isModelMediaFetchError(message: string): boolean {
-    return /Cannot fetch content|URL_ERROR|robots\.txt|provided URL|无法读取|无法访问|fetch content/i.test(message);
+    return /Cannot fetch content|URL_ERROR|robots\.txt|provided URL|无法读取|无法访问|fetch content|INVALID_ARGUMENT|invalid argument|video_url/i.test(message);
 }
 
 function normalizeUncertainResult(result: DynamicDimensionCheckResult): void {
     if (result.pass) return;
-    if (!/无法审核|无法判断|不能判断|需人工复核|人工复核|信息不足|仅凭元信息|无法读取|无法访问/i.test(result.rationale)) {
+    if (!/无法审核|无法判断|不能判断|需人工复核|人工复核|信息不足|仅凭元信息|无法读取|无法访问|无法获取/i.test(result.rationale)) {
         return;
     }
     result.pass = true;

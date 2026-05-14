@@ -200,7 +200,7 @@ function getDimensionDisplayState(result?: DimensionResult): DimensionDisplaySta
     if (!result) return 'needs_review';
     if ((result as any).status === 'needs_review') return 'needs_review';
     if (!result.pass) return 'failed';
-    if (/预审不确定|需人工复核|人工重点复核|元信息预审|暂不可直读|无法被视频模型读取|无法访问|无法读取|默认放行|默认通过/i.test(result.rationale || '')) {
+    if (/预审不确定|需人工复核|人工重点复核|元信息预审|暂不可直读|无法被视频模型读取|无法访问|无法读取|无法获取|默认放行|默认通过/i.test(result.rationale || '')) {
         return 'needs_review';
     }
     return 'passed';
@@ -1208,7 +1208,8 @@ function MetricCard({ icon: Icon, label, value, tone }: {
 }
 
 function MediaPreview({ material }: { material: Material }) {
-    const src = material.src || material.thumbnail;
+    const rawSrc = material.src || material.thumbnail;
+    const src = rawSrc && material.id ? `/api/materials/${encodeURIComponent(material.id)}/media` : rawSrc;
     const isImage = material.type === '图片';
 
     return (
