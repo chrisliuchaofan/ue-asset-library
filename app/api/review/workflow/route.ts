@@ -5,13 +5,14 @@ import { requireTeamAccess, isErrorResponse } from '@/lib/team/require-team';
 type WorkflowAction = 'submit_manual' | 'score_role' | 'continue_revision' | 'abandon';
 type ReviewerRole = 'art' | 'creative' | 'growth';
 type WorkflowStatus = 'manual_scoring' | 'final_passed' | 'needs_revision' | 'abandoned';
+type ScoreLevel = 'excellent' | 'pass' | 'revise' | 'veto';
 
 interface RoleScore {
   role: ReviewerRole;
   commonScore: number;
   roleScore: number;
   veto: boolean;
-  level: 'excellent' | 'pass' | 'revise' | 'veto';
+  level: ScoreLevel;
   note?: string;
   reviewerId: string;
   updatedAt: string;
@@ -136,6 +137,33 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: '无效的评委角色' }, { status: 400 });
       }
 
+      if (workflow.status !== 'manual_scoring') {
+        return NextResponse.json({ error: '该素材当前不在人工评分中，不能继续修改评分' }, { status: 409 });
+      }
+
+      const currentScores = workflow.scores || {};
+      const existingRoleScore = currentScores[role];
+      if (existingRoleScore && existingRoleScore.reviewerId !== ctx.userId) {
+        return NextResponse.json({ error: '该评分席已由其他负责人完成，不能覆盖他人的评分' }, { status: 409 });
+      }
+
+      const ownOtherRole = REVIEWER_ROLES.find((candidateRole) => (
+        candidateRole !== role && currentScores[candidateRole]?.reviewerId === ctx.userId
+      ));
+      if (ownOtherRole) {
+        return NextResponse.json({ error: '同一账号对同一素材只能完成一个评分席，不能同时评多个角度' }, { status: 409 });
+      }
+
+      const level = (body.level || 'pass') as ScoreLevel;
+      if (!['excellent', 'pass', 'revise', 'veto'].includes(level)) {
+        return NextResponse.json({ error: '无效的评分档位' }, { status: 400 });
+      }
+
+      const note = typeof body.note === 'string' ? body.note.trim().slice(0, 600) : '';
+      if ((level === 'revise' || level === 'veto') && note.length < 6) {
+        return NextResponse.json({ error: '选择需改或否决时，必须填写具体修改依据' }, { status: 400 });
+      }
+
       const roleMax = role === 'growth' ? 20 : 25;
       workflow = {
         ...workflow,
@@ -150,8 +178,8 @@ export async function POST(request: Request) {
             commonScore: clampScore(body.commonScore, 30),
             roleScore: clampScore(body.roleScore, roleMax),
             veto: !!body.veto,
-            level: body.level || 'pass',
-            note: typeof body.note === 'string' ? body.note.slice(0, 240) : undefined,
+            level,
+            note: note || undefined,
             reviewerId: ctx.userId,
             updatedAt: now,
           },

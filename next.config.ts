@@ -187,11 +187,12 @@ const nextConfig: NextConfig = {
       },
       {
         // JavaScript 和 CSS 缓存
+        // 页面代码和样式在审核台迭代频繁，强 immutable 会让浏览器长期拿旧 UI。
         source: '/:path*\\.(js|css)',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=0, must-revalidate',
           },
         ],
       },
@@ -223,4 +224,3 @@ export default withSentryConfig(withNextIntl(nextConfig), {
     autoInstrumentServerFunctions: false,
   },
 });
-

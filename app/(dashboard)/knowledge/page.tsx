@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { BookOpenIcon, Plus, Upload, Loader2, MessageCircle } from 'lucide-react';
+import { BookOpenIcon, Plus, Upload, Loader2, MessageCircle, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -10,10 +10,11 @@ import { KnowledgeEntryCard } from '@/components/knowledge/knowledge-entry-card'
 import { KnowledgeEntryForm } from '@/components/knowledge/knowledge-entry-form';
 import { KnowledgeImportDialog } from '@/components/knowledge/knowledge-import-dialog';
 import { FeedbackReviewList } from '@/components/knowledge/feedback-review-list';
-import type { KnowledgeEntry } from '@/data/knowledge.schema';
+import { ReviewStandardsManager } from '@/components/knowledge/review-standards-manager';
+import type { KnowledgeEntry, KnowledgeCategory } from '@/data/knowledge.schema';
 import { useTranslations } from 'next-intl';
 
-type TabValue = 'all' | 'dimensions' | 'feedback';
+type TabValue = 'all' | 'standards' | 'dimensions' | 'feedback';
 
 export default function KnowledgePage() {
     const t = useTranslations('knowledge');
@@ -26,6 +27,7 @@ export default function KnowledgePage() {
     // 表单状态
     const [showForm, setShowForm] = useState(false);
     const [editingEntry, setEditingEntry] = useState<KnowledgeEntry | null>(null);
+    const [defaultCategory, setDefaultCategory] = useState<KnowledgeCategory | undefined>();
     const [showImport, setShowImport] = useState(false);
 
     // 加载数据
@@ -53,8 +55,9 @@ export default function KnowledgePage() {
     }, [fetchEntries]);
 
     // 过滤数据
+    const dimensionEntries = entries.filter(e => e.category === 'dimension');
     const displayEntries = activeTab === 'dimensions'
-        ? entries.filter(e => e.category === 'dimension')
+        ? dimensionEntries
         : activeTab === 'feedback'
             ? feedbackEntries
             : entries;
@@ -68,6 +71,7 @@ export default function KnowledgePage() {
         });
         if (res.ok) {
             setShowForm(false);
+            setDefaultCategory(undefined);
             fetchEntries();
         }
     };
@@ -83,6 +87,7 @@ export default function KnowledgePage() {
         if (res.ok) {
             setEditingEntry(null);
             setShowForm(false);
+            setDefaultCategory(undefined);
             fetchEntries();
         }
     };
@@ -111,12 +116,14 @@ export default function KnowledgePage() {
     // 编辑条目
     const handleEdit = (entry: KnowledgeEntry) => {
         setEditingEntry(entry);
+        setDefaultCategory(undefined);
         setShowForm(true);
     };
 
     // 打开新建表单
-    const handleOpenCreate = () => {
+    const handleOpenCreate = (category?: KnowledgeCategory) => {
         setEditingEntry(null);
+        setDefaultCategory(category);
         setShowForm(true);
     };
 
@@ -138,7 +145,7 @@ export default function KnowledgePage() {
                             <Upload className="w-3.5 h-3.5 mr-1.5" />
                             {t('importMarkdown')}
                         </Button>
-                        <Button size="sm" onClick={handleOpenCreate}>
+                        <Button size="sm" onClick={() => handleOpenCreate()}>
                             <Plus className="w-3.5 h-3.5 mr-1.5" />
                             {t('addEntry')}
                         </Button>
@@ -157,10 +164,17 @@ export default function KnowledgePage() {
                                     <span className="ml-1.5 text-[10px] opacity-60">{entries.length}</span>
                                 )}
                             </TabsTrigger>
+                            <TabsTrigger value="standards">
+                                <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                                审核标准
+                                <span className="ml-1.5 text-[10px] opacity-60">
+                                    {dimensionEntries.length}
+                                </span>
+                            </TabsTrigger>
                             <TabsTrigger value="dimensions">
                                 {t('tabDimensions')}
                                 <span className="ml-1.5 text-[10px] opacity-60">
-                                    {entries.filter(e => e.category === 'dimension').length}
+                                    {dimensionEntries.length}
                                 </span>
                             </TabsTrigger>
                             <TabsTrigger value="feedback">
@@ -182,8 +196,9 @@ export default function KnowledgePage() {
                             </h2>
                             <KnowledgeEntryForm
                                 entry={editingEntry}
+                                defaultCategory={defaultCategory}
                                 onSubmit={editingEntry ? handleUpdate : handleCreate}
-                                onCancel={() => { setShowForm(false); setEditingEntry(null); }}
+                                onCancel={() => { setShowForm(false); setEditingEntry(null); setDefaultCategory(undefined); }}
                             />
                         </div>
                     )}
@@ -196,6 +211,15 @@ export default function KnowledgePage() {
                     )}
 
                     {/* 内容区域 */}
+                    {!loading && activeTab === 'standards' && (
+                        <ReviewStandardsManager
+                            aiDimensions={dimensionEntries}
+                            onCreateDimension={() => handleOpenCreate('dimension')}
+                            onEditDimension={handleEdit}
+                            onDeleteDimension={handleDelete}
+                        />
+                    )}
+
                     {!loading && activeTab === 'feedback' && (
                         feedbackEntries.length > 0 ? (
                             <FeedbackReviewList
@@ -210,7 +234,7 @@ export default function KnowledgePage() {
                         )
                     )}
 
-                    {!loading && activeTab !== 'feedback' && (
+                    {!loading && activeTab !== 'feedback' && activeTab !== 'standards' && (
                         displayEntries.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {displayEntries.map(entry => (

@@ -10,16 +10,17 @@ import { CATEGORY_LABELS, CHECK_TYPE_LABELS, STATUS_LABELS } from '@/data/knowle
 
 interface KnowledgeEntryFormProps {
     entry?: KnowledgeEntry | null;
+    defaultCategory?: KnowledgeCategory;
     onSubmit: (data: any) => Promise<void>;
     onCancel: () => void;
 }
 
-export function KnowledgeEntryForm({ entry, onSubmit, onCancel }: KnowledgeEntryFormProps) {
+export function KnowledgeEntryForm({ entry, defaultCategory, onSubmit, onCancel }: KnowledgeEntryFormProps) {
     const isEdit = !!entry;
 
     const [title, setTitle] = useState(entry?.title || '');
     const [content, setContent] = useState(entry?.content || '');
-    const [category, setCategory] = useState<KnowledgeCategory>(entry?.category || 'general');
+    const [category, setCategory] = useState<KnowledgeCategory>(entry?.category || defaultCategory || 'general');
     const [status, setStatus] = useState<KnowledgeStatus>(entry?.status || 'draft');
     const [tags, setTags] = useState(entry?.tags?.join(', ') || '');
     const [checkType, setCheckType] = useState<KnowledgeCheckType | ''>(entry?.checkType || '');

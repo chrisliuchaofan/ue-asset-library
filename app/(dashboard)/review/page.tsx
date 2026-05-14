@@ -2,17 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import {
     AlertCircle,
     Ban,
     CheckCircle2,
+    ClipboardCheck,
     Clock,
     ExternalLink,
     FileVideo,
     History,
     Layers3,
     Lightbulb,
+    Lock,
     Loader2,
+    MessageSquare,
     Palette,
     Play,
     RotateCcw,
@@ -21,6 +25,7 @@ import {
     Sparkles,
     TrendingUp,
     Upload,
+    UserCheck,
     XCircle,
 } from 'lucide-react';
 import { ModuleEmptyState } from '@/components/empty-states/ModuleEmptyState';
@@ -30,6 +35,17 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DimensionOverrideDialog } from '@/components/review/dimension-override-dialog';
 import type { Material } from '@/data/material.schema';
 import type { KnowledgeEntry } from '@/data/knowledge.schema';
+import {
+    DEFAULT_REVIEW_STANDARDS,
+} from '@/data/review-standards.schema';
+import type {
+    ReviewStandardsConfig,
+    ReviewerRole,
+    ReviewerStandard,
+    RubricItem,
+    ScoreLevel,
+    ScoreLevelStandard,
+} from '@/data/review-standards.schema';
 import type { DimensionResult, DynamicMaterialReview } from '@/lib/review/types';
 import { getProjectDisplayName } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -41,11 +57,10 @@ const LEGACY_DIMENSIONS = [
 ];
 
 const MANUAL_WORKFLOW_KEY = '__manual_workflow';
+const ROLE_FOCUS_STORAGE_KEY = 'review-center-role-focus';
 
 type QueueFilter = 'all' | 'precheck' | 'ready' | 'manual' | 'revision' | 'passed';
 type QueueStateKey = Exclude<QueueFilter, 'all'> | 'abandoned';
-type ReviewerRole = 'art' | 'creative' | 'growth';
-type ScoreLevel = 'excellent' | 'pass' | 'revise' | 'veto';
 
 interface RoleScore {
     role: ReviewerRole;
@@ -80,48 +95,25 @@ interface AiRunState {
     error?: string;
 }
 
-interface ReviewerConfig {
-    role: ReviewerRole;
-    title: string;
-    max: number;
+interface ReviewerConfig extends ReviewerStandard {
     icon: typeof Palette;
     color: string;
-    dimensions: string[];
 }
 
-const REVIEWERS: ReviewerConfig[] = [
-    {
-        role: 'art',
-        title: '美术负责人',
-        max: 25,
-        icon: Palette,
-        color: 'text-orange-400',
-        dimensions: ['画面完成度', '资产一致性', '动效节奏', '技术瑕疵'],
-    },
-    {
-        role: 'creative',
-        title: '创意负责人',
-        max: 25,
-        icon: Lightbulb,
-        color: 'text-amber-300',
-        dimensions: ['卖点表达', '差异化', '叙事转折', '记忆点'],
-    },
-    {
-        role: 'growth',
-        title: '投放负责人',
-        max: 20,
-        icon: TrendingUp,
-        color: 'text-blue-300',
-        dimensions: ['平台适配', '点击意图', '受众清晰', '可测试性'],
-    },
-];
-
-const SCORE_LEVELS: Record<ScoreLevel, { label: string; commonScore: number; ratio: number; veto: boolean; tone: string }> = {
-    excellent: { label: '优秀', commonScore: 28, ratio: 1, veto: false, tone: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' },
-    pass: { label: '达标', commonScore: 24, ratio: 0.84, veto: false, tone: 'border-blue-500/50 bg-blue-500/10 text-blue-300' },
-    revise: { label: '需改', commonScore: 18, ratio: 0.62, veto: false, tone: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
-    veto: { label: '否决', commonScore: 12, ratio: 0.4, veto: true, tone: 'border-red-500/50 bg-red-500/10 text-red-300' },
+const REVIEWER_UI_META: Record<ReviewerRole, { icon: typeof Palette; color: string }> = {
+    art: { icon: Palette, color: 'text-orange-400' },
+    creative: { icon: Lightbulb, color: 'text-amber-300' },
+    growth: { icon: TrendingUp, color: 'text-blue-300' },
 };
+
+function withReviewerUi(config: ReviewerStandard): ReviewerConfig {
+    return {
+        ...config,
+        ...(REVIEWER_UI_META[config.role] || REVIEWER_UI_META.art),
+    };
+}
+
+const REVIEWERS: ReviewerConfig[] = DEFAULT_REVIEW_STANDARDS.reviewers.map(withReviewerUi);
 
 const AI_REVIEW_STAGES = [
     {
@@ -324,7 +316,103 @@ function getAiRunSnapshot(run: AiRunState, nowMs: number) {
 
 type AiRunSnapshot = ReturnType<typeof getAiRunSnapshot>;
 
+type ReviewerSeatKind = 'pending' | 'mine' | 'done_by_other' | 'blocked_by_own_role' | 'closed';
+
+interface ReviewerSeatState {
+    kind: ReviewerSeatKind;
+    label: string;
+    helper: string;
+    canScore: boolean;
+    tone: string;
+}
+
+function isReviewerRole(value: unknown, reviewers: ReviewerConfig[] = REVIEWERS): value is ReviewerRole {
+    return reviewers.some(config => config.role === value);
+}
+
+function getReviewerConfig(role: ReviewerRole, reviewers: ReviewerConfig[] = REVIEWERS) {
+    return reviewers.find(config => config.role === role) || reviewers[0] || REVIEWERS[0];
+}
+
+function getRoleDoneByCurrentUser(workflow: ManualWorkflow | undefined, role: ReviewerRole, currentReviewerId: string) {
+    const score = workflow?.scores?.[role];
+    return !!score && !!currentReviewerId && score.reviewerId === currentReviewerId;
+}
+
+function getRoleScoredByCurrentUser(
+    workflow: ManualWorkflow | undefined,
+    role: ReviewerRole,
+    currentReviewerId: string,
+    reviewers: ReviewerConfig[] = REVIEWERS
+) {
+    if (!workflow?.scores || !currentReviewerId) return undefined;
+    return reviewers.find(config => config.role !== role && workflow.scores?.[config.role]?.reviewerId === currentReviewerId);
+}
+
+function getReviewerSeatState(
+    workflow: ManualWorkflow | undefined,
+    role: ReviewerRole,
+    currentReviewerId: string,
+    reviewers: ReviewerConfig[] = REVIEWERS
+): ReviewerSeatState {
+    if (!workflow || workflow.status !== 'manual_scoring') {
+        return {
+            kind: 'closed',
+            label: '未开放',
+            helper: 'AI 预审后由上传人确认送人工，评分席才会开放。',
+            canScore: false,
+            tone: 'text-zinc-300 bg-zinc-500/10 border-zinc-500/20',
+        };
+    }
+
+    const score = workflow.scores?.[role];
+    if (score) {
+        if (currentReviewerId && score.reviewerId === currentReviewerId) {
+            return {
+                kind: 'mine',
+                label: '我已评分',
+                helper: '最终结论生成前，你可以调整自己这个席位的评分和反馈。',
+                canScore: true,
+                tone: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
+            };
+        }
+        return {
+            kind: 'done_by_other',
+            label: '他人已评',
+            helper: '该席位已由另一位负责人完成，不能覆盖他人的判断。',
+            canScore: false,
+            tone: 'text-blue-300 bg-blue-500/10 border-blue-500/20',
+        };
+    }
+
+    const ownOtherRole = getRoleScoredByCurrentUser(workflow, role, currentReviewerId, reviewers);
+    if (ownOtherRole) {
+        return {
+            kind: 'blocked_by_own_role',
+            label: '已占其他席位',
+            helper: `你已以${ownOtherRole.title}完成本素材评分，不能再评第二个角度。`,
+            canScore: false,
+            tone: 'text-amber-300 bg-amber-500/10 border-amber-500/20',
+        };
+    }
+
+    return {
+        kind: 'pending',
+        label: '待我评分',
+        helper: '只处理当前身份对应的评分维度，并写清判断依据。',
+        canScore: true,
+        tone: 'text-orange-300 bg-orange-500/10 border-orange-500/20',
+    };
+}
+
+function getSeatDisplayLabel(config: ReviewerConfig, seatState: ReviewerSeatState, isFocused: boolean) {
+    if (seatState.kind === 'pending' && !isFocused) return `待${config.shortTitle}`;
+    return seatState.label;
+}
+
 export default function ReviewDashboard() {
+    const { data: session } = useSession();
+    const currentReviewerId = session?.user?.email || session?.user?.name || '';
     const [materials, setMaterials] = useState<Material[]>([]);
     const [reviews, setReviews] = useState<Record<string, DynamicMaterialReview>>({});
     const [dimensions, setDimensions] = useState<{ id: string; title: string }[]>([]);
@@ -333,7 +421,11 @@ export default function ReviewDashboard() {
     const [aiRunState, setAiRunState] = useState<AiRunState | null>(null);
     const [progressNow, setProgressNow] = useState(() => Date.now());
     const [workflowRunning, setWorkflowRunning] = useState<string | null>(null);
+    const [workflowError, setWorkflowError] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<QueueFilter>('all');
+    const [roleFocus, setRoleFocus] = useState<ReviewerRole>('art');
+    const [roleNotes, setRoleNotes] = useState<Partial<Record<ReviewerRole, string>>>({});
+    const [manualStandards, setManualStandards] = useState<ReviewStandardsConfig>(DEFAULT_REVIEW_STANDARDS);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [overrideTarget, setOverrideTarget] = useState<{
         materialId: string; dimensionId: string; dimensionTitle: string;
@@ -345,6 +437,9 @@ export default function ReviewDashboard() {
         setReviews(prev => ({ ...prev, [review.material_id]: review }));
     }, []);
 
+    const reviewerConfigs = useMemo(() => manualStandards.reviewers.map(withReviewerUi), [manualStandards]);
+    const scoreLevels = manualStandards.scoreLevels;
+
     useEffect(() => {
         if (!aiRunState || aiRunState.status !== 'running') return;
         const timer = window.setInterval(() => setProgressNow(Date.now()), 1000);
@@ -352,18 +447,34 @@ export default function ReviewDashboard() {
     }, [aiRunState]);
 
     useEffect(() => {
+        const storedRole = window.localStorage.getItem(ROLE_FOCUS_STORAGE_KEY);
+        if (isReviewerRole(storedRole)) {
+            setRoleFocus(storedRole);
+        }
+    }, []);
+
+    useEffect(() => {
+        window.localStorage.setItem(ROLE_FOCUS_STORAGE_KEY, roleFocus);
+    }, [roleFocus]);
+
+    useEffect(() => {
         async function fetchData() {
             try {
-                const [matsRes, revsRes, dimsRes] = await Promise.all([
+                const [matsRes, revsRes, dimsRes, standardsRes] = await Promise.all([
                     fetch('/api/materials?pageSize=1000'),
                     fetch('/api/review'),
                     fetch('/api/knowledge?category=dimension&status=approved'),
+                    fetch('/api/review/standards'),
                 ]);
                 const mats = await matsRes.json();
                 const revs = await revsRes.json();
                 const dimsData = await dimsRes.json();
+                const standardsData = await standardsRes.json().catch(() => ({}));
 
                 setMaterials(Array.isArray(mats) ? mats : (mats?.materials || []));
+                if (standardsData?.standards) {
+                    setManualStandards(standardsData.standards);
+                }
 
                 const revMap: Record<string, DynamicMaterialReview> = {};
                 if (Array.isArray(revs)) revs.forEach((r: DynamicMaterialReview) => { revMap[r.material_id] = r; });
@@ -399,11 +510,27 @@ export default function ReviewDashboard() {
         };
     }), [materials, reviews]);
 
+    const roleWorkStats = useMemo(() => reviewerConfigs.reduce((acc, config) => {
+        const manualItems = enrichedMaterials.filter(item => item.queueState.key === 'manual');
+        acc[config.role] = {
+            pending: manualItems.filter(item => getReviewerSeatState(item.workflow, config.role, currentReviewerId, reviewerConfigs).kind === 'pending').length,
+            mine: manualItems.filter(item => getRoleDoneByCurrentUser(item.workflow, config.role, currentReviewerId)).length,
+        };
+        return acc;
+    }, {} as Record<ReviewerRole, { pending: number; mine: number }>), [enrichedMaterials, currentReviewerId, reviewerConfigs]);
+
     const filteredMaterials = useMemo(() => enrichedMaterials.filter(item => {
-        if (statusFilter === 'all') return item.queueState.key !== 'abandoned';
-        if (statusFilter === 'revision') return item.queueState.key === 'revision' || item.queueState.key === 'abandoned';
-        return item.queueState.key === statusFilter;
-    }).slice(0, 80), [enrichedMaterials, statusFilter]);
+        const statusMatched = statusFilter === 'all'
+            ? item.queueState.key !== 'abandoned'
+            : statusFilter === 'revision'
+                ? item.queueState.key === 'revision' || item.queueState.key === 'abandoned'
+                : item.queueState.key === statusFilter;
+        if (!statusMatched) return false;
+        if (item.queueState.key !== 'manual') return true;
+
+        const seatState = getReviewerSeatState(item.workflow, roleFocus, currentReviewerId, reviewerConfigs);
+        return seatState.kind === 'pending' || seatState.kind === 'mine';
+    }).slice(0, 80), [enrichedMaterials, statusFilter, roleFocus, currentReviewerId, reviewerConfigs]);
 
     useEffect(() => {
         if (filteredMaterials.length === 0) {
@@ -467,33 +594,43 @@ export default function ReviewDashboard() {
 
     const handleWorkflowAction = useCallback(async (materialId: string, action: string, extra?: Record<string, unknown>) => {
         setWorkflowRunning(`${materialId}:${action}`);
+        setWorkflowError(null);
         try {
             const res = await fetch('/api/review/workflow', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ materialId, action, ...extra }),
             });
-            const updatedReview = await res.json();
+            const updatedReview = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(updatedReview?.error || updatedReview?.message || '人工审核工作流更新失败，请稍后重试。');
+            }
             if (updatedReview?.id) upsertReview(updatedReview);
         } catch (err) {
             console.error('人工审核工作流更新失败', err);
+            setWorkflowError(err instanceof Error ? err.message : '人工审核工作流更新失败，请稍后重试。');
         } finally {
             setWorkflowRunning(null);
         }
     }, [upsertReview]);
 
     const handleScoreRole = useCallback((materialId: string, config: ReviewerConfig, level: ScoreLevel) => {
-        const scoreLevel = SCORE_LEVELS[level];
+        const scoreLevel = scoreLevels[level];
         const roleScore = Math.round(config.max * scoreLevel.ratio);
+        const note = (roleNotes[config.role] || '').trim();
+        if (scoreLevel.requiresNote && note.length < 6) {
+            setWorkflowError('选择“需改”或“否决”时，请先写清至少 6 个字的修改依据。');
+            return Promise.resolve();
+        }
         return handleWorkflowAction(materialId, 'score_role', {
             role: config.role,
             level,
             commonScore: scoreLevel.commonScore,
             roleScore,
             veto: scoreLevel.veto,
-            note: scoreLevel.veto ? `${config.title} 关键否决，需要返修后重新提交。` : `${config.title} 点选为${scoreLevel.label}。`,
+            note,
         });
-    }, [handleWorkflowAction]);
+    }, [handleWorkflowAction, roleNotes, scoreLevels]);
 
     const handleOverride = useCallback(async (data: { materialId: string; dimensionId: string; dimensionTitle: string; newPass: boolean; rationale: string }) => {
         const res = await fetch('/api/review/override', {
@@ -513,6 +650,15 @@ export default function ReviewDashboard() {
     const selectedMaterial = selected?.material;
     const selectedReview = selected?.review;
     const selectedWorkflow = selected?.workflow;
+
+    useEffect(() => {
+        setWorkflowError(null);
+        setRoleNotes({
+            art: selectedWorkflow?.scores?.art?.note || '',
+            creative: selectedWorkflow?.scores?.creative?.note || '',
+            growth: selectedWorkflow?.scores?.growth?.note || '',
+        });
+    }, [selectedMaterial?.id, selectedWorkflow?.updatedAt]);
 
     const selectedDimensions = useMemo(() => {
         if (!selected?.review) return [];
@@ -541,8 +687,12 @@ export default function ReviewDashboard() {
         ? getAiRunSnapshot(aiRunState, progressNow)
         : null;
     const scoredReviewerCount = selectedWorkflow?.scores
-        ? REVIEWERS.filter(config => selectedWorkflow.scores?.[config.role]).length
+        ? reviewerConfigs.filter(config => selectedWorkflow.scores?.[config.role]).length
         : 0;
+    const activeReviewerConfig = getReviewerConfig(roleFocus, reviewerConfigs);
+    const activeReviewerScore = selectedWorkflow?.scores?.[roleFocus];
+    const activeReviewerSeatState = getReviewerSeatState(selectedWorkflow, roleFocus, currentReviewerId, reviewerConfigs);
+    const inactiveReviewers = reviewerConfigs.filter(config => config.role !== roleFocus);
 
     return (
         <div className="h-full bg-background flex flex-col text-foreground font-sans overflow-auto">
@@ -563,24 +713,63 @@ export default function ReviewDashboard() {
             />
 
             <main className="flex-1 w-full p-5 lg:p-6 space-y-5">
-                <section className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                     <MetricCard icon={Clock} label="待 AI 预审" value={stats.precheck} tone="orange" />
                     <MetricCard icon={Send} label="待送人工" value={stats.ready} tone="blue" />
                     <MetricCard icon={ShieldCheck} label="评分中" value={stats.manual} tone="emerald" />
                     <MetricCard icon={CheckCircle2} label="正式通过率" value={`${stats.rate}%`} tone="violet" />
                 </section>
 
-                <section className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)_360px] gap-4 items-start">
+                <section className="grid grid-cols-1 gap-4 items-start lg:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)_380px]">
                     <aside className="bg-card border border-border rounded-lg overflow-hidden">
                         <div className="p-4 border-b border-border">
-                            <div className="flex items-center justify-between gap-3 mb-3">
-                                <div>
-                                    <h2 className="text-sm font-semibold">日常审核队列</h2>
-                                    <p className="text-xs text-muted-foreground mt-1">按创意最新版本推进预审与人工评分</p>
-                                </div>
-                                <span className="text-xs text-muted-foreground">{stats.active} 项</span>
-                            </div>
-                            <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as QueueFilter)}>
+	                            <div className="flex items-center justify-between gap-3 mb-3">
+	                                <div>
+	                                    <h2 className="text-sm font-semibold">日常审核队列</h2>
+	                                    <p className="text-xs text-muted-foreground mt-1">先选你的身份，列表只保留你需要处理的素材</p>
+	                                </div>
+	                                <span className="text-xs text-muted-foreground">{stats.active} 项</span>
+	                            </div>
+	                            <div className="mb-3 rounded-md border border-border bg-background/40 p-2.5">
+	                                <div className="mb-2 flex items-center justify-between gap-2 text-xs">
+	                                    <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+	                                        <UserCheck className="h-3.5 w-3.5 text-muted-foreground" />
+	                                        选择评分身份
+	                                    </span>
+	                                    <span className="text-muted-foreground">
+	                                        {getReviewerConfig(roleFocus, reviewerConfigs).title}
+	                                    </span>
+	                                </div>
+	                                <div className="grid grid-cols-3 gap-1.5">
+	                                    {reviewerConfigs.map(config => {
+	                                        const active = roleFocus === config.role;
+	                                        const Icon = config.icon;
+	                                        const roleStat = roleWorkStats[config.role] || { pending: 0, mine: 0 };
+	                                        return (
+	                                            <button
+	                                                key={config.role}
+	                                                type="button"
+	                                                onClick={() => setRoleFocus(config.role)}
+	                                                className={cn(
+	                                                    'rounded-md border p-2 text-left transition-colors',
+	                                                    active
+	                                                        ? 'border-primary/50 bg-primary/10 text-foreground'
+	                                                        : 'border-border bg-muted/15 text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+	                                                )}
+	                                            >
+	                                                <span className="flex items-center gap-1.5 text-xs font-medium">
+	                                                    <Icon className={cn('h-3.5 w-3.5', active ? config.color : 'text-muted-foreground')} />
+	                                                    {config.shortTitle}
+	                                                </span>
+	                                                <span className="mt-1 block text-[10px] text-muted-foreground">
+	                                                    待 {roleStat.pending} · 已 {roleStat.mine}
+	                                                </span>
+	                                            </button>
+	                                        );
+	                                    })}
+	                                </div>
+	                            </div>
+	                            <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as QueueFilter)}>
                                 <TabsList className="grid h-auto w-full grid-cols-3 gap-1 bg-muted/50 p-1">
                                     <TabsTrigger className="text-xs" value="all">全部</TabsTrigger>
                                     <TabsTrigger className="text-xs" value="precheck">预审</TabsTrigger>
@@ -600,13 +789,14 @@ export default function ReviewDashboard() {
                                 </div>
                             ) : filteredMaterials.length === 0 ? (
                                 <div className="px-3 py-8 text-center text-sm text-muted-foreground">当前筛选下没有素材</div>
-                            ) : filteredMaterials.map(item => {
-                                const itemRun = aiRunState?.materialId === item.material.id
-                                    ? getAiRunSnapshot(aiRunState, progressNow)
-                                    : null;
-                                const itemRunning = itemRun?.status === 'running';
-                                return (
-                                    <button
+	                            ) : filteredMaterials.map(item => {
+	                                const itemRun = aiRunState?.materialId === item.material.id
+	                                    ? getAiRunSnapshot(aiRunState, progressNow)
+	                                    : null;
+	                                const itemRunning = itemRun?.status === 'running';
+	                                const seatState = getReviewerSeatState(item.workflow, roleFocus, currentReviewerId, reviewerConfigs);
+	                                return (
+	                                    <button
                                         key={item.material.id}
                                         type="button"
                                         onClick={() => setSelectedId(item.material.id)}
@@ -637,18 +827,24 @@ export default function ReviewDashboard() {
                                                 tone={itemRunning ? 'text-orange-300 bg-orange-500/10 border-orange-500/20' : item.queueState.tone}
                                             />
                                         </div>
-                                        {itemRun && (
-                                            <div className="mt-3">
+	                                        {itemRun && (
+	                                            <div className="mt-3">
                                                 <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                                                     <span>{itemRun.status === 'running' ? itemRun.stage.title : itemRun.status === 'done' ? '预审完成' : '预审异常'}</span>
                                                     <span>{itemRun.progress}%</span>
                                                 </div>
-                                                <ProgressLine value={itemRun.progress} tone={itemRun.status === 'error' ? 'red' : 'orange'} />
-                                            </div>
-                                        )}
-                                    </button>
-                                );
-                            })}
+	                                                <ProgressLine value={itemRun.progress} tone={itemRun.status === 'error' ? 'red' : 'orange'} />
+	                                            </div>
+	                                        )}
+	                                        {item.queueState.key === 'manual' && (
+	                                            <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-border bg-muted/15 px-2.5 py-2 text-[11px]">
+	                                                <span className="text-muted-foreground">{getReviewerConfig(roleFocus, reviewerConfigs).shortTitle}评分席</span>
+	                                                <StatusPill label={seatState.label} tone={seatState.tone} />
+	                                            </div>
+	                                        )}
+	                                    </button>
+	                                );
+	                            })}
                         </div>
                     </aside>
 
@@ -707,95 +903,108 @@ export default function ReviewDashboard() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-5 p-5 2xl:grid-cols-[minmax(0,1fr)_280px]">
+                                <div className="space-y-4 p-5">
                                     <div className="min-w-0 space-y-4">
                                         <MediaPreview material={selectedMaterial} />
 
-                                        <AiReviewProgress
-                                            snapshot={activeAiSnapshot}
-                                            hasReview={!!selectedReview}
-                                            summary={selectedDimensionSummary}
-                                            dimensionTitles={dimensions.map(dim => dim.title)}
-                                        />
-
-                                        <div className="rounded-lg border border-border bg-background/40 p-4">
-                                            <div className="mb-3 flex items-center justify-between gap-3">
-                                                <div>
-                                                    <h3 className="text-sm font-semibold">AI 预审摘要</h3>
-                                                    <p className="mt-1 text-xs text-muted-foreground">用于预估风险，不作为最终放行结论</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <div className="text-2xl font-semibold">{selected.aiScore ?? '--'}</div>
-                                                    <div className="text-[11px] text-muted-foreground">预估分</div>
-                                                </div>
-                                            </div>
-
-                                            {activeAiSnapshot?.status === 'running' ? (
-                                                <AiLiveSummary snapshot={activeAiSnapshot} dimensionTitles={dimensions.map(dim => dim.title)} />
-                                            ) : activeAiSnapshot?.status === 'error' ? (
-                                                <div className="rounded-md border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-                                                    {activeAiSnapshot.error || 'AI 预审暂未完成，请稍后重试。'}
-                                                </div>
-                                            ) : !selectedReview ? (
-                                                <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-                                                    该素材尚未预审。先执行 AI 预审，系统会检查合规、时长、前三秒钩子、CTA 等动态维度。
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-2">
-                                                    <p className="text-sm text-muted-foreground">{selectedReviewSummaryText}</p>
-                                                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                                                        {selectedDimensions.map(({ id, title, result }) => {
-                                                            if (!result) return null;
-                                                            const state = getDimensionDisplayState(result);
-                                                            return (
-                                                                <div
-                                                                    key={id}
-                                                                    className={cn(
-                                                                        'rounded-md border p-3',
-                                                                        state === 'needs_review'
-                                                                            ? 'border-amber-500/25 bg-amber-500/[0.06]'
-                                                                            : state === 'failed'
-                                                                                ? 'border-red-500/25 bg-red-500/[0.06]'
-                                                                                : 'border-border bg-muted/20'
-                                                                    )}
-                                                                >
-                                                                    <div className="flex items-center justify-between gap-2">
-                                                                        <div className="flex items-center gap-2 text-sm font-medium">
-                                                                            {state === 'passed' && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
-                                                                            {state === 'needs_review' && <AlertCircle className="h-4 w-4 text-amber-300" />}
-                                                                            {state === 'failed' && <XCircle className="h-4 w-4 text-red-400" />}
-                                                                            {title}
-                                                                            {state === 'needs_review' && (
-                                                                                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-200">
-                                                                                    待复核
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => setOverrideTarget({
-                                                                                materialId: selectedMaterial.id,
-                                                                                dimensionId: id,
-                                                                                dimensionTitle: title,
-                                                                                currentPass: result.pass,
-                                                                                currentRationale: result.rationale,
-                                                                            })}
-                                                                            className="text-[11px] text-primary hover:underline"
-                                                                        >
-                                                                            修正
-                                                                        </button>
-                                                                    </div>
-                                                                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{result.rationale || '暂无说明'}</p>
-                                                                </div>
-                                                            );
-                                                        })}
+                                        {selectedReview && activeAiSnapshot?.status !== 'running' ? (
+                                            <details className="group rounded-lg border border-border bg-background/35 p-3">
+                                                <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 text-sm font-semibold">
+                                                            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                                                            AI 预审摘要
+                                                        </div>
+                                                        <p className="mt-1 truncate text-xs text-muted-foreground">{selectedReviewSummaryText}</p>
                                                     </div>
+                                                    <div className="shrink-0 text-right text-xs text-muted-foreground">
+                                                        <span className="text-lg font-semibold text-foreground">{selected.aiScore ?? '--'}</span>
+                                                        <span className="ml-1">分</span>
+                                                    </div>
+                                                </summary>
+                                                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                    {selectedDimensions.map(({ id, title, result }) => {
+                                                        if (!result) return null;
+                                                        const state = getDimensionDisplayState(result);
+                                                        return (
+                                                            <div
+                                                                key={id}
+                                                                className={cn(
+                                                                    'rounded-md border p-3',
+                                                                    state === 'needs_review'
+                                                                        ? 'border-amber-500/25 bg-amber-500/[0.06]'
+                                                                        : state === 'failed'
+                                                                            ? 'border-red-500/25 bg-red-500/[0.06]'
+                                                                            : 'border-border bg-muted/20'
+                                                                )}
+                                                            >
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <div className="flex items-center gap-2 text-sm font-medium">
+                                                                        {state === 'passed' && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+                                                                        {state === 'needs_review' && <AlertCircle className="h-4 w-4 text-amber-300" />}
+                                                                        {state === 'failed' && <XCircle className="h-4 w-4 text-red-400" />}
+                                                                        {title}
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setOverrideTarget({
+                                                                            materialId: selectedMaterial.id,
+                                                                            dimensionId: id,
+                                                                            dimensionTitle: title,
+                                                                            currentPass: result.pass,
+                                                                            currentRationale: result.rationale,
+                                                                        })}
+                                                                        className="text-[11px] text-primary hover:underline"
+                                                                    >
+                                                                        修正
+                                                                    </button>
+                                                                </div>
+                                                                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{result.rationale || '暂无说明'}</p>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                            )}
-                                        </div>
+                                            </details>
+                                        ) : (
+                                            <>
+                                                <AiReviewProgress
+                                                    snapshot={activeAiSnapshot}
+                                                    hasReview={!!selectedReview}
+                                                    summary={selectedDimensionSummary}
+                                                    dimensionTitles={dimensions.map(dim => dim.title)}
+                                                />
+
+                                                <div className="rounded-lg border border-border bg-background/40 p-4">
+                                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                                        <div>
+                                                            <h3 className="text-sm font-semibold">AI 预审摘要</h3>
+                                                            <p className="mt-1 text-xs text-muted-foreground">用于预估风险，不作为最终放行结论</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-2xl font-semibold">{selected.aiScore ?? '--'}</div>
+                                                            <div className="text-[11px] text-muted-foreground">预估分</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {activeAiSnapshot?.status === 'running' ? (
+                                                        <AiLiveSummary snapshot={activeAiSnapshot} dimensionTitles={dimensions.map(dim => dim.title)} />
+                                                    ) : activeAiSnapshot?.status === 'error' ? (
+                                                        <div className="rounded-md border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+                                                            {activeAiSnapshot.error || 'AI 预审暂未完成，请稍后重试。'}
+                                                        </div>
+                                                    ) : !selectedReview ? (
+                                                        <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+                                                            该素材尚未预审。先执行 AI 预审，系统会检查合规、时长、前三秒钩子、CTA 等动态维度。
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm text-muted-foreground">{selectedReviewSummaryText}</p>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
 
-                                    <div className="space-y-3">
+                                    <div className="hidden">
                                         <div className="rounded-lg border border-border bg-background/40 p-4">
                                             <div className="flex items-center gap-2 text-sm font-semibold">
                                                 <History className="h-4 w-4 text-muted-foreground" />
@@ -858,10 +1067,12 @@ export default function ReviewDashboard() {
                                                 )}
                                                 {!activeAiSnapshot && !canSubmitManual && selected.queueState.key === 'precheck' && (
                                                     <p className="text-xs leading-relaxed text-muted-foreground">先完成 AI 预审，再由上传人决定是否进入人工评分。</p>
-                                                )}
-                                                {selected.queueState.key === 'manual' && (
-                                                    <p className="text-xs leading-relaxed text-muted-foreground">等待三位负责人全部点选评分，系统会自动汇总最终结论。</p>
-                                                )}
+	                                                )}
+	                                                {selected.queueState.key === 'manual' && (
+	                                                    <p className="text-xs leading-relaxed text-muted-foreground">
+	                                                        当前是{getReviewerConfig(roleFocus, reviewerConfigs).title}视角，只完成本席位评分和反馈；其他席位由对应负责人处理。
+	                                                    </p>
+	                                                )}
                                                 {selected.queueState.key === 'passed' && (
                                                     <p className="text-xs leading-relaxed text-emerald-300">已通过正式评分，可进入命名、上传或投放流程。</p>
                                                 )}
@@ -873,111 +1084,151 @@ export default function ReviewDashboard() {
                         )}
                     </section>
 
-                    <aside className="bg-card border border-border rounded-lg p-4">
-                        <div className="mb-4 flex items-start justify-between gap-3">
-                            <div>
-                                <h2 className="text-sm font-semibold">三评委评分</h2>
-                                <p className="mt-1 text-xs text-muted-foreground">点选即可评分，全员完成后自动出结论</p>
-                            </div>
-                            <Sparkles className="h-4 w-4 text-primary" />
-                        </div>
+		                    <aside className="bg-card border border-border rounded-lg p-4 lg:col-start-2 2xl:col-auto 2xl:sticky 2xl:top-4 2xl:max-h-[calc(100vh-120px)] 2xl:overflow-y-auto">
+		                        <div className="mb-4 flex items-start justify-between gap-3">
+		                            <div>
+		                                <h2 className="text-base font-semibold">评分操作台</h2>
+		                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+		                                    看完视频，写反馈，给结论。
+		                                </p>
+		                            </div>
+		                            <Sparkles className="h-4 w-4 text-primary" />
+		                        </div>
 
-                        {selectedMaterial && (
-                            <div className="mb-4 rounded-lg border border-border bg-background/40 p-3">
-                                <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-                                    <span className="text-muted-foreground">人工评分进度</span>
-                                    <span className="font-medium text-foreground">{scoredReviewerCount}/3</span>
-                                </div>
-                                <ProgressLine value={Math.round((scoredReviewerCount / REVIEWERS.length) * 100)} tone="blue" />
-                                <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                                    {canScore
-                                        ? '等待三位负责人依次点选评分，满员后自动计算最终结论。'
-                                        : 'AI 预审通过上传人确认后，三评委评分才会开放。'}
-                                </p>
-                            </div>
-                        )}
+		                        {selectedMaterial && (
+		                            <div className="mb-3 rounded-md border border-border bg-background/30 px-3 py-2.5">
+		                                <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+		                                    <span className="text-muted-foreground">当前处理</span>
+		                                    <span className="font-medium text-foreground">
+		                                        {activeReviewerConfig.shortTitle} · {getSeatDisplayLabel(activeReviewerConfig, activeReviewerSeatState, true)}
+		                                    </span>
+		                                </div>
+		                                <ProgressLine value={Math.round((scoredReviewerCount / reviewerConfigs.length) * 100)} tone="blue" />
+		                                <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+		                                    <span>人工评分进度</span>
+		                                    <span>{scoredReviewerCount}/3</span>
+		                                </div>
+		                            </div>
+		                        )}
 
-                        {!selectedMaterial ? (
-                            <div className="py-8 text-center text-sm text-muted-foreground">选择一个素材后开始评分</div>
-                        ) : (
-                            <div className="space-y-3">
-                                {REVIEWERS.map(config => {
-                                    const score = selectedWorkflow?.scores?.[config.role];
-                                    const activeLevel = score?.level;
-                                    const Icon = config.icon;
-                                    return (
-                                        <div key={config.role} className="rounded-lg border border-border bg-background/40 p-3">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="flex items-center gap-2">
-                                                    <Icon className={cn('h-4 w-4', config.color)} />
-                                                    <div>
-                                                        <div className="text-sm font-medium">{config.title}</div>
-                                                        <div className="mt-0.5 text-[11px] text-muted-foreground">{config.dimensions.join(' / ')}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="shrink-0 text-right">
-                                                    <span className="text-sm font-semibold">{score ? `${score.roleScore}/${config.max}` : '--'}</span>
-                                                    <div className="mt-1 text-[11px] text-muted-foreground">
-                                                        {score ? '已评分' : canScore ? '待点选' : '未开放'}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="mt-3 grid grid-cols-4 gap-1.5">
-                                                {(Object.keys(SCORE_LEVELS) as ScoreLevel[]).map(level => {
-                                                    const item = SCORE_LEVELS[level];
-                                                    const active = activeLevel === level;
-                                                    return (
-                                                        <button
-                                                            key={level}
-                                                            type="button"
-                                                            disabled={!canScore || workflowRunning?.startsWith(`${selectedMaterial.id}:score_role`)}
-                                                            onClick={() => handleScoreRole(selectedMaterial.id, config, level)}
-                                                            className={cn(
-                                                                'rounded-md border px-2 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45',
-                                                                active ? item.tone : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted/40'
-                                                            )}
-                                                        >
-                                                            {item.label}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+		                        {workflowError && (
+		                            <div className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-xs leading-relaxed text-red-200">
+		                                {workflowError}
+		                            </div>
+		                        )}
 
-                                <div className="rounded-lg border border-border bg-muted/20 p-4">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                            <div className="text-sm font-semibold">最终结论</div>
-                                            <p className="mt-1 text-xs text-muted-foreground">通过线 75 分，关键否决优先</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-2xl font-semibold">{selectedWorkflow?.finalScore ?? '--'}</div>
-                                            <div className="text-[11px] text-muted-foreground">总分</div>
-                                        </div>
-                                    </div>
-                                    <div className="mt-3">
-                                        {selectedWorkflow?.status === 'final_passed' && (
-                                            <StatusPill label="正式通过" tone="text-emerald-300 bg-emerald-500/10 border-emerald-500/20" />
-                                        )}
-                                        {selectedWorkflow?.status === 'needs_revision' && (
-                                            <StatusPill label="需返修后复审" tone="text-amber-300 bg-amber-500/10 border-amber-500/20" />
-                                        )}
-                                        {selectedWorkflow?.status === 'abandoned' && (
-                                            <StatusPill label="已放弃" tone="text-red-300 bg-red-500/10 border-red-500/20" />
-                                        )}
-                                        {!selectedWorkflow?.status && (
-                                            <StatusPill label="未进入人工评分" tone="text-zinc-300 bg-zinc-500/10 border-zinc-500/20" />
-                                        )}
-                                        {selectedWorkflow?.status === 'manual_scoring' && (
-                                            <StatusPill label="评分收集中" tone="text-blue-300 bg-blue-500/10 border-blue-500/20" />
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </aside>
+	                        {!selectedMaterial ? (
+	                            <div className="rounded-lg border border-dashed border-border bg-background/30 px-4 py-10 text-center text-sm text-muted-foreground">
+	                                先在左侧选择一条素材，再开始当前评分身份的审核。
+	                            </div>
+	                        ) : (
+		                            <div className="space-y-3">
+		                                <ReviewerSeatCard
+		                                    config={activeReviewerConfig}
+		                                    score={activeReviewerScore}
+		                                    seatState={activeReviewerSeatState}
+	                                    isFocused
+	                                    canScore={!!canScore}
+	                                    note={roleNotes[roleFocus] || ''}
+	                                    busy={!!workflowRunning?.startsWith(`${selectedMaterial.id}:score_role`)}
+	                                    onFocus={() => setRoleFocus(roleFocus)}
+	                                    onNoteChange={(value) => setRoleNotes(prev => ({ ...prev, [roleFocus]: value }))}
+		                                    onScore={(level) => handleScoreRole(selectedMaterial.id, activeReviewerConfig, level)}
+		                                    scoreLevels={scoreLevels}
+		                                />
+
+		                                <details className="rounded-md border border-border bg-background/30 p-3">
+		                                    <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-foreground">
+		                                        <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+		                                        评分标准
+		                                    </summary>
+		                                    <div className="mt-3 space-y-3">
+		                                        <div>
+		                                            <div className="mb-2 text-xs font-medium text-muted-foreground">通用 · 30分</div>
+		                                            <RubricList items={manualStandards.commonRubric} />
+		                                        </div>
+		                                        <div className="rounded-md border border-border bg-muted/15 p-2">
+		                                            <div className="mb-1 text-[11px] font-medium text-foreground">分档依据</div>
+		                                            <div className="space-y-1">
+		                                                {(Object.keys(scoreLevels) as ScoreLevel[]).map(level => (
+		                                                    <p key={level} className="text-[11px] leading-relaxed text-muted-foreground">
+		                                                        <span className="font-medium text-foreground">{scoreLevels[level].label}：</span>
+		                                                        {scoreLevels[level].evidence}
+		                                                    </p>
+		                                                ))}
+		                                            </div>
+		                                        </div>
+		                                    </div>
+		                                </details>
+
+		                                <details className="rounded-md border border-border bg-background/30 p-3">
+		                                    <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">
+		                                        其他席位与最终结论
+		                                    </summary>
+		                                    <div className="mt-3 space-y-3">
+		                                        <div className="grid gap-2">
+		                                        {inactiveReviewers.map(config => {
+		                                            const score = selectedWorkflow?.scores?.[config.role];
+		                                            const seatState = getReviewerSeatState(selectedWorkflow, config.role, currentReviewerId, reviewerConfigs);
+		                                            const Icon = config.icon;
+	                                            return (
+	                                                <button
+	                                                    key={config.role}
+	                                                    type="button"
+	                                                    onClick={() => setRoleFocus(config.role)}
+	                                                    className="rounded-md border border-border bg-muted/15 p-2.5 text-left transition-colors hover:bg-muted/35"
+	                                                >
+	                                                    <div className="flex items-center justify-between gap-2">
+	                                                        <span className="flex items-center gap-2 text-xs font-medium text-foreground">
+	                                                            <Icon className={cn('h-3.5 w-3.5', config.color)} />
+	                                                            {config.title}
+	                                                        </span>
+	                                                        <span className="text-xs font-semibold text-foreground">
+	                                                            {score ? `${score.roleScore}/${config.max}` : '--'}
+	                                                        </span>
+	                                                    </div>
+	                                                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+	                                                        <span>{getSeatDisplayLabel(config, seatState, false)}</span>
+	                                                        <span>切换查看</span>
+	                                                    </div>
+		                                                </button>
+		                                            );
+		                                        })}
+		                                        </div>
+		                                        <div className="rounded-md border border-border bg-muted/20 p-3">
+		                                            <div className="flex items-center justify-between gap-3">
+		                                                <div>
+		                                                    <div className="text-sm font-semibold">最终结论</div>
+		                                                    <p className="mt-1 text-xs text-muted-foreground">三席完成后自动生成。</p>
+		                                                </div>
+		                                                <div className="text-right">
+		                                                    <div className="text-xl font-semibold">{selectedWorkflow?.finalScore ?? '--'}</div>
+		                                                    <div className="text-[11px] text-muted-foreground">总分</div>
+		                                                </div>
+		                                            </div>
+		                                            <div className="mt-3">
+		                                                {selectedWorkflow?.status === 'final_passed' && (
+		                                                    <StatusPill label="正式通过" tone="text-emerald-300 bg-emerald-500/10 border-emerald-500/20" />
+		                                                )}
+		                                                {selectedWorkflow?.status === 'needs_revision' && (
+		                                                    <StatusPill label="需返修后复审" tone="text-amber-300 bg-amber-500/10 border-amber-500/20" />
+		                                                )}
+		                                                {selectedWorkflow?.status === 'abandoned' && (
+		                                                    <StatusPill label="已放弃" tone="text-red-300 bg-red-500/10 border-red-500/20" />
+		                                                )}
+		                                                {!selectedWorkflow?.status && (
+		                                                    <StatusPill label="未进入人工评分" tone="text-zinc-300 bg-zinc-500/10 border-zinc-500/20" />
+		                                                )}
+		                                                {selectedWorkflow?.status === 'manual_scoring' && (
+		                                                    <StatusPill label="评分收集中" tone="text-blue-300 bg-blue-500/10 border-blue-500/20" />
+		                                                )}
+		                                            </div>
+		                                        </div>
+		                                    </div>
+		                                </details>
+		                            </div>
+		                        )}
+		                    </aside>
                 </section>
             </main>
 
@@ -1016,6 +1267,158 @@ function ProgressLine({ value, tone = 'orange' }: { value: number; tone?: 'orang
                 className={cn('h-full rounded-full transition-all duration-500 ease-out', tones[tone])}
                 style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
             />
+        </div>
+    );
+}
+
+function RubricList({ items }: { items: Array<{ label: string; points: number; standard: string }> }) {
+    return (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-1">
+            {items.map(item => (
+                <div key={item.label} className="rounded-md border border-border bg-muted/15 p-2.5">
+                    <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="font-medium text-foreground">{item.label}</span>
+                        <span className="text-muted-foreground">{item.points}分</span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-muted-foreground">{item.standard}</p>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function ReviewerSeatCard({
+    config,
+    score,
+    seatState,
+    isFocused,
+    canScore,
+    note,
+    busy,
+    scoreLevels,
+    onFocus,
+    onNoteChange,
+    onScore,
+}: {
+    config: ReviewerConfig;
+    score?: RoleScore;
+    seatState: ReviewerSeatState;
+    isFocused: boolean;
+    canScore: boolean;
+    note: string;
+    busy: boolean;
+    scoreLevels: Record<ScoreLevel, ScoreLevelStandard>;
+    onFocus: () => void;
+    onNoteChange: (value: string) => void;
+    onScore: (level: ScoreLevel) => void;
+}) {
+    const Icon = config.icon;
+    const activeLevel = score?.level;
+    const canWrite = canScore && isFocused && seatState.canScore && !busy;
+
+    return (
+        <div
+            className={cn(
+                'rounded-lg border p-4 transition-colors',
+                isFocused ? 'border-primary/45 bg-primary/[0.05]' : 'border-border bg-background/35'
+            )}
+        >
+            <div className="flex items-start justify-between gap-2">
+                <button type="button" onClick={onFocus} className="min-w-0 flex-1 text-left">
+                    <div className="flex items-center gap-2">
+                        <Icon className={cn('h-4 w-4', config.color)} />
+                        <div className="min-w-0">
+                            <div className="text-sm font-semibold">{config.title}</div>
+                            <div className="mt-1 text-xs leading-relaxed text-muted-foreground">{config.mission}</div>
+                        </div>
+                    </div>
+                </button>
+                <div className="shrink-0 text-right">
+                    <span className="text-sm font-semibold">{score ? `${score.roleScore}/${config.max}` : '--'}</span>
+                    <div className="mt-1">
+                        <StatusPill label={getSeatDisplayLabel(config, seatState, isFocused)} tone={seatState.tone} />
+                    </div>
+                </div>
+            </div>
+
+            {!isFocused && (
+                <button
+                    type="button"
+                    onClick={onFocus}
+                    className="mt-3 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-muted/15 text-xs text-muted-foreground transition-colors hover:bg-muted/35 hover:text-foreground"
+                >
+                    <UserCheck className="h-3.5 w-3.5" />
+                    切到{config.shortTitle}评分席
+                </button>
+            )}
+
+            {isFocused && (
+                <div className="mt-3 space-y-3">
+                    {(!canScore || !seatState.canScore) && (
+                        <div className="rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-100/80">
+                            当前不能提交评分：{seatState.helper}
+                        </div>
+                    )}
+
+                    <div>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                                {seatState.canScore ? <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" /> : <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+                                反馈依据
+                            </label>
+                            <span className="text-[10px] text-muted-foreground">{note.length}/600</span>
+                        </div>
+                        <textarea
+                            value={note}
+                            onChange={(event) => onNoteChange(event.target.value.slice(0, 600))}
+                            disabled={!canScore || !isFocused || !seatState.canScore}
+                            rows={3}
+                            placeholder="写清判断依据和修改建议，例如：前三秒卖点不够明确，建议把核心福利前置到第1秒。"
+                            className="min-h-[104px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/60 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{seatState.helper}</p>
+                    </div>
+
+                    <div>
+                        <div className="mb-2 text-sm font-semibold text-foreground">给出结论</div>
+                        <div className="grid grid-cols-2 gap-2">
+                        {(Object.keys(scoreLevels) as ScoreLevel[]).map(level => {
+                            const item = scoreLevels[level];
+                            const active = activeLevel === level;
+                            const needsNote = item.requiresNote && note.trim().length < 6;
+                            return (
+                                <button
+                                    key={level}
+                                    type="button"
+                                    disabled={!canWrite}
+                                    onClick={() => onScore(level)}
+                                    className={cn(
+                                        'min-h-[70px] rounded-md border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45',
+                                        active ? item.tone : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted/40'
+                                    )}
+                                    title={needsNote ? '需改或否决必须先填写反馈依据' : item.standard}
+                                >
+                                    <span className="flex items-center justify-between gap-2 text-sm font-semibold">
+                                        {item.label}
+                                        <span className="text-[10px] opacity-75">{item.range}</span>
+                                    </span>
+                                    <span className="mt-1 block text-xs leading-snug opacity-85">{item.standard}</span>
+                                </button>
+                            );
+                        })}
+                        </div>
+                    </div>
+
+                    <details className="rounded-md border border-border bg-muted/15 p-2">
+                        <summary className="cursor-pointer list-none text-xs font-medium text-foreground">
+                            本席评分细则 · {config.max}分
+                        </summary>
+                        <div className="mt-2">
+                            <RubricList items={config.rubric} />
+                        </div>
+                    </details>
+                </div>
+            )}
         </div>
     );
 }
@@ -1195,13 +1598,13 @@ function MetricCard({ icon: Icon, label, value, tone }: {
         violet: 'bg-violet-500/10 text-violet-300',
     };
     return (
-        <div className="rounded-lg border border-border bg-card p-4">
-            <div className="flex items-center gap-3">
-                <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-md', tones[tone])}>
-                    <Icon className="h-5 w-5" />
+        <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+            <div className="flex items-center gap-2.5">
+                <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', tones[tone])}>
+                    <Icon className="h-4 w-4" />
                 </div>
                 <div>
-                    <div className="text-2xl font-semibold leading-none">{value}</div>
+                    <div className="text-xl font-semibold leading-none">{value}</div>
                     <div className="mt-1 text-xs text-muted-foreground">{label}</div>
                 </div>
             </div>
