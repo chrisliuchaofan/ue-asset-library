@@ -80,13 +80,34 @@ interface PageHeaderProps {
   title: string;
   description?: string;
   badge?: string;
-  badgeVariant?: 'default' | 'secondary' | 'outline';
+  badgeVariant?: 'default' | 'secondary' | 'outline' | 'brand';
   icon?: LucideIcon;
   backHref?: string;
   actions?: ReactNode;
 }
 
-export function PageHeader({ title, description, badge, icon: Icon, backHref, actions }: PageHeaderProps) {
+function getBadgeStyle(variant: PageHeaderProps['badgeVariant']) {
+  if (variant === 'brand') {
+    return {
+      ...S.badge,
+      background: 'hsl(var(--primary) / 0.14)',
+      color: 'hsl(var(--primary))',
+    };
+  }
+
+  if (variant === 'outline') {
+    return {
+      ...S.badge,
+      background: 'transparent',
+      border: `1px solid ${T.border}`,
+      color: T.text.secondary,
+    };
+  }
+
+  return S.badge;
+}
+
+export function PageHeader({ title, description, badge, badgeVariant, icon: Icon, backHref, actions }: PageHeaderProps) {
   return (
     <header style={S.header}>
       <div style={S.left}>
@@ -101,7 +122,7 @@ export function PageHeader({ title, description, badge, icon: Icon, backHref, ac
           <Icon style={{ width: 20, height: 20, color: T.text.primary, flexShrink: 0 }} />
         )}
         <h1 style={S.title}>{title}</h1>
-        {badge && <span style={S.badge}>{badge}</span>}
+        {badge && <span style={getBadgeStyle(badgeVariant)}>{badge}</span>}
         {description && <span style={S.description}>· {description}</span>}
       </div>
       {actions && <div style={S.actions}>{actions}</div>}

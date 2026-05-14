@@ -17,7 +17,7 @@ async function proxyToTuyoo(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ message: '未登录，请先登录' }, { status: 401 });
   }
 
-  const token = process.env.LLM_TOKEN;
+  const token = process.env.LLM_TOKEN || process.env.TAISHI_API_KEY;
   if (!token) {
     return NextResponse.json({ message: '太石网关密钥未配置' }, { status: 500 });
   }
@@ -28,7 +28,7 @@ async function proxyToTuyoo(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ message: '不支持的太石网关接口' }, { status: 404 });
   }
 
-  const baseUrl = (process.env.TUYOO_LLM_BASE_URL || 'https://relay.tuyoo.com/v1').replace(/\/$/, '');
+  const baseUrl = (process.env.TUYOO_LLM_BASE_URL || process.env.TAISHI_BASE_URL || 'https://relay.tuyoo.com/v1').replace(/\/$/, '');
   const upstreamUrl = `${baseUrl}/${upstreamPath}`;
   const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text();
 

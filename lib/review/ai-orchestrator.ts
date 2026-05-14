@@ -24,6 +24,8 @@ import { checkDuration } from './duration-checker';
 import { checkHook } from './hook-checker';
 import { checkCTA } from './cta-checker';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 // ==================== 核心调度 ====================
 
 /**
@@ -244,14 +246,17 @@ export async function overrideReviewStatus(
     userId: string
 ): Promise<void> {
     const supabase = supabaseAdmin as any;
+    const updateData: Record<string, unknown> = {
+        overall_status: status,
+        human_override_status: status,
+        updated_at: new Date().toISOString(),
+    };
+    if (UUID_RE.test(userId)) {
+        updateData.human_reviewed_by = userId;
+    }
     const { error } = await supabase
         .from('material_reviews')
-        .update({
-            overall_status: status,
-            human_override_status: status,
-            human_reviewed_by: userId,
-            updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('material_id', materialId);
 
     if (error) throw new Error(`人工覆盖失败: ${error.message}`);
@@ -302,19 +307,25 @@ export async function overrideDimensionResult(params: {
     };
 
     // 3. 重新计算 overall_status
-    const allPassed = Object.values(dimensionResults).every((r: any) => r.pass);
+    const allPassed = Object.values(dimensionResults)
+        .filter((r: any) => typeof r?.pass === 'boolean')
+        .every((r: any) => r.pass);
     const newOverallStatus: ReviewOverallStatus = allPassed ? 'passed' : 'failed';
 
     // 4. 更新数据库
+    const updateData: Record<string, unknown> = {
+        dimension_results: dimensionResults,
+        overall_status: newOverallStatus,
+        human_override_status: newOverallStatus,
+        updated_at: new Date().toISOString(),
+    };
+    if (UUID_RE.test(userId)) {
+        updateData.human_reviewed_by = userId;
+    }
+
     const { error: updateError } = await supabase
         .from('material_reviews')
-        .update({
-            dimension_results: dimensionResults,
-            overall_status: newOverallStatus,
-            human_override_status: newOverallStatus,
-            human_reviewed_by: userId,
-            updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('material_id', materialId);
 
     if (updateError) {

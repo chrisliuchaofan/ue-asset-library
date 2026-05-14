@@ -4,13 +4,14 @@
  * 支持 3 种 check_type:
  * - rule_based: 从 criteria JSON 读取规则，纯逻辑判定（如时长 min/max）
  * - ai_text: DeepSeek 文本分析 + RAG 上下文
- * - ai_multimodal: glm-4v 多模态分析 + RAG 上下文 + 素材 URL
+ * - ai_multimodal: 太石网关多模态模型 + RAG 上下文 + 素材 URL
  */
 
 import type { Material } from '@/data/material.schema';
 import type { KnowledgeEntry } from '@/data/knowledge.schema';
 import type { DynamicDimensionCheckResult } from './types';
 import { retrieveKnowledgeContext, buildDimensionPrompt } from '@/lib/knowledge/rag-service';
+import { TUYOO_MULTIMODAL_MODEL_IDS } from '@/lib/deduplication/config/tuyoo-models';
 
 // ==================== 主入口 ====================
 
@@ -191,6 +192,7 @@ async function executeAITextCheck(
         if (parsed) {
             result.pass = !!parsed.pass;
             result.rationale = parsed.rationale || `AI 完成「${dimension.title}」分析。`;
+            normalizeUncertainResult(result);
         } else {
             result.rationale = 'AI 返回内容无法解析为 JSON，默认放行。';
         }
@@ -205,7 +207,7 @@ async function executeAITextCheck(
 // ==================== 策略 3: AI 多模态分析 ====================
 
 /**
- * AI 多模态分析 — 使用 glm-4v 视觉模型分析素材视频/图片
+ * AI 多模态分析 — 使用太石网关多模态模型分析素材视频/图片
  * 结合 RAG 上下文增强 prompt
  */
 async function executeAIMultimodalCheck(
@@ -250,6 +252,11 @@ async function executeAIMultimodalCheck(
 
     // 3. 调用多模态 AI
     try {
+        if (!process.env.LLM_TOKEN && !process.env.TAISHI_API_KEY) {
+            result.rationale = '太石网关密钥未配置，默认放行，建议进入人工评分复核。';
+            return result;
+        }
+
         const { safeChatCompletion } = await import('@/lib/deduplication/tuyooGatewayService')
             .catch(() => ({ safeChatCompletion: null }));
 
@@ -262,12 +269,12 @@ async function executeAIMultimodalCheck(
             { role: 'system', content: systemPrompt },
             {
                 role: 'user',
-                content: `视频链接: ${url}\n\n请对此素材进行「${dimension.title}」维度的审核，并返回 JSON 格式结果。`,
+                content: buildMultimodalUserContent(material, url, dimension.title),
             },
         ];
 
         const resultObjStr = await safeChatCompletion({
-            model: 'glm-4v',
+            model: getReviewMultimodalModel(),
             messages: messages as any,
             temperature: 0.1,
         });
@@ -281,11 +288,15 @@ async function executeAIMultimodalCheck(
         if (parsed) {
             result.pass = !!parsed.pass;
             result.rationale = parsed.rationale || `AI 完成「${dimension.title}」多模态分析。`;
+            normalizeUncertainResult(result);
         } else {
             result.rationale = '分析结果不标准，默认放行。';
         }
     } catch (e: any) {
         console.warn(`[DynamicChecker] AI 多模态分析失败 (${dimension.title}):`, e.message);
+        if (isModelMediaFetchError(e.message)) {
+            return await executeAIMultimodalMetadataFallback(dimension, material, systemPrompt, result);
+        }
         result.rationale = `多模态分析遇到错误，已放行: ${e.message}`;
     }
 
@@ -333,6 +344,92 @@ function buildMaterialInfoText(material: Material): string {
     if (material.project) lines.push(`- 所属项目: ${material.project}`);
     if (material.tag) lines.push(`- 标签: ${material.tag}`);
     return lines.join('\n');
+}
+
+function getReviewMultimodalModel(): string {
+    const candidates = [
+        process.env.TUYOO_LLM_VIDEO_MODEL,
+        process.env.TUYOO_LLM_MULTIMODAL_MODEL,
+        process.env.TAISHI_QC_MODEL,
+        process.env.TAISHI_CREATIVE_MODEL,
+        'gemini-3-flash-preview',
+    ].filter(Boolean) as string[];
+
+    return candidates.find((model) => TUYOO_MULTIMODAL_MODEL_IDS.includes(model)) || 'gemini-3-flash-preview';
+}
+
+function buildMultimodalUserContent(material: Material, url: string, dimensionTitle: string) {
+    const mediaPart = isImageMaterial(material, url)
+        ? { type: 'image_url', image_url: { url } }
+        : { type: 'video_url', video_url: { url } };
+
+    return [
+        {
+            type: 'text',
+            text: `请对该素材进行「${dimensionTitle}」维度审核。\n\n${buildMaterialInfoText(material)}\n\n请只返回 JSON，字段包含 "pass" (布尔) 和 "rationale" (50字以内中文理由)。`,
+        },
+        mediaPart,
+    ];
+}
+
+function isImageMaterial(material: Material, url: string): boolean {
+    const type = String(material.type || '').toLowerCase();
+    if (type.includes('image') || type.includes('图片')) return true;
+    return /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(url);
+}
+
+function isModelMediaFetchError(message: string): boolean {
+    return /Cannot fetch content|URL_ERROR|robots\.txt|provided URL|无法读取|无法访问|fetch content/i.test(message);
+}
+
+function normalizeUncertainResult(result: DynamicDimensionCheckResult): void {
+    if (result.pass) return;
+    if (!/无法审核|无法判断|不能判断|需人工复核|人工复核|信息不足|仅凭元信息|无法读取|无法访问/i.test(result.rationale)) {
+        return;
+    }
+    result.pass = true;
+    result.rationale = `预审不确定，建议人工重点复核：${result.rationale}`;
+}
+
+async function executeAIMultimodalMetadataFallback(
+    dimension: KnowledgeEntry,
+    material: Material,
+    systemPrompt: string,
+    baseResult: DynamicDimensionCheckResult
+): Promise<DynamicDimensionCheckResult> {
+    const fallbackResult: DynamicDimensionCheckResult = {
+        ...baseResult,
+        pass: true,
+        rationale: '素材链接暂无法被视频模型读取，已转元信息预审；建议人工重点复核该视觉维度。',
+    };
+
+    try {
+        const { safeChatCompletion } = await import('@/lib/deduplication/tuyooGatewayService');
+        const model = process.env.TUYOO_LLM_DEFAULT_MODEL || process.env.TAISHI_TEXT_MODEL || 'glm-4.6';
+        const text = await safeChatCompletion({
+            model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                {
+                    role: 'user',
+                    content: `视频模型暂时无法抓取素材链接，请基于素材元信息对「${dimension.title}」做预审兜底。\n\n${buildMaterialInfoText(material)}\n\n请只返回 JSON，字段包含 "pass" (布尔) 和 "rationale" (50字以内中文理由，需说明这是元信息预审，人工需重点复核)。`,
+                },
+            ],
+            temperature: 0.1,
+        });
+
+        const parsed = parseAIJsonResponse(text);
+        if (parsed) {
+            fallbackResult.pass = true;
+            fallbackResult.rationale = parsed.rationale
+                ? `视频链接暂不可直读，元信息预审：${parsed.rationale}`
+                : fallbackResult.rationale;
+        }
+    } catch (fallbackError: any) {
+        console.warn(`[DynamicChecker] 多模态元信息兜底失败 (${dimension.title}):`, fallbackError.message);
+    }
+
+    return fallbackResult;
 }
 
 /**

@@ -8,7 +8,7 @@ import {
 
 export type ChatServiceType = 'zhipu' | 'openrouter' | 'tuyoo';
 
-/** 是否启用太石网关（仅当配置了 LLM_TOKEN 且 scope 允许时）；浏览器端用 Vite 注入的 TUYOO_GATEWAY_ENABLED/SCOPE */
+/** 是否启用太石网关（仅当配置了 LLM_TOKEN/TAISHI_API_KEY 且 scope 允许时）；浏览器端用 Vite 注入的 TUYOO_GATEWAY_ENABLED/SCOPE */
 function useTuyooGateway(forDedup: boolean): boolean {
   const inBrowser = typeof window !== 'undefined';
   const enabled = inBrowser
@@ -16,7 +16,7 @@ function useTuyooGateway(forDedup: boolean): boolean {
       || (process.env as any).NEXT_PUBLIC_TUYOO_GATEWAY_ENABLED === 'true'
       || (process.env as any).TUYOO_GATEWAY_ENABLED === true
       || (process.env as any).TUYOO_GATEWAY_ENABLED === 'true'
-    : !!(process.env as any).LLM_TOKEN;
+    : !!((process.env as any).LLM_TOKEN || (process.env as any).TAISHI_API_KEY);
   if (!enabled) return false;
   const scope = inBrowser
     ? (process.env as any).NEXT_PUBLIC_TUYOO_GATEWAY_SCOPE || (process.env as any).TUYOO_GATEWAY_SCOPE
@@ -169,15 +169,15 @@ export const analyzeFlowAttention = async (file: File, model?: string): Promise<
 };
 
 /** 网关侧支持图文/视频的模型（与《太石LLM网关服务手册》一致，使用 gemini-3-pro-preview 无前缀） */
-const TUYOO_VIDEO_MODEL = 'gemini-3-pro-preview';
+const TUYOO_VIDEO_MODEL = 'gemini-3-flash-preview';
 
 // 默认模型与展示名（按当前服务选择；forDedup 时返回去重当前后端适用的默认模型；forVideo 时返回网关支持视频的模型）
 export const getDefaultModel = (options?: { forDedup?: boolean; forVideo?: boolean }): string => {
   const st = getServiceType(options);
   if (st === 'zhipu') return 'glm-4-flash';
   if (st === 'tuyoo') {
-    if (options?.forVideo) return (process.env as any).TUYOO_LLM_VIDEO_MODEL || TUYOO_VIDEO_MODEL;
-    return (process.env as any).TUYOO_LLM_DEFAULT_MODEL || 'glm-4.6';
+    if (options?.forVideo) return (process.env as any).TUYOO_LLM_VIDEO_MODEL || (process.env as any).TAISHI_QC_MODEL || TUYOO_VIDEO_MODEL;
+    return (process.env as any).TUYOO_LLM_DEFAULT_MODEL || (process.env as any).TAISHI_TEXT_MODEL || 'glm-4.6';
   }
   return getOpenRouterDefaultModel();
 };

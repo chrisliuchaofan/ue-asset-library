@@ -201,6 +201,12 @@ export const authOptions: NextAuthConfig = {
                 const passwordValid = await bcrypt.compare(password, profile.password_hash);
                 if (passwordValid) {
                   console.log('[Auth] 密码验证成功:', profile.email);
+                  try {
+                    const { addToDefaultCompanyTeam } = await import('@/lib/auth/default-company-team');
+                    await addToDefaultCompanyTeam(profile.email);
+                  } catch (teamError: any) {
+                    console.warn('[Auth] 登录用户加入默认团队失败:', teamError?.message || teamError);
+                  }
                   const { data: authUserData } = await supabaseAdmin.auth.admin.getUserById(profile.id);
                   const mustChangePassword = authUserData.user?.user_metadata?.must_change_password === true;
                   return {
@@ -238,6 +244,13 @@ export const authOptions: NextAuthConfig = {
                   console.log('[Auth] Supabase 密码验证成功，已同步本地密码:', profile.email);
                 }
 
+                try {
+                  const { addToDefaultCompanyTeam } = await import('@/lib/auth/default-company-team');
+                  await addToDefaultCompanyTeam(profile.email);
+                } catch (teamError: any) {
+                  console.warn('[Auth] 登录用户加入默认团队失败:', teamError?.message || teamError);
+                }
+
                 return {
                   id: profile.email || profile.id,
                   name: profile.username || profile.email,
@@ -264,6 +277,12 @@ export const authOptions: NextAuthConfig = {
 
           if (user) {
             console.log('[Auth] 环境变量验证成功:', user.email);
+            try {
+              const { addToDefaultCompanyTeam } = await import('@/lib/auth/default-company-team');
+              await addToDefaultCompanyTeam(user.email || loginEmail);
+            } catch (teamError: any) {
+              console.warn('[Auth] 环境变量用户加入默认团队失败:', teamError?.message || teamError);
+            }
             return {
               id: user.email || user.username,
               name: user.username,

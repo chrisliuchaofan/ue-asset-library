@@ -213,6 +213,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [mobileOpen, setMobileOpen] = useState(false);
     const [hoveredNav, setHoveredNav] = useState<string | null>(null);
     const [toggleHovered, setToggleHovered] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     /* ── 响应式 ── */
     const [isDesktop, setIsDesktop] = useState(true);
@@ -464,26 +469,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <PostHogProvider>
         <div style={{ display: 'flex', height: '100vh', background: 'hsl(var(--background))', color: 'hsl(var(--foreground))', fontFamily: 'var(--font-sans, system-ui, -apple-system, sans-serif)', overflow: 'hidden' }}>
             {/* Desktop Sidebar */}
-            {isDesktop && (
+            {mounted && isDesktop && (
                 <aside style={NAV.sidebar(sidebarExpanded)}>
                     {DesktopSidebar}
                 </aside>
             )}
 
             {/* Mobile Sidebar Sheet */}
-            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-                <SheetContent side="left" className="w-[260px] p-0 flex flex-col" style={{ background: 'hsl(var(--card))', borderRight: '1px solid hsl(var(--border))' }}>
-                    <VisuallyHidden.Root>
-                        <SheetTitle>{tc('appName')}</SheetTitle>
-                    </VisuallyHidden.Root>
-                    {MobileSidebar}
-                </SheetContent>
-            </Sheet>
+            {mounted && (
+                <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+                    <SheetContent side="left" className="w-[260px] p-0 flex flex-col" style={{ background: 'hsl(var(--card))', borderRight: '1px solid hsl(var(--border))' }}>
+                        <VisuallyHidden.Root>
+                            <SheetTitle>{tc('appName')}</SheetTitle>
+                        </VisuallyHidden.Root>
+                        {MobileSidebar}
+                    </SheetContent>
+                </Sheet>
+            )}
 
             {/* Main Content Area */}
             <main style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'hsl(var(--background))', overflow: 'hidden', position: 'relative' }}>
                 {/* Mobile Header Bar */}
-                {!isDesktop && (
+                {mounted && !isDesktop && (
                     <div style={NAV.mobileBar}>
                         <button
                             onClick={() => setMobileOpen(true)}

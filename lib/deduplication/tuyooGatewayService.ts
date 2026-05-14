@@ -4,7 +4,7 @@
  */
 
 import { openaiChatCompletions, type OpenAIChatBody } from './openaiCompatibleChat';
-import { TUYOO_DEFAULT_MODEL, getTuyooModelIds, isTuyooModelId } from './config/tuyoo-models';
+import { TUYOO_DEFAULT_MODEL, TUYOO_MULTIMODAL_MODEL_IDS, getTuyooModelIds, isTuyooModelId } from './config/tuyoo-models';
 import { devLog, devWarn } from './utils/devLog';
 
 export type SafeChatCompletionParams = {
@@ -18,11 +18,21 @@ export type SafeChatCompletionParams = {
 function getBaseUrl(): string {
   const inBrowser = typeof window !== 'undefined';
   if (inBrowser) return '/api/tuyoo';
-  return (process.env as any).TUYOO_LLM_BASE_URL || 'https://relay.tuyoo.com/v1';
+  return (process.env as any).TUYOO_LLM_BASE_URL || (process.env as any).TAISHI_BASE_URL || 'https://relay.tuyoo.com/v1';
 }
 
 function getApiKey(): string | undefined {
-  return (process.env as any).LLM_TOKEN;
+  return (process.env as any).LLM_TOKEN || (process.env as any).TAISHI_API_KEY;
+}
+
+function isUnavailableModelError(message: string): boolean {
+  return /model_not_found|无可用渠道|无可用渠道（distributor）|No available distributor/i.test(message);
+}
+
+function getFallbackModel(model: string): string {
+  return TUYOO_MULTIMODAL_MODEL_IDS.includes(model) || model.toLowerCase().includes('gemini')
+    ? 'gemini-3-flash-preview'
+    : 'glm-4.6';
 }
 
 /** 与 openRouterService 一致：将 messages 格式化为 OpenAI 兼容的 content */
@@ -61,7 +71,7 @@ function formatMessages(
 export async function safeChatCompletion(params: SafeChatCompletionParams): Promise<string> {
   const baseUrl = getBaseUrl();
   const apiKey = getApiKey();
-  const model = params.model || (process.env as any).TUYOO_LLM_DEFAULT_MODEL || TUYOO_DEFAULT_MODEL;
+  const model = params.model || (process.env as any).TUYOO_LLM_DEFAULT_MODEL || (process.env as any).TAISHI_TEXT_MODEL || TUYOO_DEFAULT_MODEL;
   if (!isTuyooModelId(model)) {
     devWarn('⚠️ 太石网关可能不支持该模型 ID，请以《太石LLM网关服务手册》为准:', model);
   }
@@ -86,6 +96,14 @@ export async function safeChatCompletion(params: SafeChatCompletionParams): Prom
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
       const msg = lastError.message;
+      if (msg && isUnavailableModelError(msg)) {
+        const fallbackModel = getFallbackModel(body.model);
+        if (body.model !== fallbackModel) {
+          devWarn(`⚠️ 太石网关模型 ${body.model} 当前不可用，切换到 ${fallbackModel} 重试`);
+          body.model = fallbackModel;
+          continue;
+        }
+      }
       if (msg && (msg.includes('400') || msg.includes('401') || msg.includes('404'))) {
         throw lastError;
       }

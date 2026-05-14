@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { aiService } from '@/lib/ai/ai-service';
 
-const VISION_MODEL = process.env.TUYOO_LLM_VIDEO_MODEL || 'gemini-3-pro-preview';
+const VISION_MODEL = process.env.TUYOO_LLM_VIDEO_MODEL || process.env.TAISHI_QC_MODEL || 'gemini-3-flash-preview';
 
 export async function POST(request: Request) {
     try {
@@ -21,8 +21,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: '缺少视频 URL' }, { status: 400 });
         }
 
-        if (!process.env.LLM_TOKEN) {
-            return NextResponse.json({ message: '太石 LLM 网关未配置（缺少 LLM_TOKEN）' }, { status: 500 });
+        if (!process.env.LLM_TOKEN && !process.env.TAISHI_API_KEY) {
+            return NextResponse.json({ message: '太石 LLM 网关未配置（缺少 LLM_TOKEN 或 TAISHI_API_KEY）' }, { status: 500 });
         }
 
         const systemPrompt = `你是一位资深的游戏广告创意分析师。分析用户提供的广告视频，输出结构化的竞品分析报告。

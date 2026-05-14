@@ -1,12 +1,20 @@
 import type { AIProvider, AIGenerateTextRequest, AIGenerateTextResponse, AIMessageContent } from '../types';
 
+function isUnavailableModelError(message: string): boolean {
+    return /model_not_found|无可用渠道|无可用渠道（distributor）|No available distributor/i.test(message);
+}
+
+function getFallbackModel(model: string): string {
+    return model.toLowerCase().includes('gemini') ? 'gemini-3-flash-preview' : 'glm-4.6';
+}
+
 export class TuyooProvider implements AIProvider {
     name = 'TuyooGateway';
     type = 'tuyoo' as const;
 
-    private endpoint = process.env.TUYOO_LLM_BASE_URL || 'https://relay.tuyoo.com/v1';
-    private apiKey = process.env.LLM_TOKEN;
-    private defaultModel = process.env.TUYOO_LLM_DEFAULT_MODEL || 'glm-4.6';
+    private endpoint = process.env.TUYOO_LLM_BASE_URL || process.env.TAISHI_BASE_URL || 'https://relay.tuyoo.com/v1';
+    private apiKey = process.env.LLM_TOKEN || process.env.TAISHI_API_KEY;
+    private defaultModel = process.env.TUYOO_LLM_DEFAULT_MODEL || process.env.TAISHI_TEXT_MODEL || 'glm-4.6';
 
     private formatContent(content: AIMessageContent): string | any[] {
         if (typeof content === 'string') return content;
@@ -61,7 +69,7 @@ export class TuyooProvider implements AIProvider {
 
     async generateText(request: AIGenerateTextRequest): Promise<AIGenerateTextResponse> {
         if (!this.apiKey) {
-            throw new Error('Tuyoo API密钥未配置 (需配置 LLM_TOKEN)');
+            throw new Error('Tuyoo API密钥未配置 (需配置 LLM_TOKEN 或 TAISHI_API_KEY)');
         }
 
         const model = request.model || this.defaultModel;
@@ -128,6 +136,15 @@ export class TuyooProvider implements AIProvider {
                 }
 
                 const msg = lastError?.message;
+                if (msg && isUnavailableModelError(msg)) {
+                    const fallbackModel = getFallbackModel(requestBody.model);
+                    if (requestBody.model !== fallbackModel) {
+                        console.warn(`[Tuyoo Provider] 模型 ${requestBody.model} 当前不可用，切换到 ${fallbackModel} 重试`);
+                        requestBody.model = fallbackModel;
+                        continue;
+                    }
+                }
+
                 if (msg && (msg.includes('400') || msg.includes('401') || msg.includes('404'))) {
                     throw lastError;
                 }

@@ -27,7 +27,7 @@ class AIServiceManager {
   private resolveDefaultProvider(): AIProviderType {
     const configured = process.env.AI_TEXT_PROVIDER as AIProviderType | undefined;
     if (configured) return configured;
-    if (process.env.LLM_TOKEN) return 'tuyoo';
+    if (process.env.LLM_TOKEN || process.env.TAISHI_API_KEY) return 'tuyoo';
     if (process.env.DEEPSEEK_API_KEY) return 'deepseek';
     return 'qwen';
   }
