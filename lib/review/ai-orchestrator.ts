@@ -14,6 +14,7 @@ import {
     ReviewOverallStatus,
     DynamicMaterialReview,
     DimensionResult,
+    DynamicDimensionCheckResult,
 } from './types';
 import { dbGetDimensions } from '@/lib/knowledge/knowledge-db';
 import { executeDimensionCheck } from './dynamic-checker';
@@ -64,25 +65,32 @@ export async function runMaterialReview(
     // 4. 聚合维度结果
     const dimensionResults: Record<string, DimensionResult> = {};
     const failureReasons: string[] = [];
+    const reviewReasons: string[] = [];
     let allPassed = true;
 
     for (const cr of checkResults) {
+        const status = cr.status || inferDimensionStatus(cr);
         dimensionResults[cr.dimensionId] = {
             pass: cr.pass,
             rationale: cr.rationale,
+            status,
             knowledgeIds: cr.knowledgeIds,
         };
         if (!cr.pass) {
             allPassed = false;
             failureReasons.push(`[${cr.dimensionTitle}] ${cr.rationale}`);
+        } else if (status === 'needs_review') {
+            reviewReasons.push(`[${cr.dimensionTitle}] ${cr.rationale}`);
         }
     }
 
     const overallStatus: ReviewOverallStatus = allPassed ? 'passed' : 'failed';
 
-    const aiRationale = allPassed
-        ? `全部 ${checkResults.length} 个审核维度均达标。`
-        : `素材有 ${failureReasons.length} 项考核未达标：${failureReasons.join(' ')}`;
+    const aiRationale = !allPassed
+        ? `素材有 ${failureReasons.length} 项考核未达标：${failureReasons.join(' ')}`
+        : reviewReasons.length > 0
+            ? `AI 预审未发现硬性拦截，但 ${reviewReasons.length} 项为不确定预审，需人工重点复核：${reviewReasons.join(' ')}`
+            : `全部 ${checkResults.length} 个审核维度均达标。`;
 
     // 5. 兼容旧列 — 从维度结果中提取 3 个旧维度的值（如果存在）
     const durationResult = dimensionResults['dim-duration'];
@@ -106,6 +114,14 @@ export async function runMaterialReview(
     };
 
     return review;
+}
+
+function inferDimensionStatus(result: Pick<DynamicDimensionCheckResult, 'pass' | 'rationale'>): 'passed' | 'failed' | 'needs_review' {
+    if (!result.pass) return 'failed';
+    if (/预审不确定|需人工复核|人工重点复核|元信息预审|暂不可直读|无法被视频模型读取|无法访问|无法读取|默认放行|默认通过/i.test(result.rationale || '')) {
+        return 'needs_review';
+    }
+    return 'passed';
 }
 
 /**

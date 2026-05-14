@@ -49,6 +49,7 @@ export async function executeDimensionCheck(params: {
             dimensionTitle: dimension.title,
             pass: true,
             rationale: `检查异常，默认放行: ${error.message}`,
+            status: 'needs_review',
             knowledgeIds: [],
         };
     }
@@ -388,6 +389,7 @@ function normalizeUncertainResult(result: DynamicDimensionCheckResult): void {
         return;
     }
     result.pass = true;
+    result.status = 'needs_review';
     result.rationale = `预审不确定，建议人工重点复核：${result.rationale}`;
 }
 
@@ -400,6 +402,7 @@ async function executeAIMultimodalMetadataFallback(
     const fallbackResult: DynamicDimensionCheckResult = {
         ...baseResult,
         pass: true,
+        status: 'needs_review',
         rationale: '素材链接暂无法被视频模型读取，已转元信息预审；建议人工重点复核该视觉维度。',
     };
 

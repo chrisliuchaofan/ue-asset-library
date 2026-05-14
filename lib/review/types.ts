@@ -40,6 +40,8 @@ export interface DimensionCheckResult {
 export interface DimensionResult {
     pass: boolean;
     rationale: string;
+    /** passed = 明确通过；failed = 明确不通过；needs_review = AI 无法充分判断，需人工重点复核 */
+    status?: 'passed' | 'failed' | 'needs_review';
     /** 本次检查引用的知识条目 ID 列表（RAG 溯源） */
     knowledgeIds: string[];
 }
@@ -58,5 +60,6 @@ export interface DynamicDimensionCheckResult {
     dimensionTitle: string;
     pass: boolean;
     rationale: string;
+    status?: 'passed' | 'failed' | 'needs_review';
     knowledgeIds: string[];
 }

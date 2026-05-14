@@ -58,6 +58,8 @@ interface RoleScore {
     updatedAt: string;
 }
 
+type DimensionDisplayState = 'passed' | 'failed' | 'needs_review';
+
 interface ManualWorkflow {
     status?: 'manual_scoring' | 'final_passed' | 'needs_revision' | 'abandoned';
     submittedAt?: string;
@@ -194,6 +196,27 @@ function getReviewDimensionEntries(review: DynamicMaterialReview | undefined) {
         .map(([id, result]) => ({ id, result: result as DimensionResult }));
 }
 
+function getDimensionDisplayState(result?: DimensionResult): DimensionDisplayState {
+    if (!result) return 'needs_review';
+    if ((result as any).status === 'needs_review') return 'needs_review';
+    if (!result.pass) return 'failed';
+    if (/预审不确定|需人工复核|人工重点复核|元信息预审|暂不可直读|无法被视频模型读取|无法访问|无法读取|默认放行|默认通过/i.test(result.rationale || '')) {
+        return 'needs_review';
+    }
+    return 'passed';
+}
+
+function summarizeDimensionStates(items: Array<{ result?: DimensionResult }>) {
+    const counts = { passed: 0, failed: 0, needsReview: 0 };
+    items.forEach(item => {
+        const state = getDimensionDisplayState(item.result);
+        if (state === 'passed') counts.passed += 1;
+        if (state === 'failed') counts.failed += 1;
+        if (state === 'needs_review') counts.needsReview += 1;
+    });
+    return counts;
+}
+
 function getAiScore(material: Material | undefined, review: DynamicMaterialReview | undefined) {
     if (!material || !review) return null;
     const dimensionEntries = getReviewDimensionEntries(review);
@@ -201,11 +224,13 @@ function getAiScore(material: Material | undefined, review: DynamicMaterialRevie
         return review.overall_status === 'passed' ? 78 : 58;
     }
 
-    const passed = dimensionEntries.filter(item => item.result.pass).length;
-    const failed = dimensionEntries.length - passed;
+    const passed = dimensionEntries.filter(item => getDimensionDisplayState(item.result) === 'passed').length;
+    const needsReview = dimensionEntries.filter(item => getDimensionDisplayState(item.result) === 'needs_review').length;
+    const failed = dimensionEntries.filter(item => getDimensionDisplayState(item.result) === 'failed').length;
     const durationBonus = material.duration && material.duration >= 10 && material.duration <= 60 ? 3 : 0;
-    const score = 56 + passed * 10 - failed * 7 + durationBonus;
-    return Math.max(32, Math.min(92, Math.round(score)));
+    const score = 56 + passed * 10 + needsReview * 4 - failed * 7 + durationBonus;
+    const cap = needsReview > 0 ? 84 : 92;
+    return Math.max(32, Math.min(cap, Math.round(score)));
 }
 
 function getQueueState(material: Material, review: DynamicMaterialReview | undefined) {
@@ -485,6 +510,10 @@ export default function ReviewDashboard() {
         }
     }, []);
 
+    const selectedMaterial = selected?.material;
+    const selectedReview = selected?.review;
+    const selectedWorkflow = selected?.workflow;
+
     const selectedDimensions = useMemo(() => {
         if (!selected?.review) return [];
         return dimensions.map(dim => ({
@@ -494,11 +523,20 @@ export default function ReviewDashboard() {
         })).filter(item => item.result);
     }, [dimensions, selected?.review]);
 
+    const selectedDimensionSummary = useMemo(() => summarizeDimensionStates(selectedDimensions), [selectedDimensions]);
+    const selectedReviewSummaryText = useMemo(() => {
+        if (!selectedReview) return '';
+        if (selectedDimensionSummary.failed > 0) {
+            return `AI 预审发现 ${selectedDimensionSummary.failed} 项未达标，需修改或人工确认风险。`;
+        }
+        if (selectedDimensionSummary.needsReview > 0) {
+            return `AI 预审未发现硬性拦截，但 ${selectedDimensionSummary.needsReview} 项为不确定预审，需人工重点复核。`;
+        }
+        return selectedReview.ai_rationale || 'AI 已完成预审，等待人工确认是否送审。';
+    }, [selectedReview, selectedDimensionSummary]);
+
     const canSubmitManual = !!selected?.review && selected.queueState.key === 'ready';
     const canScore = selected?.queueState.key === 'manual' || selected?.workflow?.status === 'manual_scoring';
-    const selectedMaterial = selected?.material;
-    const selectedReview = selected?.review;
-    const selectedWorkflow = selected?.workflow;
     const activeAiSnapshot = selectedMaterial && aiRunState?.materialId === selectedMaterial.id
         ? getAiRunSnapshot(aiRunState, progressNow)
         : null;
@@ -667,13 +705,14 @@ export default function ReviewDashboard() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+                                <div className="grid grid-cols-1 gap-5 p-5 2xl:grid-cols-[minmax(0,1fr)_280px]">
                                     <div className="min-w-0 space-y-4">
                                         <MediaPreview material={selectedMaterial} />
 
                                         <AiReviewProgress
                                             snapshot={activeAiSnapshot}
                                             hasReview={!!selectedReview}
+                                            summary={selectedDimensionSummary}
                                             dimensionTitles={dimensions.map(dim => dim.title)}
                                         />
 
@@ -701,32 +740,53 @@ export default function ReviewDashboard() {
                                                 </div>
                                             ) : (
                                                 <div className="space-y-2">
-                                                    <p className="text-sm text-muted-foreground">{selectedReview.ai_rationale || 'AI 已完成预审，等待人工确认是否送审。'}</p>
+                                                    <p className="text-sm text-muted-foreground">{selectedReviewSummaryText}</p>
                                                     <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                                                        {selectedDimensions.map(({ id, title, result }) => result && (
-                                                            <div key={id} className="rounded-md border border-border bg-muted/20 p-3">
-                                                                <div className="flex items-center justify-between gap-2">
-                                                                    <div className="flex items-center gap-2 text-sm font-medium">
-                                                                        {result.pass ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <XCircle className="h-4 w-4 text-red-400" />}
-                                                                        {title}
+                                                        {selectedDimensions.map(({ id, title, result }) => {
+                                                            if (!result) return null;
+                                                            const state = getDimensionDisplayState(result);
+                                                            return (
+                                                                <div
+                                                                    key={id}
+                                                                    className={cn(
+                                                                        'rounded-md border p-3',
+                                                                        state === 'needs_review'
+                                                                            ? 'border-amber-500/25 bg-amber-500/[0.06]'
+                                                                            : state === 'failed'
+                                                                                ? 'border-red-500/25 bg-red-500/[0.06]'
+                                                                                : 'border-border bg-muted/20'
+                                                                    )}
+                                                                >
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <div className="flex items-center gap-2 text-sm font-medium">
+                                                                            {state === 'passed' && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+                                                                            {state === 'needs_review' && <AlertCircle className="h-4 w-4 text-amber-300" />}
+                                                                            {state === 'failed' && <XCircle className="h-4 w-4 text-red-400" />}
+                                                                            {title}
+                                                                            {state === 'needs_review' && (
+                                                                                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-200">
+                                                                                    待复核
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setOverrideTarget({
+                                                                                materialId: selectedMaterial.id,
+                                                                                dimensionId: id,
+                                                                                dimensionTitle: title,
+                                                                                currentPass: result.pass,
+                                                                                currentRationale: result.rationale,
+                                                                            })}
+                                                                            className="text-[11px] text-primary hover:underline"
+                                                                        >
+                                                                            修正
+                                                                        </button>
                                                                     </div>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => setOverrideTarget({
-                                                                            materialId: selectedMaterial.id,
-                                                                            dimensionId: id,
-                                                                            dimensionTitle: title,
-                                                                            currentPass: result.pass,
-                                                                            currentRationale: result.rationale,
-                                                                        })}
-                                                                        className="text-[11px] text-primary hover:underline"
-                                                                    >
-                                                                        修正
-                                                                    </button>
+                                                                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{result.rationale || '暂无说明'}</p>
                                                                 </div>
-                                                                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{result.rationale || '暂无说明'}</p>
-                                                            </div>
-                                                        ))}
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             )}
@@ -961,13 +1021,17 @@ function ProgressLine({ value, tone = 'orange' }: { value: number; tone?: 'orang
 function AiReviewProgress({
     snapshot,
     hasReview,
+    summary,
     dimensionTitles,
 }: {
     snapshot: AiRunSnapshot | null;
     hasReview: boolean;
+    summary?: { passed: number; failed: number; needsReview: number };
     dimensionTitles: string[];
 }) {
     const status = snapshot?.status;
+    const hasNeedsReview = !!summary?.needsReview;
+    const hasFailed = !!summary?.failed;
     const progress = snapshot?.progress ?? (hasReview ? 100 : 0);
     const activeIndex = snapshot?.stageIndex ?? (hasReview ? AI_REVIEW_STAGES.length : -1);
     const title = snapshot && status === 'running'
@@ -976,8 +1040,12 @@ function AiReviewProgress({
             ? 'AI 预审已完成'
             : status === 'error'
                 ? 'AI 预审异常'
-                : hasReview
-                    ? 'AI 预审记录'
+                : hasReview && hasFailed
+                    ? 'AI 预审发现风险'
+                    : hasReview && hasNeedsReview
+                        ? 'AI 预审需人工复核'
+                        : hasReview
+                            ? 'AI 预审记录'
                     : 'AI 预审流程预览';
 
     return (
@@ -985,8 +1053,10 @@ function AiReviewProgress({
             'rounded-lg border p-4',
             status === 'running'
                 ? 'border-orange-500/30 bg-orange-500/[0.06]'
-                : status === 'error'
+                : status === 'error' || hasFailed
                     ? 'border-red-500/30 bg-red-500/[0.06]'
+                    : hasNeedsReview
+                        ? 'border-amber-500/30 bg-amber-500/[0.06]'
                     : 'border-border bg-background/40'
         )}>
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1010,13 +1080,14 @@ function AiReviewProgress({
             </div>
 
             <div className="mt-4">
-                <ProgressLine value={progress} tone={status === 'error' ? 'red' : status === 'done' || hasReview ? 'emerald' : 'orange'} />
+                <ProgressLine value={progress} tone={status === 'error' || hasFailed ? 'red' : hasNeedsReview ? 'orange' : status === 'done' || hasReview ? 'emerald' : 'orange'} />
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3">
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
                 {AI_REVIEW_STAGES.map((stage, index) => {
                     const Icon = stage.icon;
-                    const done = status === 'done' || (!snapshot && hasReview) || index < activeIndex;
+                    const reviewNeeded = !snapshot && hasNeedsReview && hasReview;
+                    const done = status === 'done' || (!snapshot && hasReview && !hasNeedsReview && !hasFailed) || index < activeIndex;
                     const active = status === 'running' && index === activeIndex;
                     const failed = status === 'error' && index === activeIndex;
                     return (
@@ -1024,10 +1095,12 @@ function AiReviewProgress({
                             key={stage.id}
                             className={cn(
                                 'rounded-md border p-3 transition-colors',
-                                active
-                                    ? 'border-orange-500/40 bg-orange-500/10'
-                                    : failed
+                                    active
+                                        ? 'border-orange-500/40 bg-orange-500/10'
+                                    : failed || hasFailed
                                         ? 'border-red-500/40 bg-red-500/10'
+                                        : reviewNeeded
+                                            ? 'border-amber-500/25 bg-amber-500/[0.06]'
                                         : done
                                             ? 'border-emerald-500/25 bg-emerald-500/[0.06]'
                                             : 'border-border bg-muted/15'
@@ -1037,12 +1110,12 @@ function AiReviewProgress({
                                 <div className="flex items-center gap-2 text-xs font-medium text-foreground">
                                     <Icon className={cn(
                                         'h-3.5 w-3.5',
-                                        active ? 'text-orange-300' : failed ? 'text-red-300' : done ? 'text-emerald-300' : 'text-muted-foreground'
+                                        active ? 'text-orange-300' : failed || hasFailed ? 'text-red-300' : reviewNeeded ? 'text-amber-300' : done ? 'text-emerald-300' : 'text-muted-foreground'
                                     )} />
                                     {stage.title}
                                 </div>
                                 <span className="text-[10px] text-muted-foreground">
-                                    {active ? '进行中' : failed ? '异常' : done ? '完成' : '等待'}
+                                    {active ? '进行中' : failed || hasFailed ? '异常' : reviewNeeded ? '复核' : done ? '完成' : '等待'}
                                 </span>
                             </div>
                             <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{stage.description}</p>
