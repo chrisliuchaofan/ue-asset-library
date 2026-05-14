@@ -697,6 +697,8 @@ export default function ReviewDashboard() {
                                         </Button>
                                         <Link
                                             href={`/materials/${selectedMaterial.id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                         >
                                             <ExternalLink className="h-3.5 w-3.5" />
