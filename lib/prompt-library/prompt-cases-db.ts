@@ -175,7 +175,7 @@ async function getMaterialMap(ids: string[], teamId?: string): Promise<Map<strin
     .select('id,name,type,thumbnail,src,gallery')
     .in('id', uniqueIds);
 
-  request = teamId ? request.eq('team_id', teamId) : request.is('team_id', null);
+  if (teamId) request = request.eq('team_id', teamId);
 
   const { data, error } = await request;
   if (error) throw new Error(`Failed to query prompt case materials: ${error.message}`);

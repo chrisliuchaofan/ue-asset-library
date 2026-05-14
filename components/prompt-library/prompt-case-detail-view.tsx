@@ -123,7 +123,7 @@ export function PromptCaseDetailView({ id, initialItem }: { id: string; initialI
                     poster={item.coverUrl}
                     controls
                     playsInline
-                    preload="metadata"
+                    preload="auto"
                     className="h-full w-full rounded-md object-contain"
                   />
                 ) : (

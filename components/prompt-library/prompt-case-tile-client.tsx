@@ -5,7 +5,15 @@ import { Film, ImageIcon } from 'lucide-react';
 import type { PromptCase } from '@/lib/prompt-library/types';
 import { HardNavLink } from './hard-nav-link';
 
-export function PromptCaseCard({ item, onOpen }: { item: PromptCase; onOpen?: (id: string) => void }) {
+export function PromptCaseCard({
+  item,
+  onOpen,
+  mediaPaused = false,
+}: {
+  item: PromptCase;
+  onOpen?: (id: string) => void;
+  mediaPaused?: boolean;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState('9 / 16');
   const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
@@ -13,13 +21,18 @@ export function PromptCaseCard({ item, onOpen }: { item: PromptCase; onOpen?: (i
   const videoSrc = `/api/prompt-library/media/${encodeURIComponent(item.id)}`;
 
   useEffect(() => {
-    if (!isHovering || !shouldLoadVideo) return;
     const video = videoRef.current;
     if (!video) return;
+    if (mediaPaused) {
+      video.pause();
+      return;
+    }
+    if (!isHovering || !shouldLoadVideo) return;
     video.play().catch(() => {});
-  }, [isHovering, shouldLoadVideo]);
+  }, [isHovering, mediaPaused, shouldLoadVideo]);
 
   function playPreview() {
+    if (mediaPaused) return;
     setIsHovering(true);
     setShouldLoadVideo(true);
   }
@@ -51,7 +64,7 @@ export function PromptCaseCard({ item, onOpen }: { item: PromptCase; onOpen?: (i
     >
       <HardNavLink href={`/prompt-library/${item.id}`} onClick={openCase} className="block">
         <div className="relative overflow-hidden rounded-xl bg-transparent" style={{ aspectRatio }}>
-          {item.mediaType === 'video' && item.mediaUrl && (!item.coverUrl || shouldLoadVideo) ? (
+          {item.mediaType === 'video' && item.mediaUrl && !mediaPaused && (!item.coverUrl || shouldLoadVideo) ? (
             <video
               ref={videoRef}
               src={videoSrc}
@@ -80,6 +93,10 @@ export function PromptCaseCard({ item, onOpen }: { item: PromptCase; onOpen?: (i
               }}
               className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
             />
+          ) : item.mediaType === 'video' ? (
+            <div className="flex h-full w-full items-center justify-center bg-black text-white/35">
+              <Film className="h-10 w-10" />
+            </div>
           ) : item.coverUrl || item.mediaUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

@@ -262,7 +262,7 @@ export function PromptGalleryClient() {
         ) : (
           <section className="prompt-library-gallery mt-4" style={{ columnCount: galleryColumns, columnGap: '1rem' }}>
             {filtered.map((item) => (
-              <PromptCaseCard key={item.id} item={item} onOpen={openCaseDetail} />
+              <PromptCaseCard key={item.id} item={item} onOpen={openCaseDetail} mediaPaused={Boolean(activeCaseId)} />
             ))}
           </section>
         )}
