@@ -970,6 +970,206 @@ export interface Database {
           [key: string]: any
         }
       }
+      team_business_permissions: {
+        Row: {
+          id: string
+          team_id: string
+          user_email: string
+          permission: string
+          granted_by_email: string
+          granted_at: string
+          expires_at: string | null
+          metadata: Json
+          created_at: string
+          updated_at: string
+          [key: string]: any
+        }
+        Insert: {
+          id?: string
+          team_id: string
+          user_email: string
+          permission: string
+          granted_by_email: string
+          granted_at?: string
+          expires_at?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+          [key: string]: any
+        }
+        Update: {
+          id?: string
+          team_id?: string
+          user_email?: string
+          permission?: string
+          granted_by_email?: string
+          granted_at?: string
+          expires_at?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+          [key: string]: any
+        }
+      }
+      team_permission_requests: {
+        Row: {
+          id: string
+          team_id: string
+          user_email: string
+          permission: string
+          project: string | null
+          reason: string | null
+          status: string
+          requested_at: string
+          decided_by_email: string | null
+          decided_at: string | null
+          decision_note: string | null
+          metadata: Json
+          created_at: string
+          updated_at: string
+          [key: string]: any
+        }
+        Insert: {
+          id?: string
+          team_id: string
+          user_email: string
+          permission: string
+          project?: string | null
+          reason?: string | null
+          status?: string
+          requested_at?: string
+          decided_by_email?: string | null
+          decided_at?: string | null
+          decision_note?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+          [key: string]: any
+        }
+        Update: {
+          id?: string
+          team_id?: string
+          user_email?: string
+          permission?: string
+          project?: string | null
+          reason?: string | null
+          status?: string
+          requested_at?: string
+          decided_by_email?: string | null
+          decided_at?: string | null
+          decision_note?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+          [key: string]: any
+        }
+      }
+      user_upload_records: {
+        Row: {
+          id: string
+          team_id: string
+          user_email: string
+          project: string
+          material_id: string | null
+          material_version: number
+          file_name: string | null
+          file_type: string | null
+          file_size: number | null
+          file_hash: string | null
+          oss_key: string | null
+          file_url: string | null
+          upload_source: string
+          review_status: string
+          metadata: Json
+          created_at: string
+          updated_at: string
+          [key: string]: any
+        }
+        Insert: {
+          id?: string
+          team_id: string
+          user_email: string
+          project: string
+          material_id?: string | null
+          material_version?: number
+          file_name?: string | null
+          file_type?: string | null
+          file_size?: number | null
+          file_hash?: string | null
+          oss_key?: string | null
+          file_url?: string | null
+          upload_source?: string
+          review_status?: string
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+          [key: string]: any
+        }
+        Update: {
+          id?: string
+          team_id?: string
+          user_email?: string
+          project?: string
+          material_id?: string | null
+          material_version?: number
+          file_name?: string | null
+          file_type?: string | null
+          file_size?: number | null
+          file_hash?: string | null
+          oss_key?: string | null
+          file_url?: string | null
+          upload_source?: string
+          review_status?: string
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+          [key: string]: any
+        }
+      }
+      operation_audit_logs: {
+        Row: {
+          id: string
+          team_id: string | null
+          actor_email: string
+          action: string
+          target_type: string | null
+          target_id: string | null
+          target_user_email: string | null
+          project: string | null
+          material_id: string | null
+          metadata: Json
+          created_at: string
+          [key: string]: any
+        }
+        Insert: {
+          id?: string
+          team_id?: string | null
+          actor_email: string
+          action: string
+          target_type?: string | null
+          target_id?: string | null
+          target_user_email?: string | null
+          project?: string | null
+          material_id?: string | null
+          metadata?: Json
+          created_at?: string
+          [key: string]: any
+        }
+        Update: {
+          id?: string
+          team_id?: string | null
+          actor_email?: string
+          action?: string
+          target_type?: string | null
+          target_id?: string | null
+          target_user_email?: string | null
+          project?: string | null
+          material_id?: string | null
+          metadata?: Json
+          created_at?: string
+          [key: string]: any
+        }
+      }
       // ==================== W3.1: 知识访谈 ====================
       knowledge_interviews: {
         Row: {
